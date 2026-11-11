@@ -1,10 +1,11 @@
 /**
  * The chat's interactions as plain functions (db-free, client-safe): hold to record, reactions (and their polling
- * updates), reply quotes, conversation starters, the empty chat hint and the typing throttle. Same rules as the app (hold_to_record.dart,
+ * updates), reply quotes, conversation starters, the empty chat hint, the typing throttle and chat delete (traces, hides). Same rules as the app (hold_to_record.dart,
  * message_menu.dart, starter_chips.dart).
  */
 import type { ChatReaction } from "@/lib/chat/reactions";
 import { replySnippet, type ReplyQuote } from "@/lib/chat/reply";
+import { DELETED_TRACE } from "@/lib/chat/visibility";
 import type { UiMessage } from "./chat-utils";
 
 /** Slide this far towards the start edge while holding the mic: the recording is thrown away */
@@ -127,4 +128,47 @@ export function createThrottle(fn: () => void, windowMs: number, now: () => numb
     last = -Infinity;
   };
   return throttled;
+}
+
+/** A quote of a message gone from my view (deleted for everyone, hidden or cleared) reads as the trace, as the server sends it */
+function traceQuotes<T extends UiMessage>(list: T[], gone: ReadonlySet<string>): T[] {
+  return list.map((m) =>
+    m.replyTo && gone.has(m.replyTo.id) && m.replyTo.snippet !== DELETED_TRACE
+      ? { ...m, replyTo: { ...m.replyTo, kind: "TEXT" as const, snippet: DELETED_TRACE } }
+      : m
+  );
+}
+
+/**
+ * Messages deleted for everyone become the trace (the same shape the server sends: text «تم حذف الرسالة», no media,
+ * quote or reactions), and quotes of them read as the trace. The same list back when there is nothing to apply.
+ */
+export function applyDeletions<T extends UiMessage>(list: T[], ids: readonly string[]): T[] {
+  if (ids.length === 0) return list;
+  const gone = new Set(ids);
+  const traced = list.map((m) =>
+    gone.has(m.id) ? { ...m, deleted: true, body: DELETED_TRACE, kind: "TEXT" as const, media: null, replyTo: null, reactions: [] } : m
+  );
+  return traceQuotes(traced, gone);
+}
+
+/**
+ * Drops what left my view: messages I hid (`ids`) and every saved message at or before my clear point. Sends still
+ * on their way (pending) stay. Quotes of dropped messages read as the trace. The same list back when nothing applies.
+ */
+export function dropHidden<T extends UiMessage>(list: T[], ids: readonly string[], clearedBefore: string | null): T[] {
+  if (ids.length === 0 && !clearedBefore) return list;
+  const hidden = new Set(ids);
+  const cutoff = clearedBefore ? Date.parse(clearedBefore) : NaN;
+  const gone = new Set<string>();
+  const kept = list.filter((m) => {
+    if (m.pending) return true;
+    if (hidden.has(m.id) || (!Number.isNaN(cutoff) && Date.parse(m.createdAt) <= cutoff)) {
+      gone.add(m.id);
+      return false;
+    }
+    return true;
+  });
+  if (gone.size === 0) return list;
+  return traceQuotes(kept, new Set([...gone, ...hidden]));
 }

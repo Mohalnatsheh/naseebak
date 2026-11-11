@@ -23,8 +23,12 @@ export function chatChannelName(conversationId: string): string {
   return `chat:${conversationId}`;
 }
 
-/** `reaction` {messageId, reactions: {emoji, userId}[]} and `typing` {userId} are additive: old apps ignore them */
-export type ChatEventName = "message" | "read" | "status" | "reaction" | "typing";
+/**
+ * `reaction` {messageId, reactions: {emoji, userId}[]} and `typing` {userId} are additive: old apps ignore them.
+ * Chat delete (Pro): `deleted` {messageId} (deleted for everyone: show the trace) and `cleared` {before: ISO} (cleared
+ * for everyone: drop every message at or before it), additive too
+ */
+export type ChatEventName = "message" | "read" | "status" | "reaction" | "typing" | "deleted" | "cleared";
 
 export async function publishChatEvent(conversationId: string, name: ChatEventName, data: unknown): Promise<void> {
   const ably = client();

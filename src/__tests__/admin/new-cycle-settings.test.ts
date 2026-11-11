@@ -21,7 +21,7 @@ vi.mock("@/lib/auth", () => ({
   requireAdmin: vi.fn(async () => ({ session: { user: { id: "admin1", role: "ADMIN" } } })),
 }));
 
-import { PATCH } from "@/app/api/admin/settings/new-cycle/route";
+import { GET, PATCH } from "@/app/api/admin/settings/new-cycle/route";
 
 const patch = async (body: object) =>
   (await PATCH(
@@ -124,5 +124,15 @@ describe("new-cycle settings PATCH", () => {
     await patch({ proEnabled: false });
     expect(store.value.pro_enabled).toBe("false");
     expect((await patch({ proEnabled: "yes" })).status).toBe(400);
+  });
+
+  it("reads and saves chat_delete_enabled", async () => {
+    store.value.chat_delete_enabled = "true";
+    expect((await (await GET()).json()).chatDeleteEnabled).toBe(true);
+    store.value.chat_delete_enabled = "false";
+    expect((await (await GET()).json()).chatDeleteEnabled).toBe(false);
+    const res = await patch({ chatDeleteEnabled: true });
+    expect(settings.setSetting).toHaveBeenCalledWith("chat_delete_enabled", "true");
+    expect((await res.json()).chatDeleteEnabled).toBe(true);
   });
 });

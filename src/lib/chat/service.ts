@@ -36,6 +36,7 @@ import { type ChatReaction, type ReactionEmoji, reactionsFor } from "@/lib/chat/
 import { type ReplyQuote, replySnippet } from "@/lib/chat/reply";
 import { clearTyping, isTyping, noteTyping } from "@/lib/chat/typing";
 import { chatStarters } from "@/lib/chat/starters";
+import { DELETED_TRACE, hiddenForViewer, viewerCutoff, visibleMessageWhere } from "@/lib/chat/visibility";
 import { activityLabel } from "@/lib/suggestions/feed";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -108,10 +109,22 @@ export interface ChatMessage {
   replyTo: ReplyQuote | null;
   /** One per member at most; `mine` only, never who else reacted */
   reactions: ChatReaction[];
+  /** Deleted for everyone (sent only when true): `body` is the trace, kind TEXT, no media, quote or reactions */
+  deleted?: boolean;
 }
 
 /** The quoted message as loaded with a message (body is already filtered; never mediaPath) */
-type QuotedRow = { id: string; conversationId: string; senderId: string; kind?: MessageKindValue | null; body: string };
+type QuotedRow = {
+  id: string;
+  conversationId: string;
+  senderId: string;
+  kind?: MessageKindValue | null;
+  body: string;
+  deletedAt?: Date | null;
+  createdAt?: Date;
+  /** The viewer's own hide only */
+  hides?: { userId: string }[];
+};
 
 /** The message fields toMessage() reads (mediaPath is never read here, so it can't leak) */
 type MessageRow = {
@@ -128,13 +141,27 @@ type MessageRow = {
   mediaHeight?: number | null;
   replyTo?: QuotedRow | null;
   reactions?: { emoji: string; userId: string }[];
+  deletedAt?: Date | null;
 };
 
-/** Loaded with every message sent to a client: the quote and the reactions (in the order they were made) */
-const messageInclude = {
-  replyTo: { select: { id: true, conversationId: true, senderId: true, kind: true, body: true } },
-  reactions: { select: { emoji: true, userId: true }, orderBy: { createdAt: "asc" } },
-} as const;
+const reactionsInclude = { select: { emoji: true, userId: true }, orderBy: { createdAt: "asc" } } as const;
+
+/**
+ * Loaded with every message sent to a client: the quote (with what decides whether the viewer may still see it) and
+ * the reactions (in the order they were made). `hides` holds only the viewer's own hide.
+ */
+function messageIncludeFor(userId: string) {
+  const mine = { where: { userId }, select: { userId: true } } as const;
+  return {
+    replyTo: {
+      select: {
+        id: true, conversationId: true, senderId: true, kind: true, body: true, deletedAt: true, createdAt: true, hides: mine,
+      },
+    },
+    reactions: reactionsInclude,
+    hides: mine,
+  } as const;
+}
 
 const partyUser = {
   select: { id: true, firstName: true, isVerified: true, status: true, isDeactivated: true, country: true, lastActiveAt: true },
@@ -154,7 +181,7 @@ function findConversation(id: string) {
  * chat stays readable for me so I can keep what was said and report it (a harasser who blocks first
  * must not silence the other person). Sending and extending still refuse it.
  */
-async function loadForUser(id: string, userId: string, opts: { readOnly?: boolean } = {}): Promise<LoadedConversation> {
+export async function loadForUser(id: string, userId: string, opts: { readOnly?: boolean } = {}): Promise<LoadedConversation> {
   const c = await findConversation(id);
   if (!c || (c.match.femaleId !== userId && c.match.maleId !== userId)) {
     throw new IntroError("NOT_FOUND", "المحادثة غير موجودة");
@@ -285,7 +312,7 @@ async function housekeep(c: LoadedConversation): Promise<{ c: LoadedConversation
 function summarise(
   c: LoadedConversation,
   userId: string,
-  last: { body: string; kind?: string | null; createdAt: Date; senderId: string; readAt: Date | null } | null,
+  last: { body: string; kind?: string | null; createdAt: Date; senderId: string; readAt: Date | null; deletedAt?: Date | null } | null,
   unread: number,
   blocked = false,
   matchHidden = false,
@@ -311,7 +338,7 @@ function summarise(
     blocked,
     matchHidden,
     lastMessage: last
-      ? { body: previewBody(last), createdAt: last.createdAt.toISOString(), mine: last.senderId === userId, read: last.readAt !== null }
+      ? { body: last.deletedAt ? DELETED_TRACE : previewBody(last), createdAt: last.createdAt.toISOString(), mine: last.senderId === userId, read: last.readAt !== null }
       : null,
     unread,
   };
@@ -321,14 +348,36 @@ function toMedia(m: MessageRow): ChatMedia | null {
   return messageMedia(m);
 }
 
-/** The quote of a reply, only from the same chat (checked again here, so another chat's text can never show) */
-function toReplyQuote(m: MessageRow, userId: string): ReplyQuote | null {
+/**
+ * The quote of a reply, only from the same chat (checked again here, so another chat's text can never show). A quoted
+ * message deleted for everyone, hidden by the viewer or cleared from their view quotes as the trace.
+ */
+function toReplyQuote(m: MessageRow, userId: string, cutoff: Date | null): ReplyQuote | null {
   const q = m.replyTo;
   if (!q || q.conversationId !== m.conversationId) return null;
+  const gone = !!q.deletedAt
+    || (q.createdAt ? hiddenForViewer({ createdAt: q.createdAt, hides: q.hides }, userId, cutoff) : !!q.hides?.some((h) => h.userId === userId));
+  if (gone) return { id: q.id, mine: q.senderId === userId, kind: "TEXT", snippet: DELETED_TRACE };
   return { id: q.id, mine: q.senderId === userId, kind: q.kind ?? "TEXT", snippet: replySnippet(q) };
 }
 
-function toMessage(m: MessageRow, userId: string): ChatMessage {
+/** `cutoff`: the viewer's clear point (viewerCutoff), for reply quotes */
+function toMessage(m: MessageRow, userId: string, cutoff: Date | null = null): ChatMessage {
+  // Deleted for everyone: the trace as plain text, so every app version (1.0.x–1.2.x included) shows only that
+  if (m.deletedAt) {
+    return {
+      id: m.id,
+      body: DELETED_TRACE,
+      createdAt: m.createdAt.toISOString(),
+      mine: m.senderId === userId,
+      readAt: m.readAt ? m.readAt.toISOString() : null,
+      kind: "TEXT",
+      media: null,
+      replyTo: null,
+      reactions: [],
+      deleted: true,
+    };
+  }
   return {
     id: m.id,
     body: m.body,
@@ -337,7 +386,7 @@ function toMessage(m: MessageRow, userId: string): ChatMessage {
     readAt: m.readAt ? m.readAt.toISOString() : null,
     kind: m.kind ?? "TEXT",
     media: toMedia(m),
-    replyTo: toReplyQuote(m, userId),
+    replyTo: toReplyQuote(m, userId, cutoff),
     reactions: reactionsFor(m.reactions, userId),
   };
 }
@@ -355,10 +404,22 @@ export async function listConversations(userId: string): Promise<ChatSummary[]> 
     where: { match: { OR: [{ femaleId: userId }, { maleId: userId }] } },
     include: {
       ...conversationInclude,
-      messages: { orderBy: { createdAt: "desc" }, take: 1, select: { body: true, kind: true, createdAt: true, senderId: true, readAt: true } },
+      // My newest message not hidden by me; a chat clear is applied below (it differs per chat)
+      messages: {
+        where: { hides: { none: { userId } } },
+        orderBy: { createdAt: "desc" },
+        take: 1,
+        select: { body: true, kind: true, createdAt: true, senderId: true, readAt: true, deletedAt: true },
+      },
       _count: { select: { messages: { where: { readAt: null, senderId: { not: userId } } } } },
     },
   });
+  const myClears = rows.length
+    ? new Map(
+        (await db.conversationClear.findMany({ where: { userId }, select: { conversationId: true, clearedAt: true } }))
+          .map((cl) => [cl.conversationId, cl.clearedAt]),
+      )
+    : new Map<string, Date>();
   // Same read-only flag as the chat page: a block either way
   const blocks = rows.length
     ? await db.block.findMany({
@@ -375,8 +436,12 @@ export async function listConversations(userId: string): Promise<ChatSummary[]> 
   for (const row of rows) {
     const c = await housekeeping(row);
     const partnerId = partnerOf(c, userId).id;
+    // The newest message at or before my clear point means everything is cleared for me: no preview
+    const cutoff = viewerCutoff(row.clearedAt ?? null, myClears.get(row.id) ?? null);
+    const newest = row.messages[0] ?? null;
+    const last = newest && !hiddenForViewer(newest, userId, cutoff) ? newest : null;
     summaries.push(
-      summarise(c, userId, row.messages[0] ?? null, row._count.messages, blockedWith.has(partnerId), blockedMeBy.has(partnerId), pros.has(partnerId))
+      summarise(c, userId, last, row._count.messages, blockedWith.has(partnerId), blockedMeBy.has(partnerId), pros.has(partnerId))
     );
   }
   const activity = (s: ChatSummary) => new Date(s.lastMessage?.createdAt ?? 0).getTime();
@@ -511,43 +576,77 @@ export async function getConversation(
   /** Polls (?after=) with `reactionsSince` only: every message whose reactions changed since then, with all of them
    *  (an empty list = the last one was removed). The polling fallback for the Ably `reaction` event */
   reactionUpdates?: { messageId: string; reactions: ChatReaction[] }[];
+  /** My clear point (the later of a chat-wide clear and my own), always sent: clients drop loaded messages at or before it */
+  clearedBefore: string | null;
+  /** Polls with `reactionsSince` only: messages deleted for everyone since then (clients show the trace) */
+  deletedIds?: string[];
+  /** Polls with `reactionsSince` only: messages I hid since then (my other devices drop them) */
+  hiddenIds?: string[];
 }> {
   const polledAt = new Date().toISOString();
-  const c = await loadForUser(id, userId, { readOnly: true });
-  const limit = Math.min(Math.max(opts.limit ?? 30, 1), 100);
+  const firstPage = !opts.after && !opts.before;
+  const [c, myClear, deletionState] = await Promise.all([
+    loadForUser(id, userId, { readOnly: true }),
+    db.conversationClear.findUnique({ where: { conversationId_userId: { conversationId: id, userId } }, select: { clearedAt: true } }),
+    // First page only: any message deleted for everyone, or hidden by me, in this chat (one indexed lookup, stops at the first)
+    firstPage
+      ? db.message.findFirst({
+          where: { conversationId: id, OR: [{ deletedAt: { not: null } }, { hides: { some: { userId } } }] },
+          select: { id: true },
+        })
+      : null,
+  ]);
+  const cutoff = viewerCutoff(c.clearedAt ?? null, myClear?.clearedAt ?? null);
+  // Hides and clears are applied in SQL, so paging (`take: limit + 1`, `hasMore`) stays right
+  const visible = visibleMessageWhere(id, userId, cutoff);
+  const include = messageIncludeFor(userId);
+  // Apps 1.0.0–1.2.x keep the newest 100 messages on the device and only replace the part the first page covers: in a
+  // chat with a deletion, a hide or a clear the first page is 100 long, so a deleted or cleared message never survives
+  // in that cache once the chat is reopened. Older pages (`before`) and polls (`after`) are unchanged
+  const limit = firstPage && (cutoff || deletionState) ? 100 : Math.min(Math.max(opts.limit ?? 30, 1), 100);
 
   // Two messages can share a millisecond: pages are ordered by (createdAt, id), and a cursor that is only a time is
   // inclusive (clients merge by id), so a message on a page boundary is never skipped
   let messages;
   let hasMore = false;
+  /** The newest row of the page (the conversation's last message) */
+  let last: MessageRow | null = null;
   if (opts.after) {
+    // Only rows from `after` on (a row deleted for everyone comes back as the trace). Older messages deleted since then
+    // are NOT added here: shipped apps insert unknown poll rows into the thread, above a gap that older pages then skip.
+    // Their ids go in `deletedIds` (polls with `reactionsSince`) instead; older apps see the trace on their next full load
     messages = await db.message.findMany({
-      where: { conversationId: id, createdAt: { gte: new Date(opts.after) } },
+      where: { AND: [visible, { createdAt: { gte: new Date(opts.after) } }] },
       orderBy: [{ createdAt: "asc" }, { id: "asc" }],
       take: 100,
-      include: messageInclude,
+      include,
     });
+    last = messages.length ? messages[messages.length - 1] : null;
   } else {
     const before = opts.before ? new Date(opts.before) : null;
     const page = await db.message.findMany({
       where: {
-        conversationId: id,
-        ...(before &&
-          (opts.beforeId
-            ? { OR: [{ createdAt: { lt: before } }, { createdAt: before, id: { lt: opts.beforeId } }] }
-            : { createdAt: { lte: before } })),
+        AND: [
+          visible,
+          before
+            ? opts.beforeId
+              ? { OR: [{ createdAt: { lt: before } }, { createdAt: before, id: { lt: opts.beforeId } }] }
+              : { createdAt: { lte: before } }
+            : {},
+        ],
       },
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       take: limit + 1,
-      include: messageInclude,
+      include,
     });
     hasMore = page.length > limit;
     messages = page.slice(0, limit).reverse();
+    last = messages.length ? messages[messages.length - 1] : null;
   }
 
   const partnerId = partnerOf(c, userId).id;
   const reactionsSince = opts.after && opts.reactionsSince ? new Date(opts.reactionsSince) : null;
-  const [unread, blocked, blockedMe, partnerPro, lastRead, sentByMe, reacted, sentByPartner] = await Promise.all([
+  const [unread, blocked, blockedMe, partnerPro, lastRead, sentByMe, reacted, sentByPartner, deleted, hidden] = await Promise.all([
     db.message.count({ where: { conversationId: id, readAt: null, senderId: { not: userId } } }),
     isBlocked(userId, partnerId),
     db.block.findFirst({ where: { blockerId: partnerId, blockedId: userId }, select: { id: true } }),
@@ -564,7 +663,7 @@ export async function getConversation(
     reactionsSince
       ? db.message.findMany({
           where: { conversationId: id, reactedAt: { gte: reactionsSince } },
-          select: { id: true, reactions: messageInclude.reactions },
+          select: { id: true, reactions: reactionsInclude },
           // Newest changes first: each entry carries the message's full reactions, so order doesn't matter to clients,
           // and after a long gap the cap drops the oldest changes, not the newest (final review minor 7)
           orderBy: { reactedAt: "desc" },
@@ -572,17 +671,36 @@ export async function getConversation(
         })
       : null,
     db.message.count({ where: { conversationId: id, senderId: partnerId }, take: 1 }),
+    reactionsSince
+      ? db.message.findMany({
+          where: { conversationId: id, deletedAt: { gte: reactionsSince } },
+          select: { id: true },
+          // Newest first, so the cap drops the oldest
+          orderBy: { deletedAt: "desc" },
+          take: 200,
+        })
+      : null,
+    reactionsSince
+      ? db.messageHide.findMany({
+          where: { userId, createdAt: { gte: reactionsSince }, message: { conversationId: id } },
+          select: { messageId: true },
+          orderBy: { createdAt: "desc" },
+          take: 200,
+        })
+      : null,
   ]);
-  const last = messages.length ? messages[messages.length - 1] : null;
   const open = c.status === "ACTIVE" && !blocked && !blockedMe;
   return {
     conversation: summarise(c, userId, last, unread, blocked, !!blockedMe, partnerPro),
-    messages: messages.map((m) => toMessage(m, userId)),
+    messages: messages.map((m) => toMessage(m, userId, cutoff)),
     hasMore,
     partnerTyping: open && isTyping(id, partnerId),
     starters: open && sentByMe === 0 ? chatStarters(userId === c.match.femaleId ? "FEMALE" : "MALE") : [],
     bothWrote: sentByMe > 0 && sentByPartner > 0,
     polledAt,
+    clearedBefore: cutoff ? cutoff.toISOString() : null,
+    ...(deleted && { deletedIds: deleted.map((m) => m.id) }),
+    ...(hidden && { hiddenIds: hidden.map((h) => h.messageId) }),
     ...(reacted && { reactionUpdates: reacted.map((m) => ({ messageId: m.id, reactions: reactionsFor(m.reactions, userId) })) }),
     ...(opts.after && {
       readUpTo: lastRead?.readAt ? { createdAt: lastRead.createdAt.toISOString(), readAt: lastRead.readAt.toISOString() } : null,
@@ -641,8 +759,17 @@ function onceByNonce(
 /** The message already saved under this nonce (the answer was lost): returned again, never a second copy */
 async function savedByNonce(conversationId: string, senderId: string, clientNonce?: string): Promise<ChatMessage | null> {
   if (!clientNonce) return null;
-  const saved = await db.message.findFirst({ where: { conversationId, senderId, clientNonce }, include: messageInclude });
-  return saved ? toMessage(saved, senderId) : null;
+  const saved = await db.message.findFirst({ where: { conversationId, senderId, clientNonce }, include: messageIncludeFor(senderId) });
+  if (!saved) return null;
+  // The sender's clear point, as on a read: a quote of a message cleared since comes back as the trace
+  const [chat, myClear] = await Promise.all([
+    db.conversation.findUnique({ where: { id: conversationId }, select: { clearedAt: true } }),
+    db.conversationClear.findUnique({
+      where: { conversationId_userId: { conversationId, userId: senderId } },
+      select: { clearedAt: true },
+    }),
+  ]);
+  return toMessage(saved, senderId, viewerCutoff(chat?.clearedAt ?? null, myClear?.clearedAt ?? null));
 }
 
 type SendContext = {
@@ -716,7 +843,7 @@ async function createMessage(args: SendArgs): Promise<ChatMessage> {
 
   const message = await db.message.create({
     data: { conversationId, senderId, body: check.text, clientNonce: clientNonce ?? null, ...(replyToId && { replyToId }) },
-    include: messageInclude,
+    include: messageIncludeFor(senderId),
   });
   return delivered(message, { c, partner, sender }, clientNonce);
 }
@@ -725,7 +852,8 @@ async function createMessage(args: SendArgs): Promise<ChatMessage> {
 async function delivered(message: MessageRow, ctx: SendContext, clientNonce?: string): Promise<ChatMessage> {
   const { partner, sender } = ctx;
   const { conversationId, senderId } = message;
-  const out = toMessage(message, senderId);
+  // Both members get this event: a quote of a message cleared for everyone reads as the trace for both
+  const out = toMessage(message, senderId, ctx.c.clearedAt ?? null);
   clearTyping(conversationId, senderId);
   // `kind`, `media` and `replyTo` are additive: old apps read `body` (the fallback text for media). The quote carries
   // its sender's id instead of `mine` (both sides get this event); a new message has no reactions yet
@@ -839,7 +967,7 @@ async function createMediaMessage(args: MediaSendArgs): Promise<ChatMessage> {
         ...media,
         ...(replyToId && { replyToId }),
       },
-      include: messageInclude,
+      include: messageIncludeFor(senderId),
     });
   } catch (error) {
     await deleteFromBunny(upload.path).catch(() => {});
@@ -869,8 +997,11 @@ export async function setReaction(args: {
 }): Promise<{ reactions: ChatReaction[] }> {
   const { conversationId, messageId, userId, emoji } = args;
   await assertCanSend(conversationId, userId);
-  const message = await db.message.findUnique({ where: { id: messageId }, select: { id: true, conversationId: true } });
-  if (!message || message.conversationId !== conversationId) throw new IntroError("NOT_FOUND", "الرسالة غير موجودة");
+  const message = await db.message.findUnique({ where: { id: messageId }, select: { id: true, conversationId: true, deletedAt: true } });
+  // Deleted for everyone: shown as the trace, which takes no reactions
+  if (!message || message.conversationId !== conversationId || message.deletedAt) {
+    throw new IntroError("NOT_FOUND", "الرسالة غير موجودة");
+  }
   assertReactionRate(userId);
 
   const where = { messageId_userId: { messageId, userId } };

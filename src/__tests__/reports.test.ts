@@ -77,6 +77,30 @@ describe("fileReport", () => {
     expect(text).toContain("الرسالة المُبلَّغ عنها: «كلام مسيء»");
   });
 
+  it("the admin email marks a reported message deleted for everyone, and a chat cleared for everyone", async () => {
+    db.report.findUnique.mockResolvedValue(null);
+    db.message.findUnique.mockResolvedValue({ kind: "TEXT", body: "كلام مسيء", deletedAt: new Date("2026-11-11T08:00:00Z") });
+    db.conversation.findUnique.mockResolvedValue({ clearedAt: new Date("2026-11-11T09:00:00Z") });
+    await fileReport({ reporterId: "a", reportedId: "b", reason: "HARASSMENT", conversationId: "c1", messageId: "m9" });
+    await vi.waitFor(() => expect(alert.sendAdminAlert).toHaveBeenCalled());
+    const [, text] = alert.sendAdminAlert.mock.calls[0] as unknown as [string, string];
+    expect(text).toContain("«كلام مسيء» [Deleted for everyone by sender]");
+    expect(text).toContain("Chat cleared for everyone (2026-11-11T09:00:00.000Z)");
+    expect(db.message.findUnique).toHaveBeenCalledWith(expect.objectContaining({ select: expect.objectContaining({ deletedAt: true }) }));
+    expect(db.conversation.findUnique).toHaveBeenCalledWith({ where: { id: "c1" }, select: { clearedAt: true } });
+  });
+
+  it("no markers when nothing was deleted or cleared", async () => {
+    db.report.findUnique.mockResolvedValue(null);
+    db.message.findUnique.mockResolvedValue({ kind: "TEXT", body: "كلام", deletedAt: null });
+    db.conversation.findUnique.mockResolvedValue({ clearedAt: null });
+    await fileReport({ reporterId: "a", reportedId: "b", reason: "HARASSMENT", conversationId: "c1", messageId: "m9" });
+    await vi.waitFor(() => expect(alert.sendAdminAlert).toHaveBeenCalled());
+    const [, text] = alert.sendAdminAlert.mock.calls[0] as unknown as [string, string];
+    expect(text).not.toContain("Deleted for everyone");
+    expect(text).not.toContain("Chat cleared");
+  });
+
   it("never flags the member or pauses their chats, however many reports (owner, 2026-11-07)", async () => {
     db.report.findUnique.mockResolvedValue(null);
     db.report.count.mockResolvedValue(5);
@@ -162,6 +186,26 @@ describe("snapshotReportEvidence", () => {
     expect(msgs).toEqual([
       { at: "2026-10-01T10:00:00.000Z", from: "reporter", body: "مرحبا" },
       { at: "2026-10-02T10:00:00.000Z", from: "reported", body: "مسيء", reported: true },
+    ]);
+  });
+
+  it("marks messages deleted for everyone and a chat cleared for everyone in the saved chat", async () => {
+    db.report.findMany.mockResolvedValue([{ id: "r1", reporterId: "a", reportedId: "b", conversationId: "c1", messageId: "m2" }]);
+    db.user.findMany.mockResolvedValue([]);
+    db.conversation.findUnique.mockResolvedValue({ id: "c1", clearedAt: new Date("2026-10-03T10:00:00Z") });
+    db.message.findMany.mockResolvedValue([
+      { id: "m2", senderId: "b", body: "مسيء", createdAt: new Date("2026-10-02T10:00:00Z"), deletedAt: new Date("2026-10-02T11:00:00Z") },
+      { id: "m1", senderId: "a", body: "مرحبا", createdAt: new Date("2026-10-01T10:00:00Z"), deletedAt: null },
+    ]);
+    await snapshotReportEvidence("b");
+    expect(db.conversation.findUnique.mock.calls[0][0].select).toMatchObject({ clearedAt: true });
+    expect(db.message.findMany.mock.calls[0][0].select).toMatchObject({ deletedAt: true });
+    const chat = db.report.updateMany.mock.calls[0][0].data.evidence.chat;
+    expect(chat.clearedAt).toBe("2026-10-03T10:00:00.000Z");
+    expect(chat.messages).toEqual([
+      { at: "2026-10-01T10:00:00.000Z", from: "reporter", body: "مرحبا" },
+      // The original text is kept for admins, with the marker
+      { at: "2026-10-02T10:00:00.000Z", from: "reported", body: "مسيء", reported: true, deleted: true },
     ]);
   });
 

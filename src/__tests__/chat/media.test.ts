@@ -3,6 +3,9 @@ import sharp from "sharp";
 import { NextResponse } from "next/server";
 
 const db = vi.hoisted(() => ({
+  // Chat delete (task 3): my clear and my hides, none here
+  conversationClear: { findUnique: vi.fn(async () => null), findMany: vi.fn(async () => []) },
+  messageHide: { findMany: vi.fn(async () => []) },
   conversation: { findUnique: vi.fn(), findMany: vi.fn(), findFirst: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
   message: { create: vi.fn(), findMany: vi.fn(), findFirst: vi.fn(), findUnique: vi.fn(), updateMany: vi.fn(), count: vi.fn() },
   block: { findFirst: vi.fn(), findMany: vi.fn(), create: vi.fn() },
@@ -449,7 +452,8 @@ describe("GET /api/chats/[id]/media/[messageId]", () => {
   const AUDIO = Buffer.from(Array.from({ length: 1000 }, (_, i) => i % 256));
   const row = (over: object = {}) => ({
     id: "v1", conversationId: "c1", kind: "VOICE", mediaPath: "chat/c1/secret.m4a", mediaType: "audio/mp4",
-    conversation: { match: { femaleId: "f1", maleId: "u1" } },
+    createdAt: new Date(Date.now() - 1000), deletedAt: null, hides: [],
+    conversation: { clearedAt: null, match: { femaleId: "f1", maleId: "u1" } },
     ...over,
   });
   const call = (headers: Record<string, string> = {}, id = "c1", messageId = "v1") =>
@@ -462,6 +466,45 @@ describe("GET /api/chats/[id]/media/[messageId]", () => {
     db.message.findUnique.mockResolvedValue(row());
     bunny.readFromBunny.mockResolvedValue(AUDIO);
     auth.requireAdmin.mockResolvedValue(forbidden());
+  });
+
+  it("media of a deleted message is 404 for both members and never read", async () => {
+    db.message.findUnique.mockResolvedValue(row({ deletedAt: new Date(), createdAt: new Date() }));
+    for (const id of ["u1", "f1"]) {
+      signedIn(id);
+      expect((await call()).status).toBe(404);
+    }
+    expect(bunny.readFromBunny).not.toHaveBeenCalled();
+  });
+
+  it("media hidden for me is 404 for me and 200 for the partner", async () => {
+    db.message.findUnique.mockResolvedValue(row({ createdAt: new Date(), hides: [{ userId: "u1" }] }));
+    signedIn("u1");
+    expect((await call()).status).toBe(404);
+    signedIn("f1");
+    expect((await call()).status).toBe(200);
+  });
+
+  it("media before my clear (or the chat's clear) is 404 for me, 200 for the partner", async () => {
+    const at = new Date();
+    db.message.findUnique.mockResolvedValue(row({ createdAt: new Date(at.getTime() - 1000) }));
+    db.conversationClear.findUnique.mockImplementation((async ({ where }: { where: { conversationId_userId: { userId: string } } }) =>
+      where.conversationId_userId.userId === "u1" ? { clearedAt: at } : null) as never);
+    signedIn("u1");
+    expect((await call()).status).toBe(404);
+    signedIn("f1");
+    expect((await call()).status).toBe(200);
+    db.conversationClear.findUnique.mockResolvedValue(null);
+    db.message.findUnique.mockResolvedValue(row({ createdAt: new Date(at.getTime() - 1000), conversation: { clearedAt: at, match: { femaleId: "f1", maleId: "u1" } } }));
+    signedIn("f1");
+    expect((await call()).status).toBe(404);
+  });
+
+  it("an admin still gets 200 for a deleted message's media", async () => {
+    db.message.findUnique.mockResolvedValue(row({ deletedAt: new Date(), createdAt: new Date() }));
+    auth.requireUser.mockResolvedValue({ error: NextResponse.json({ error: "x" }, { status: 401 }) });
+    auth.requireAdmin.mockResolvedValue({ session: { user: { id: "admin-del" } } });
+    expect((await call()).status).toBe(200);
   });
 
   it("serves the whole file to a member with private caching", async () => {

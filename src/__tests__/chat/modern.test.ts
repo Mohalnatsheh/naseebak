@@ -5,6 +5,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const db = vi.hoisted(() => ({
+  // Chat delete (task 3): my clear and my hides, none here
+  conversationClear: { findUnique: vi.fn(async () => null), findMany: vi.fn(async () => []) },
+  messageHide: { findMany: vi.fn(async () => []) },
   conversation: { findUnique: vi.fn(), findMany: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
   message: { create: vi.fn(), findMany: vi.fn(), findFirst: vi.fn(), findUnique: vi.fn(), updateMany: vi.fn(), count: vi.fn() },
   messageReaction: { findUnique: vi.fn(), findMany: vi.fn(), upsert: vi.fn(), deleteMany: vi.fn() },
@@ -16,7 +19,7 @@ const db = vi.hoisted(() => ({
 }));
 const ably = vi.hoisted(() => ({ publishChatEvent: vi.fn() }));
 const notifyMod = vi.hoisted(() => ({ notify: vi.fn(), notifyMany: vi.fn() }));
-const settings = vi.hoisted(() => ({ getCycleFlags: vi.fn() }));
+const settings = vi.hoisted(() => ({ getCycleFlags: vi.fn(), getChatDeleteEnabled: vi.fn(async () => false) }));
 const rl = vi.hoisted(() => ({ rateLimit: vi.fn() }));
 const auth = vi.hoisted(() => ({ requireUser: vi.fn() }));
 vi.mock("@/lib/db", () => ({ db }));

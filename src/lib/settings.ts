@@ -18,6 +18,8 @@ const DEFAULTS: Record<string, string> = {
   free_interest_reply: "false",
   // Pro membership: gates new sales and offers only, never what a member already paid for
   pro_enabled: "false",
+  // Pro members delete a message or clear a chat (hidden from members, never erased)
+  chat_delete_enabled: "false",
   engagement_polls_enabled: "false",
   poll_round_days: "3",
   poll_reward_credits: "1",
@@ -85,6 +87,11 @@ export interface CycleFlags {
   freeInterestReply?: boolean;
   /** Countries whose members are suggested without the score minimum (switches `sa_relaxed_matching`, `lb_relaxed_matching`). «شروط أساسية» still apply */
   relaxedCountries?: string[];
+}
+
+/** Pro chat delete switch (`chat_delete_enabled`, Admin → Settings). Default off */
+export async function getChatDeleteEnabled(): Promise<boolean> {
+  return (await getSetting("chat_delete_enabled")) === "true";
 }
 
 /** Pro membership sales switch (Admin → Settings). Default off. Never gates existing subscriptions */

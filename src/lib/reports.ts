@@ -39,6 +39,10 @@ const REASON_LABEL: Record<ReportReason, string> = {
   OTHER: "سبب آخر",
 };
 
+/** Admin-facing markers (English) for chat delete: the text is the original, nothing is erased */
+export const DELETED_MARKER = "[Deleted for everyone by sender]";
+export const CLEARED_MARKER = "Chat cleared for everyone";
+
 export interface FileReportInput {
   reporterId: string;
   reportedId: string;
@@ -88,21 +92,24 @@ export async function fileReport(input: FileReportInput): Promise<{ id: string; 
 
   // Nothing happens to the member automatically: the admins are told and decide
   const pending = await pendingReportCount(reportedId);
-  void alertAdmins({ id, reporterId, reportedId, reason, details, reopened: !!existing, pending, fromChat: !!conversationId, messageId });
+  void alertAdmins({ id, reporterId, reportedId, reason, details, reopened: !!existing, pending, conversationId, messageId });
   return { id, reopened: !!existing };
 }
 
 async function alertAdmins(r: {
   id: string; reporterId: string; reportedId: string; reason: ReportReason; details: string | null;
-  reopened: boolean; pending: number; fromChat: boolean; messageId?: string | null;
+  reopened: boolean; pending: number; conversationId?: string | null; messageId?: string | null;
 }): Promise<void> {
   try {
-    const [people, reported] = await Promise.all([
+    const fromChat = !!r.conversationId;
+    const [people, reported, chat] = await Promise.all([
       db.user.findMany({
         where: { id: { in: [r.reporterId, r.reportedId] } },
         select: { id: true, firstName: true, lastName: true, phone: true },
       }),
-      r.messageId ? db.message.findUnique({ where: { id: r.messageId }, select: { kind: true, body: true } }) : null,
+      r.messageId ? db.message.findUnique({ where: { id: r.messageId }, select: { kind: true, body: true, deletedAt: true } }) : null,
+      // Chat delete (Pro): nothing is erased, so the admins read the original text, marked
+      r.conversationId ? db.conversation.findUnique({ where: { id: r.conversationId }, select: { clearedAt: true } }) : null,
     ]);
     const who = (id: string) => {
       const p = people.find((x) => x.id === id);
@@ -112,8 +119,11 @@ async function alertAdmins(r: {
       r.reopened ? "بلاغ متكرر (أُعيد فتح البلاغ السابق)" : "بلاغ جديد",
       `المُبلِّغ: ${who(r.reporterId)}`,
       `المُبلَّغ عنه: ${who(r.reportedId)}`,
-      `السبب: ${REASON_LABEL[r.reason] ?? r.reason}${r.fromChat ? " · من المحادثة" : ""}`,
-      reported ? `الرسالة المُبلَّغ عنها: «${replySnippet(reported)}»` : null,
+      `السبب: ${REASON_LABEL[r.reason] ?? r.reason}${fromChat ? " · من المحادثة" : ""}`,
+      reported
+        ? `الرسالة المُبلَّغ عنها: «${replySnippet(reported)}»${reported.deletedAt ? ` ${DELETED_MARKER}` : ""}`
+        : null,
+      chat?.clearedAt ? `${CLEARED_MARKER} (${chat.clearedAt.toISOString()})` : null,
       r.details ? `التفاصيل: ${r.details}` : null,
       `بلاغات قيد المراجعة عن هذا العضو: ${r.pending}`,
       "لم يُتخذ أي إجراء تلقائي. القرار للإدارة: تعليم العضو، إنهاء المحادثة أو إيقاف الحساب.",
@@ -268,6 +278,8 @@ type EvidenceMessage = {
   replyTo?: { from: "reporter" | "reported"; snippet: string };
   /** The message the report was about («إبلاغ عن الرسالة», Report.messageId) */
   reported?: true;
+  /** Deleted for everyone by its sender (chat delete, Pro): the text is the original, kept for admins */
+  deleted?: true;
 };
 
 /**
@@ -315,7 +327,8 @@ export async function snapshotReportEvidence(userId: string): Promise<number> {
 
     // The chat the report came from, else the chat these two had (if any)
     const chat =
-      (r.conversationId && (await db.conversation.findUnique({ where: { id: r.conversationId }, select: { id: true } }))) ||
+      (r.conversationId &&
+        (await db.conversation.findUnique({ where: { id: r.conversationId }, select: { id: true, clearedAt: true } }))) ||
       (r.reporterId && r.reportedId
         ? await db.conversation.findFirst({
             where: {
@@ -326,22 +339,24 @@ export async function snapshotReportEvidence(userId: string): Promise<number> {
                 ],
               },
             },
-            select: { id: true },
+            select: { id: true, clearedAt: true },
           })
         : null);
-    let transcript: { id: string; messages: EvidenceMessage[]; truncated: boolean } | null = null;
+    let transcript: { id: string; messages: EvidenceMessage[]; truncated: boolean; clearedAt?: string } | null = null;
     if (chat) {
       const latest = await db.message.findMany({
         where: { conversationId: chat.id },
         orderBy: { createdAt: "desc" },
         take: EVIDENCE_MAX_MESSAGES + 1,
         select: {
-          id: true, senderId: true, body: true, kind: true, mediaPath: true, createdAt: true,
+          id: true, senderId: true, body: true, kind: true, mediaPath: true, createdAt: true, deletedAt: true,
           replyTo: { select: { conversationId: true, senderId: true, kind: true, body: true } },
         },
       });
       transcript = {
         id: chat.id,
+        // Cleared for everyone (chat delete, Pro): when; the messages are all kept
+        ...(chat.clearedAt && { clearedAt: chat.clearedAt.toISOString() }),
         truncated: latest.length > EVIDENCE_MAX_MESSAGES,
         messages: latest
           .slice(0, EVIDENCE_MAX_MESSAGES)
@@ -356,6 +371,7 @@ export async function snapshotReportEvidence(userId: string): Promise<number> {
               replyTo: { from: m.replyTo.senderId === r.reporterId ? "reporter" : "reported", snippet: replySnippet(m.replyTo) },
             }),
             ...(r.messageId && m.id === r.messageId && { reported: true as const }),
+            ...(m.deletedAt && { deleted: true as const }),
           })),
       };
     }

@@ -43,6 +43,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       select: {
         id: true, status: true, createdAt: true, expiresAt: true, extended: true,
         endedById: true, endedByAdminId: true, endedAt: true,
+        // Deleted for everyone / cleared: nothing is erased, the admin sees all of it with tags
+        clearedAt: true, clearedById: true, clears: { select: { userId: true, clearedAt: true } },
         match: { select: { id: true, female: person, male: person } },
         messages: {
           // Paged: one stable order (time, then id), so messages with the same time never repeat or go missing at an edge
@@ -53,7 +55,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
           // Never mediaPath: a photo or voice note is fetched through the members-only route (admins pass by web session)
           select: {
             id: true, senderId: true, body: true, readAt: true, createdAt: true,
-            kind: true, mediaType: true, mediaDurationSec: true, mediaWidth: true, mediaHeight: true,
+            kind: true, deletedAt: true, hides: { select: { userId: true } }, mediaType: true, mediaDurationSec: true, mediaWidth: true, mediaHeight: true,
             replyTo: { select: { id: true, conversationId: true, senderId: true, kind: true, body: true } },
             reactions: { select: { emoji: true, userId: true }, orderBy: { createdAt: "asc" } },
           },
@@ -86,9 +88,12 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         endedAt: chat.endedAt,
         endedBy: chatEndedBy(chat, people),
         reports,
+        clearedAt: chat.clearedAt ?? null,
+        clearedById: chat.clearedById ?? null,
+        clears: (chat.clears ?? []).map((c) => ({ userId: c.userId, clearedAt: c.clearedAt })),
       },
       // newest MAX_MESSAGES, shown oldest first
-      messages: [...page].reverse().map(({ mediaType, mediaDurationSec, mediaWidth, mediaHeight, replyTo, reactions, ...m }) => ({
+      messages: [...page].reverse().map(({ mediaType, mediaDurationSec, mediaWidth, mediaHeight, replyTo, reactions, deletedAt, hides, ...m }) => ({
         ...m,
         kind: m.kind ?? "TEXT",
         // Read-only: the quote (same chat only, as members see it) and who reacted with what
@@ -96,6 +101,13 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
           ? { id: replyTo.id, senderId: replyTo.senderId, kind: replyTo.kind ?? "TEXT", snippet: replySnippet(replyTo) }
           : null,
         reactions: reactions ?? [],
+        // Additive: body and media stay as they are. The same `<=` boundary as the member side.
+        deletion: {
+          forEveryone: !!deletedAt,
+          hiddenBy: (hides ?? []).map((h) => h.userId),
+          clearedForEveryone: !!chat.clearedAt && m.createdAt <= chat.clearedAt,
+          beforeClearOf: (chat.clears ?? []).filter((c) => c.clearedAt >= m.createdAt).map((c) => c.userId),
+        },
         // The same shape as the member chat (lib/chat/media messageMedia)
         media: messageMedia({ id: m.id, conversationId: chat.id, kind: m.kind, mediaType, mediaDurationSec, mediaWidth, mediaHeight }),
       })),

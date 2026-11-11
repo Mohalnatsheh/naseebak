@@ -34,9 +34,11 @@ interface Report {
     endedByReporter: boolean;
     endedByAdmin: boolean;
     messages: number;
+    /** Cleared for everyone (chat delete): when. Every message is still kept */
+    clearedAt?: string | null;
   } | null;
-  /** «إبلاغ عن الرسالة»: the reported message (same chat only), or null */
-  reportedMessage: { id: string; at: string; kind: string; snippet: string; fromReported: boolean } | null;
+  /** «إبلاغ عن الرسالة»: the reported message (same chat only), or null. `deleted`: deleted for everyone by its sender */
+  reportedMessage: { id: string; at: string; kind: string; snippet: string; fromReported: boolean; deleted?: boolean } | null;
 }
 
 /** Saved before an account in the report was deleted (src/lib/reports.ts snapshotReportEvidence) */
@@ -45,9 +47,11 @@ interface ReportEvidence {
   people: { reporter: EvidencePerson | null; reported: EvidencePerson | null };
   chat: {
     id: string;
-    /** `reported`: the message this report was about */
-    messages: { at: string; from: "reporter" | "reported"; body: string; reported?: boolean }[];
+    /** `reported`: the message this report was about; `deleted`: deleted for everyone by its sender (original text) */
+    messages: { at: string; from: "reporter" | "reported"; body: string; reported?: boolean; deleted?: boolean }[];
     truncated: boolean;
+    /** Cleared for everyone (chat delete): when */
+    clearedAt?: string;
   } | null;
 }
 interface EvidencePerson {
@@ -243,6 +247,11 @@ export default function AdminReportsPage() {
                         </span>
                       )}
                       <span>{report.chat.messages} messages</span>
+                      {report.chat.clearedAt && (
+                        <span className="font-medium text-foreground">
+                          Chat cleared for everyone {fmtDateTime(report.chat.clearedAt)}
+                        </span>
+                      )}
                       <Link href={`/admin/chats/${report.chat.id}`} className="text-primary hover:underline">
                         Chat details
                       </Link>
@@ -261,6 +270,9 @@ export default function AdminReportsPage() {
                           </Button>
                         )}
                       </p>
+                      {report.reportedMessage.deleted && (
+                        <p className="mt-1 text-xs font-medium text-destructive">Deleted for everyone by sender</p>
+                      )}
                       <p dir="auto" className="mt-1 break-words text-sm text-foreground"><bdi>{report.reportedMessage.snippet}</bdi></p>
                     </div>
                   )}
@@ -270,6 +282,11 @@ export default function AdminReportsPage() {
                         Saved chat ({report.evidence.chat.messages.length} messages
                         {report.evidence.chat.truncated && ", latest only"}), kept on {fmtDateTime(report.evidence.capturedAt)} when an account was deleted
                       </summary>
+                      {report.evidence.chat.clearedAt && (
+                        <p className="mt-2 font-medium text-foreground">
+                          Chat cleared for everyone {fmtDateTime(report.evidence.chat.clearedAt)}
+                        </p>
+                      )}
                       <div className="mt-2 max-h-80 space-y-1 overflow-y-auto" dir="rtl">
                         {report.evidence.chat.messages.map((m, i) => (
                           <p
@@ -277,6 +294,7 @@ export default function AdminReportsPage() {
                             className={m.reported ? "break-words rounded bg-destructive/10 px-1 ring-1 ring-destructive/40" : "break-words"}
                           >
                             {m.reported && <span className="font-semibold text-destructive">[Reported message] </span>}
+                            {m.deleted && <span className="font-semibold text-destructive">[Deleted for everyone by sender] </span>}
                             <span className={m.from === "reported" ? "font-semibold text-destructive" : "font-semibold text-primary"}>
                               {m.from === "reported" ? "Reported" : "Reporter"}
                             </span>{" "}

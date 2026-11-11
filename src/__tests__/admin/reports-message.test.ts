@@ -54,6 +54,22 @@ describe("GET /api/admin/reports: the reported message", () => {
     expect(JSON.stringify(d)).not.toContain("سر");
   });
 
+  it("a reported message deleted for everyone carries `deleted`, and a cleared chat its `clearedAt`", async () => {
+    const at = new Date("2026-11-10T09:00:00Z");
+    db.report.findMany.mockResolvedValue([report({ messageId: "m9" })]);
+    db.message.findMany.mockResolvedValue([
+      { id: "m9", conversationId: "c1", senderId: "b", kind: "TEXT", body: "مسيء", createdAt: at, deletedAt: new Date() },
+    ]);
+    db.conversation.findMany.mockResolvedValue([{
+      id: "c1", status: "ACTIVE", createdAt: at, expiresAt: new Date(Date.now() + 86400000), endedAt: null, endedById: null,
+      endedByAdminId: null, clearedAt: new Date("2026-11-10T10:00:00Z"), match: { femaleId: "a", maleId: "b" }, _count: { messages: 3 },
+    }]);
+    const d = await (await reportsGet(new Request("http://x/api/admin/reports"))).json();
+    expect(db.message.findMany.mock.calls[0][0].select).toMatchObject({ deletedAt: true });
+    expect(d.reports[0].reportedMessage).toMatchObject({ id: "m9", snippet: "مسيء", deleted: true });
+    expect(d.reports[0].chat.clearedAt).toBe("2026-11-10T10:00:00.000Z");
+  });
+
   it("no report with a message: no message query", async () => {
     db.report.findMany.mockResolvedValue([report()]);
     await reportsGet(new Request("http://x/api/admin/reports"));

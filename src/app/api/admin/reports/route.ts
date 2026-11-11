@@ -18,13 +18,17 @@ async function reportedMessages(reports: { messageId: string | null; conversatio
   const rows = ids.length
     ? await db.message.findMany({
         where: { id: { in: ids } },
-        select: { id: true, conversationId: true, senderId: true, kind: true, body: true, createdAt: true },
+        select: { id: true, conversationId: true, senderId: true, kind: true, body: true, createdAt: true, deletedAt: true },
       })
     : [];
   return reports.map((r) => {
     const m = rows.find((x) => x.id === r.messageId);
     if (!m || m.conversationId !== r.conversationId) return null;
-    return { id: m.id, at: m.createdAt.toISOString(), kind: m.kind, snippet: replySnippet(m), fromReported: m.senderId === r.reportedId };
+    return {
+      id: m.id, at: m.createdAt.toISOString(), kind: m.kind, snippet: replySnippet(m), fromReported: m.senderId === r.reportedId,
+      // Deleted for everyone by its sender (chat delete): the snippet is the original text, marked on the page
+      ...(m.deletedAt && { deleted: true }),
+    };
   });
 }
 
@@ -56,6 +60,7 @@ async function withChats<T extends { reporterId: string | null; reportedId: stri
     },
     select: {
       id: true, status: true, createdAt: true, expiresAt: true, endedAt: true, endedById: true, endedByAdminId: true,
+      clearedAt: true,
       match: { select: { femaleId: true, maleId: true } },
       _count: { select: { messages: true } },
     },
@@ -82,6 +87,8 @@ async function withChats<T extends { reporterId: string | null; reportedId: stri
             endedByReporter: c.endedById === r.reporterId,
             endedByAdmin: !!c.endedByAdminId,
             messages: c._count.messages,
+            // Cleared for everyone (chat delete): when; admins still see every message
+            clearedAt: c.clearedAt ?? null,
           }
         : null,
     };

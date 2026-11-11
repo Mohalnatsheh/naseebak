@@ -85,27 +85,49 @@ class ChatBubble extends StatelessWidget {
               child: CustomPaint(
                 painter: BubblePainter(color: bg, border: border, tail: tail, tailRight: tailRight),
                 child: Padding(
-                  padding: kind == MessageKind.image
+                  padding: kind == MessageKind.image && !message.deleted
                       ? const EdgeInsets.all(3)
-                      : kind == MessageKind.voice
+                      : kind == MessageKind.voice && !message.deleted
                           ? const EdgeInsets.fromLTRB(8, 4, 10, 5)
                           : const EdgeInsets.fromLTRB(10, 6, 10, 6),
-                  child: _withQuote(
-                    mine && !failed,
-                    switch (kind) {
-                      MessageKind.image => _photo(),
-                      MessageKind.voice => _voice(fg),
-                      MessageKind.text => _text(context, fg),
-                    },
-                  ),
+                  // A trace shows no quote and no media, even from a stale copy
+                  child: message.deleted
+                      ? _trace(fg)
+                      : _withQuote(
+                          mine && !failed,
+                          switch (kind) {
+                            MessageKind.image => _photo(),
+                            MessageKind.voice => _voice(fg),
+                            MessageKind.text => _text(context, fg),
+                          },
+                        ),
                 ),
               ),
             ),
-            if (message.reactions.isNotEmpty) _reactions(tailRight),
+            // A trace never shows reactions
+            if (message.reactions.isNotEmpty && !message.deleted) _reactions(tailRight),
             if (failed) _failedActions(),
           ],
         ),
       ),
+    );
+  }
+
+  /// Deleted for everyone: «تم حذف الرسالة» in muted italics with a small «no» sign, and the time
+  Widget _trace(Color fg) {
+    final ink = fg.withValues(alpha: 0.75);
+    return Row(
+      key: const Key('chat-deleted-trace'),
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(Icons.block_rounded, size: 16, color: ink),
+        const SizedBox(width: 6),
+        Flexible(
+          child: Text(deletedTrace, style: AppText.body.copyWith(color: ink, fontStyle: FontStyle.italic, height: 1.45)),
+        ),
+        const SizedBox(width: 8),
+        Padding(padding: const EdgeInsets.only(top: 4), child: _meta(fg)),
+      ],
     );
   }
 

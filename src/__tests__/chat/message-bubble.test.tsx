@@ -50,4 +50,25 @@ describe("MessageBubble", () => {
     expect(theirs.queryByLabelText("تم الإرسال")).toBeNull();
     expect(theirs.getByTestId("bubble-tail").className).toContain("-end-2");
   });
+
+  it("a message deleted for everyone shows the muted trace: no media, quote or reaction chips", () => {
+    const { getByText, queryByRole, queryByText, getByTestId } = render(
+      <MessageBubble
+        message={message({
+          deleted: true,
+          body: "تم حذف الرسالة",
+          kind: "TEXT",
+          media: null,
+          replyTo: { id: "q", mine: false, kind: "TEXT", snippet: "quoted" },
+          reactions: [{ emoji: "❤️", mine: false }],
+        })}
+        tail
+      />
+    );
+    expect(getByText("تم حذف الرسالة")).toBeTruthy();
+    expect(getByTestId("deleted-trace").className).toContain("italic");
+    expect(queryByText("quoted")).toBeNull();
+    expect(queryByRole("button", { name: /❤️/ })).toBeNull();
+    expect(queryByRole("img")).toBeNull();
+  });
 });

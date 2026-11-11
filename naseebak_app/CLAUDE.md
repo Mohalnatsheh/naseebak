@@ -167,7 +167,7 @@ needed a release.
     tints it. A swipe the system cancels never replies.
   - **Menu (long-press a sent message):** reactions ❤️ 👍 😊 🤲 and «رد» while the chat is open, «نسخ» for text,
     «إبلاغ عن الرسالة» for the partner's messages: the sheet quotes the message and `POST /api/chats/{id}/end` sends
-    `report.messageId` (the details stay the member's own). No delete. The report sheet offers «إبلاغ فقط» (`end: false`,
+    `report.messageId` (the details stay the member's own). Delete (Pro, switch `chat_delete_enabled`, chat `deleteEnabled`): «حذف لديّ» / «حذف لدى الجميع» (own messages, open chat) and «مسح المحادثة» (for me / for everyone) in the chat menu; shown only when the member is Pro or can buy (`appPaymentsProvider`), else none. Opening a chat does a one-time deletions poll for cached messages older than the first page. The report sheet offers «إبلاغ فقط» (`end: false`,
     the chat stays open) or «إبلاغ وإنهاء المحادثة» (says it blocks and closes the match); a closed chat offers
     «إبلاغ وحظر» and never says it ended. An older server ignores `end: false` and ends the chat.
   - **Reactions:** optimistic, then the server's list, reverted on failure; a chip under the bubble (tap mine to
@@ -194,7 +194,7 @@ needed a release.
 delete), `/api/suggestions` (top-up) and `/api/suggestions/feed?tab=new|interested|waiting`,
 `/api/suggestions/{id}/decide`, `/api/matches/*`, `/api/intro-requests/*`, `/api/chats/*` (+ `ably-token`; since
 1.1.0 `POST /api/chats/{id}/media` multipart `file` + `kind` IMAGE|VOICE + `durationSec` + `clientNonce`, and
-`GET /api/chats/{id}/media/{mid}` with Bearer + Range), `/api/pro`, `/api/pro/{checkout, cancel, resume}` (1.1.0),
+`GET /api/chats/{id}/media/{mid}` with Bearer + Range), `/api/pro`, `/api/pro/{checkout, cancel, resume}` (1.1.0), `POST /api/chats/{id}/messages/{mid}/delete`, `POST /api/chats/{id}/clear`,
 `/api/notifications/*` (incl. `read-for-page`), `/api/me/counts`, `/api/payments/{plans, checkout, {id}/status, cancel,
 history}`, `/api/alerts/*`, `/api/polls/*`, `/api/referral/*`, `/api/blocks/*`, `/api/reports`, `/api/support`.
 Changing one of these on the server must keep old app versions working (members update slowly).

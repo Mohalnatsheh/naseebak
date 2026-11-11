@@ -27,6 +27,11 @@ const proSection = { icon: Crown, ...PRO_REFUND_SECTION };
 /* ──────────────────── DATA ──────────────────── */
 
 /** Jordan (the original text) */
+/** Jordan's charge line: in dollars until the switch jod_charging, in dinars after */
+const JO_USD_LINE =
+  "تُعرض الأسعار بالدينار الأردني، ويتم الخصم من البطاقة بما يعادلها بالدولار الأمريكي، وقد يضيف البنك رسوم تحويل عملة. تظهر العملية في كشف حسابك باسم LOGICCR.";
+const JO_JOD_LINE = "تُعرض الأسعار ويتم الخصم بالدينار الأردني. تظهر العملية في كشف حسابك باسم LOGICCR.";
+
 const joSections = [
   {
     icon: Building2,
@@ -43,7 +48,7 @@ const joSections = [
       "الأرصدة خدمة رقمية تُستخدم داخل المنصة فقط، وتُضاف إلى حسابك فور إتمام الدفع.",
       "لا قيمة نقدية للأرصدة، ولا يمكن تحويلها إلى مستخدم آخر أو صرفها نقداً.",
       "لا يوجد اشتراك ولا تجديد تلقائي؛ كل عملية شراء دفعة واحدة، ويبقى الرصيد في حسابك حتى استخدامه.",
-      "تُعرض الأسعار بالدينار الأردني، ويتم الخصم من البطاقة بما يعادلها بالدولار الأمريكي، وقد يضيف البنك رسوم تحويل عملة. تظهر العملية في كشف حسابك باسم LOGICCR.",
+      JO_USD_LINE,
     ],
   },
   {
@@ -212,10 +217,14 @@ const UPDATED: Record<CountryCode, string> = { JO: "22 أكتوبر 2026", SA: "
 /*               REFUND POLICY PAGE                      */
 /* ══════════════════════════════════════════════════════ */
 
-export function RefundPolicyView({ proSold }: { proSold: Record<CountryCode, boolean> }) {
+export function RefundPolicyView({ proSold, jodCharging = false }: { proSold: Record<CountryCode, boolean>; jodCharging?: boolean }) {
   const country = useVisitorCountry();
   const withPro = proSold[country];
-  const sections = withProRefund(SECTIONS[country], withPro, proSection);
+  const base =
+    country === "JO" && jodCharging
+      ? SECTIONS.JO.map((s) => ({ ...s, items: s.items.map((i) => (i === JO_USD_LINE ? JO_JOD_LINE : i)) }))
+      : SECTIONS[country];
+  const sections = withProRefund(base, withPro, proSection);
   const { ref: introRef, inView: introInView } = useInView(0.15);
   const { ref: sectionsRef, inView: sectionsInView } = useInView(0.1);
   const { ref: contactRef, inView: contactInView } = useInView(0.15);

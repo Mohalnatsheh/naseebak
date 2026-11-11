@@ -5,6 +5,7 @@ import { countryConfig } from "@/lib/countries";
 import { getVisitorCountry } from "@/lib/countries/server";
 import { formatCharge, packagesFor } from "@/lib/payments/packages";
 import { getCountrySettings, purchasesAvailable } from "@/lib/countries/settings";
+import { jodChargingFor } from "@/lib/settings";
 
 /** The packages of the member's country (a signed-out visitor: the country they chose) */
 export async function GET() {
@@ -14,11 +15,14 @@ export async function GET() {
   const cfg = countryConfig(country);
   const settings = await getCountrySettings(cfg.code);
   const purchasesEnabled = purchasesAvailable(settings);
+  const jod = await jodChargingFor(cfg.code);
   return NextResponse.json({
     country: cfg.code,
     /** False while the country is not selling (not active, switched off, or prices not approved) */
     purchasesEnabled,
-    packages: packagesFor(cfg.code, settings.packagePrices).map((p) => ({
+    /** Jordan is charged in JOD (switch jod_charging): the page says so instead of the dollar note */
+    jodCharging: jod,
+    packages: packagesFor(cfg.code, settings.packagePrices, jod).map((p) => ({
       id: p.id,
       name: p.name,
       credits: p.credits,
@@ -26,8 +30,9 @@ export async function GET() {
       currency: p.currency,
       /** «د.أ» / «ر.س» */
       currencySymbol: cfg.currency.symbol,
-      /** What the card is actually charged, when it differs from the display price (Jordan: USD) */
+      /** What the card is actually charged, when it differs from the display price (Jordan before jod_charging: USD) */
       ...(p.chargeCurrency === "usd" && p.currency !== "USD" && { chargeUsd: p.chargeAmount / 100 }),
+      /** «4.23$», or the price itself («3 د.أ») when charged as shown: the app hides it then */
       chargeLabel: formatCharge(p),
       ...(p.popular && { popular: true }),
       /** Opening offer: the old price, shown struck through */

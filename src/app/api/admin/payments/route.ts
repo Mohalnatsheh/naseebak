@@ -42,6 +42,7 @@ export async function GET(request: Request) {
           planName: true,
           amount: true,
           currency: true,
+          chargeCurrency: true,
           status: true,
           disputedAt: true,
           failureReason: true,

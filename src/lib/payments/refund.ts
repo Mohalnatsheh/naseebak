@@ -30,7 +30,7 @@ export async function applyRefund(args: {
 }): Promise<RefundResult> {
   const payment = await db.payment.findUnique({
     where: { id: args.paymentId },
-    select: { id: true, status: true, userId: true, planName: true, amount: true, currency: true, proSubscriptionId: true },
+    select: { id: true, status: true, userId: true, planName: true, amount: true, currency: true, chargeCurrency: true, proSubscriptionId: true },
   });
   if (!payment) return "not_found";
   if (payment.status === "REFUNDED") return "already";

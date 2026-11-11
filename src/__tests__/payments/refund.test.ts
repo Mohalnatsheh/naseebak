@@ -47,6 +47,15 @@ describe("applyRefund", () => {
     expect(notifyMod.notify.mock.calls[0][0].body).toContain("2.82$");
   });
 
+  it("a payment charged in JOD is reported in dinars, no dollars", async () => {
+    db.payment.findUnique.mockResolvedValue({ id: "p1", status: "COMPLETED", userId: "u1", planName: "launch_10", amount: 3, currency: "JOD", chargeCurrency: "jod" });
+    await applyRefund({ paymentId: "p1" });
+    const body = notifyMod.notify.mock.calls[0][0].body;
+    expect(body).toContain("تم استرداد 3 د.أ");
+    expect(body).not.toContain("$");
+    expect(db.payment.findUnique.mock.calls[0][0].select).toMatchObject({ chargeCurrency: true });
+  });
+
   it("floors the balance at 0", async () => {
     db.user.findUnique.mockResolvedValue({ matchCredits: 2 });
     await applyRefund({ paymentId: "p1" });

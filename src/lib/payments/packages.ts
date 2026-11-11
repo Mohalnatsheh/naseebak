@@ -192,6 +192,11 @@ export function formatPaidCharge(payment: PaidRow): string {
   return formatCharge(chargeFor(Number(payment.amount), shown, payment.chargeCurrency === "jod"));
 }
 
+/** «4.23$»: what a Jordanian row was charged in dollars, or null when it was charged as shown (JOD, SAR, Lebanon's USD) */
+export function dollarChargeLine(payment: PaidRow): string | null {
+  return payment.currency === "JOD" && payment.chargeCurrency !== "jod" ? formatPaidCharge(payment) : null;
+}
+
 /**
  * A past payment as the member saw it, with the charge when it differs (QA WEB-PAY-08): «35 د.أ (49.35$)», «15 ر.س».
  * Rows in another currency (old USD rows) come back as stored.

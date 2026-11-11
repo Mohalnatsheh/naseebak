@@ -19,6 +19,8 @@ interface PaymentRow {
   planName: string | null;
   amount: string;
   currency: string;
+  /** The currency the card was charged in (rows since 2026-11-11); null = older row */
+  chargeCurrency?: string | null;
   status: string;
   createdAt: string;
   /** null when the account was deleted (payment records are kept) */

@@ -17,6 +17,7 @@ const credits = (n: number) => `${n} ${n === 1 ? "credit" : "credits"}`;
 export interface RefundPreviewRow {
   amount: string;
   currency: string;
+  chargeCurrency?: string | null;
   user: { firstName: string; lastName: string; matchCredits: number } | null;
   credits: number;
   endsPro?: boolean;

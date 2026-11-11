@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 import { ShieldCheck } from "lucide-react";
 import { db } from "@/lib/db";
 import { getStripe } from "@/lib/stripe";
-import { findAnyPackage, formatPaidCharge } from "@/lib/payments/packages";
+import { dollarChargeLine, findAnyPackage } from "@/lib/payments/packages";
 import { displayPrice } from "@/lib/payments/checkout-branding";
 import { fulfilPaymentIntent, tokenMatches } from "@/lib/payments/intent";
 import { ArabicPayForm } from "@/components/payments/arabic-pay-form";
@@ -57,7 +57,7 @@ export default async function PayPage({
 
   const payment = await db.payment.findUnique({
     where: { id },
-    select: { id: true, status: true, payToken: true, stripePaymentIntentId: true, planName: true, amount: true, currency: true },
+    select: { id: true, status: true, payToken: true, stripePaymentIntentId: true, planName: true, amount: true, currency: true, chargeCurrency: true },
   });
   if (!payment || !payment.stripePaymentIntentId || !tokenMatches(payment.payToken, t)) {
     return <Message title="رابط الدفع غير صالح" body="يمكنك فتح صفحة الرصيد واختيار الباقة من جديد." href={back.href} cta={back.cta} />;
@@ -81,7 +81,8 @@ export default async function PayPage({
   const pkg = findAnyPackage(payment.planName);
   // This checkout's own price: the package's may have changed since it started
   const price = pkg ? displayPrice({ ...pkg, price: Number(payment.amount) }) : "";
-  const charged = pkg && pkg.chargeCurrency === "usd" && pkg.currency !== "USD" ? formatPaidCharge(payment) : null;
+  // The dollar amount only for a row charged in dollars (the row's own currency, never today's switch)
+  const charged = pkg ? dollarChargeLine(payment) : null;
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://naseebak.com";
   const returnUrl = `${appUrl}/payments/return?status=success&pid=${encodeURIComponent(payment.id)}&from=${from === "app" ? "app" : "web"}`;
 
@@ -94,11 +95,15 @@ export default async function PayPage({
             <h1 className="text-xl font-bold text-foreground">{pkg?.name ?? "رصيد"}</h1>
             <p className="text-2xl font-bold text-primary">{price}</p>
           </div>
-          {charged && (
+          {charged ? (
             <p className="mt-2 text-xs text-muted-foreground">
               تُخصم <span dir="ltr">{charged}</span> بالدولار الأمريكي · يظهر في كشف البنك باسم <span dir="ltr">LOGICCR* NASEEBAK</span>
             </p>
-          )}
+          ) : payment.chargeCurrency === "jod" ? (
+            <p className="mt-2 text-xs text-muted-foreground">
+              الدفع بالدينار الأردني · يظهر في كشف البنك باسم <span dir="ltr">LOGICCR* NASEEBAK</span>
+            </p>
+          ) : null}
         </div>
 
         <div className="rounded-2xl border border-border/70 bg-card p-5">

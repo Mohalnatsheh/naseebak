@@ -51,6 +51,8 @@ const PRICE_NOTE: Record<CountryCode, string> = {
   SA: "الأسعار بالريال السعودي، ويتم الدفع بالريال عبر Stripe",
   LB: "الأسعار بالدولار الأمريكي، ويتم الدفع بالدولار عبر Stripe",
 };
+/** Jordan once it is charged in dinars (switch jod_charging, sent by /api/payments/plans) */
+const JO_JOD_NOTE = "الأسعار والدفع بالدينار الأردني (يظهر في كشف الحساب باسم LOGICCR). البائع: LOGIC CENTER FOR WEBSITE DESIGN";
 
 /** Stripe's embedded checkout and Stripe.js load only once a checkout has started (QA PA-M3, WP2-06) */
 const StripeEmbeddedCheckout = dynamic(() => import("@/components/payments/embedded-checkout"), {
@@ -143,6 +145,8 @@ function PaymentsContent() {
   const [packages, setPackages] = useState<CreditPackage[]>([]);
   // False while the member's country is not selling (prices not approved, switched off): say so before any click
   const [purchasesEnabled, setPurchasesEnabled] = useState(true);
+  // Jordan charged in JOD (switch jod_charging): no dollar note
+  const [jodCharging, setJodCharging] = useState(false);
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
   const [matchCredits, setMatchCredits] = useState(0);
   // Plans/history didn't load: never show a balance of 0 or an empty package list as if real
@@ -180,6 +184,7 @@ function PaymentsContent() {
 
       setPackages(plansData.packages || []);
       setPurchasesEnabled(plansData.purchasesEnabled !== false);
+      setJodCharging(plansData.jodCharging === true);
       if (plansData.country) setPlanCountry(plansData.country);
       setPayments(histData.payments || []);
       setMatchCredits(histData.matchCredits ?? 0);
@@ -742,7 +747,7 @@ function PaymentsContent() {
       </div>
 
       <p className="text-center text-xs leading-relaxed text-muted-foreground">
-        {PRICE_NOTE[country.code]} ·{" "}
+        {country.code === "JO" && jodCharging ? JO_JOD_NOTE : PRICE_NOTE[country.code]} ·{" "}
         <Link href="/refund-policy" className="inline-flex min-h-11 items-center font-semibold text-primary underline-offset-4 hover:underline">
           سياسة الاسترداد
         </Link>

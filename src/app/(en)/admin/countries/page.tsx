@@ -340,7 +340,7 @@ function CountryCard({ row, onSaved }: { row: CountryRow; onSaved: () => void })
                 <Label htmlFor={`${p.id}-price`}>{p.credits} credits ({p.currency})</Label>
                 <Input id={`${p.id}-price`} dir="ltr" type="text" inputMode="decimal" value={priceTexts[p.id] ?? ""} onChange={(e) => setPrice(p.id, toDecimalText(e.target.value))} />
                 {/* Only where the shown currency differs from the charged one (Jordan: dinar shown, dollars charged) */}
-                {p.chargeCurrency === "usd" && p.currency !== "USD" && <p className="text-xs text-muted-foreground">Card is charged {formatCharge(p)}</p>}
+                {p.chargeCurrency === "usd" && p.currency !== "USD" && <p className="text-xs text-muted-foreground">Card is charged {formatCharge(p)} (in JOD while «Charge Jordan in JOD» is on)</p>}
               </div>
             ))}
           </div>

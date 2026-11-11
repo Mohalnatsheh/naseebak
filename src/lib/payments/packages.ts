@@ -1,6 +1,7 @@
 /**
  * Credit packages per country (db-free: the payments page may import it).
- *   Jordan: shown in JOD, Stripe charges the USD amount (owner's choice, Oct 2026; JOD→USD ≈ 1.41).
+ *   Jordan: shown in JOD, Stripe charges the USD amount (owner's choice, Oct 2026; JOD→USD ≈ 1.41). With the switch
+ *   `jod_charging` on (2026-11-11), new Jordanian purchases are charged in JOD instead (`jod` flag below, fils).
  *   Saudi Arabia: shown and charged in SAR (no "was" price — the Saudi market never had an earlier price).
  * A member only ever sees and buys their own country's packages (checkout checks it).
  * The prices here are defaults: Admin → Countries can set others (`country_settings.packagePrices`), passed in as
@@ -12,6 +13,19 @@ import { arabicCount } from "@/lib/utils";
 /** Set on every Naseebak checkout (metadata.app); the Stripe account also serves other sites */
 export const CHECKOUT_APP = "naseebak";
 
+/** A currency Stripe charges in. JOD has 1,000 fils to the dinar, the others 100 */
+export type ChargeCurrency = "usd" | "sar" | "jod";
+
+/** Minor units per major unit: 1000 for JOD, 100 otherwise (Stripe amounts) */
+export function minorUnits(currency: string): number {
+  return currency.toLowerCase() === "jod" ? 1000 : 100;
+}
+
+/** A Stripe amount in major units: 3000 jod → 3, 423 usd → 4.23 */
+export function fromMinor(amount: number, currency: string): number {
+  return amount / minorUnits(currency);
+}
+
 export interface CreditPackage {
   id: string;
   country: CountryCode;
@@ -20,8 +34,8 @@ export interface CreditPackage {
   /** Display price, in `currency` */
   price: number;
   currency: "JOD" | "SAR" | "USD";
-  /** What Stripe charges: currency + amount in minor units (cents / halalas) */
-  chargeCurrency: "usd" | "sar";
+  /** What Stripe charges: currency + amount in minor units (cents / halalas / fils) */
+  chargeCurrency: ChargeCurrency;
   chargeAmount: number;
   popular?: boolean;
   /** Opening offer (Jordan): what this package would cost at the old rate (shown struck through) */
@@ -34,9 +48,18 @@ const was = (credits: number) => Math.round(credits * OLD_JOD_PER_CREDIT * 10) /
 
 /** Jordan is charged in USD: cents per dinar */
 const USD_CENTS_PER_JOD = 141;
-/** What Stripe charges for a display price */
-export const chargeFor = (price: number, currency: CreditPackage["currency"]) =>
-  currency === "JOD"
+/**
+ * What Stripe charges for a display price. `jod` (switch `jod_charging`, Jordan only): a dinar price is charged in JOD,
+ * in whole 10 fils (Stripe refuses a last fils digit other than 0; admin prices have at most 2 decimals anyway).
+ */
+export const chargeFor = (
+  price: number,
+  currency: CreditPackage["currency"],
+  jod = false,
+): { chargeCurrency: ChargeCurrency; chargeAmount: number } =>
+  currency === "JOD" && jod
+    ? { chargeCurrency: "jod", chargeAmount: Math.round(price * 100) * 10 }
+    : currency === "JOD"
     ? { chargeCurrency: "usd" as const, chargeAmount: Math.round(price * USD_CENTS_PER_JOD) }
     : currency === "USD"
       ? { chargeCurrency: "usd" as const, chargeAmount: Math.round(price * 100) } // Lebanon: dollars shown and charged
@@ -52,11 +75,11 @@ export function readPackagePrices(value: unknown): PackagePrices | null {
   return entries.length > 0 ? Object.fromEntries(entries) : null;
 }
 
-function withPrice(p: CreditPackage, prices?: PackagePrices | null): CreditPackage {
+function withPrice(p: CreditPackage, prices?: PackagePrices | null, jod = false): CreditPackage {
   const price = prices?.[p.id];
-  if (!price || !(price > 0)) return p;
+  if (!price || !(price > 0)) return jod ? { ...p, ...chargeFor(p.price, p.currency, true) } : p;
   const { wasPrice, ...rest } = p;
-  return { ...rest, price, ...chargeFor(price, p.currency), ...(wasPrice && wasPrice > price && { wasPrice }) };
+  return { ...rest, price, ...chargeFor(price, p.currency, jod), ...(wasPrice && wasPrice > price && { wasPrice }) };
 }
 
 const jo = (id: string, name: string, credits: number, price: number, usdCents: number, popular = false): CreditPackage => ({
@@ -95,22 +118,27 @@ const RETIRED_PACKAGES: readonly CreditPackage[] = [
   { id: "credits_10", country: "JO", name: "10 أرصدة", credits: 10, price: 7, currency: "JOD", chargeCurrency: "usd", chargeAmount: 987 },
 ];
 
-/** Packages on sale in a country */
-export function packagesFor(country: unknown, prices?: PackagePrices | null): readonly CreditPackage[] {
+/** Packages on sale in a country. `jod`: the switch `jod_charging` is on for this country (`jodChargingFor`) */
+export function packagesFor(country: unknown, prices?: PackagePrices | null, jod = false): readonly CreditPackage[] {
   const list = PACKAGES[toCountry(country)];
-  return prices ? list.map((p) => withPrice(p, prices)) : list;
+  return prices || jod ? list.map((p) => withPrice(p, prices, jod)) : list;
 }
 
 /** Jordan's list (kept for older callers and tests) */
 export const CREDIT_PACKAGES = PACKAGES.JO;
 
 /** A package on sale; with `country`, only that country's */
-export function findPackage(id: string | null | undefined, country?: CountryCode, prices?: PackagePrices | null): CreditPackage | undefined {
+export function findPackage(
+  id: string | null | undefined,
+  country?: CountryCode,
+  prices?: PackagePrices | null,
+  jod = false,
+): CreditPackage | undefined {
   if (!id) return undefined;
   const lists = country ? [PACKAGES[country]] : Object.values(PACKAGES);
   for (const list of lists) {
     const p = list.find((x) => x.id === id);
-    if (p) return withPrice(p, prices);
+    if (p) return withPrice(p, prices, jod);
   }
   return undefined;
 }
@@ -143,21 +171,32 @@ export function formatUsd(cents: number): string {
   return `${(cents / 100).toFixed(2)}$`;
 }
 
-/** What the card is actually charged: «4.23$» (Jordan, Lebanon) / «15 ر.س» (Saudi Arabia) */
+/** What the card is actually charged: «4.23$» (Jordan before JOD, Lebanon) / «15 ر.س» (Saudi Arabia) / «3 د.أ» (JOD) */
 export function formatCharge(p: Pick<CreditPackage, "chargeCurrency" | "chargeAmount">): string {
-  return p.chargeCurrency === "usd" ? formatUsd(p.chargeAmount) : `${(p.chargeAmount / 100).toLocaleString("en-US")} ر.س`;
+  if (p.chargeCurrency === "usd") return formatUsd(p.chargeAmount);
+  const symbol = p.chargeCurrency === "jod" ? SYMBOL.JOD : SYMBOL.SAR;
+  return `${fromMinor(p.chargeAmount, p.chargeCurrency).toLocaleString("en-US")} ${symbol}`;
+}
+
+/** A stored payment: display price and currency, and (rows since 2026-11-11) the currency the card was charged in */
+export interface PaidRow {
+  amount: unknown;
+  currency: string;
+  /** null on older rows: a JOD row was then charged in USD at 1.41 */
+  chargeCurrency?: string | null;
 }
 
 /** What a past payment was charged, from its stored display price (prices may have changed since) */
-export function formatPaidCharge(payment: { amount: unknown; currency: string }): string {
-  return formatCharge(chargeFor(Number(payment.amount), payment.currency === "SAR" ? "SAR" : payment.currency === "USD" ? "USD" : "JOD"));
+export function formatPaidCharge(payment: PaidRow): string {
+  const shown = payment.currency === "SAR" ? "SAR" : payment.currency === "USD" ? "USD" : "JOD";
+  return formatCharge(chargeFor(Number(payment.amount), shown, payment.chargeCurrency === "jod"));
 }
 
 /**
  * A past payment as the member saw it, with the charge when it differs (QA WEB-PAY-08): «35 د.أ (49.35$)», «15 ر.س».
  * Rows in another currency (old USD rows) come back as stored.
  */
-export function formatPaidAmount(payment: { amount: unknown; currency: string }): string {
+export function formatPaidAmount(payment: PaidRow): string {
   if (payment.currency !== "JOD" && payment.currency !== "SAR" && payment.currency !== "USD") return formatPaidCharge(payment);
   const shown = `${Number(payment.amount).toLocaleString("en-US")} ${SYMBOL[payment.currency]}`;
   if (payment.currency === "USD") return shown; // shown and charged in dollars

@@ -3,11 +3,12 @@ import { chargeFor } from "@/lib/payments/packages";
 
 /**
  * «6.00 JOD (8.46 USD charged)»: Jordan shows dinars but the card paid dollars, and Stripe refunds what was charged
- * (WP2-07). Riyals are charged as shown; other (old) currencies come back as stored.
+ * (WP2-07). Dinars charged in JOD and riyals are charged as shown; other (old) currencies come back as stored.
  */
-export function refundAmountText(p: { amount: string | number; currency: string }): string {
+export function refundAmountText(p: { amount: string | number; currency: string; chargeCurrency?: string | null }): string {
   const shown = `${Number(p.amount).toFixed(2)} ${p.currency}`;
-  if (p.currency !== "JOD") return shown;
+  // A row charged in JOD (switch jod_charging) was charged as shown
+  if (p.currency !== "JOD" || p.chargeCurrency === "jod") return shown;
   const charge = chargeFor(Number(p.amount), "JOD");
   return `${shown} (${(charge.chargeAmount / 100).toFixed(2)} USD charged)`;
 }

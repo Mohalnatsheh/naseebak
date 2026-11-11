@@ -1,10 +1,10 @@
 /**
  * Pro membership plans per country (db-free: client pages may import it).
  * Prices and credits are set in Admin → Countries (`country_settings.proPlans`); this module only reads and shapes them.
- * Jordan: shown in JOD, charged in USD cents. Saudi Arabia: SAR.
+ * Jordan: shown in JOD, charged in USD cents (in JOD fils with the switch `jod_charging`). Saudi Arabia: SAR.
  */
 import { countryConfig, toCountry } from "@/lib/countries";
-import { chargeFor } from "@/lib/payments/packages";
+import { chargeFor, type ChargeCurrency } from "@/lib/payments/packages";
 
 export type ProPlanId = "weekly" | "monthly" | "yearly";
 
@@ -33,7 +33,7 @@ export interface ProPlanOffer {
   id: ProPlanId;
   price: number;
   currency: "JOD" | "SAR" | "USD";
-  chargeCurrency: "usd" | "sar";
+  chargeCurrency: ChargeCurrency;
   chargeAmount: number;
   credits: number;
   interval: "week" | "month" | "year";
@@ -64,14 +64,14 @@ export function readProPlans(value: unknown): ProPlans | null {
  * Enabled plans of a country as sellable offers, weekly then monthly then yearly. An unknown country is read as the
  * default one (`toCountry`), like every other country lookup.
  */
-export function proOffersFor(country: unknown, plans: ProPlans | null): ProPlanOffer[] {
+export function proOffersFor(country: unknown, plans: ProPlans | null, jod = false): ProPlanOffer[] {
   if (!plans) return [];
   const currency = countryConfig(toCountry(country)).currency.code as ProPlanOffer["currency"];
   const offers: ProPlanOffer[] = [];
   for (const id of PRO_PLAN_IDS) {
     const c = plans[id];
     if (!c || !c.enabled || !Number.isFinite(c.price) || !(c.price > 0)) continue;
-    offers.push({ id, price: c.price, currency, ...chargeFor(c.price, currency), credits: c.credits, interval: INTERVALS[id] });
+    offers.push({ id, price: c.price, currency, ...chargeFor(c.price, currency, jod), credits: c.credits, interval: INTERVALS[id] });
   }
   return offers;
 }

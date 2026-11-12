@@ -135,7 +135,11 @@ function lookAlikeLatin(s: string): string {
  * asterisks between them; ordinary words are never touched.
  */
 function joinSpacedLetters(s: string): string {
-  return s.replace(/(?<![\p{L}\p{N}])\p{L}(?:[\s.\-_*·]{1,3}\p{L}(?![\p{L}\p{N}])){2,}/gu, (run) => run.replace(/[^\p{L}]/gu, ""));
+  // No lookbehind (Safari before iOS 16.4 throws on it): the character before the run is captured and kept
+  return s.replace(
+    /(^|[^\p{L}\p{N}])(\p{L}(?:[\s.\-_*·]{1,3}\p{L}(?![\p{L}\p{N}])){2,})/gu,
+    (_m, before: string, run: string) => before + run.replace(/[^\p{L}]/gu, ""),
+  );
 }
 
 function hasSocialKeyword(text: string): boolean {
@@ -151,7 +155,7 @@ function hasSocialKeywordIn(lower: string): boolean {
   return SOCIAL_KEYWORDS_LATIN.some((k) => {
     const key = lookAlikeLatin(k);
     if (k.length > WHOLE_WORD_MAX) return latin.includes(key);
-    return new RegExp(`(?<![a-z])${key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![a-z])`).test(latin);
+    return new RegExp(`(?:^|[^a-z])${key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![a-z])`).test(latin);
   });
 }
 
@@ -264,8 +268,9 @@ function normaliseNumberDisguise(s: string): string {
   // Repeat so a run of look-alikes next to a digit ("OO79") is read one letter at a time
   for (let i = 0; i < 4; i++) {
     const next = out
-      .replace(/(?<=\d)[oO]|[oO](?=\d)/g, "0")
-      .replace(/(?<=\d)[Iil]|[Iil](?=\d)/g, "1");
+      // No lookbehind (Safari before iOS 16.4): the digit before is captured and put back
+      .replace(/(\d)[oO]|[oO](?=\d)/g, (_m, digit?: string) => `${digit ?? ""}0`)
+      .replace(/(\d)[Iil]|[Iil](?=\d)/g, (_m, digit?: string) => `${digit ?? ""}1`);
     if (next === out) break;
     out = next;
   }
@@ -315,7 +320,9 @@ function numberWords(s: string): { list: string[]; glued: Set<number> } {
   const list: string[] = [];
   const glued = new Set<number>();
   for (const w of words(s)) {
-    const parts = w.split(/(?<=\p{L})(?=\p{N})|(?<=\p{N})(?=\p{L})/u).filter(Boolean);
+    // Split where letters meet digits, without lookbehind (Safari before iOS 16.4): a space after each boundary
+    // character, then split on it (a word here never holds a space)
+    const parts = w.replace(/(\p{L})(?=\p{N})|(\p{N})(?=\p{L})/gu, "$1$2 ").split(" ").filter(Boolean);
     if (GLUED_CONNECTOR_GROUP.test(w)) glued.add(list.length + 1);
     list.push(...parts);
   }

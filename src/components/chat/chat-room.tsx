@@ -73,6 +73,18 @@ import { useChatDelete } from "./delete-dialogs";
 
 /** Id for an optimistic message until the server answers (also its clientNonce); only called from send() / sendMedia().
  *  Random, so two sends in the same millisecond (or two tabs) never share a nonce. */
+/**
+ * The filter run on this device, for instant feedback only: if it fails here (an older browser), the message goes
+ * to the server, which checks every message anyway, instead of the send stopping silently.
+ */
+function instantCheck(text: string): ReturnType<typeof checkMessage> {
+  try {
+    return checkMessage(text);
+  } catch {
+    return { ok: true, text };
+  }
+}
+
 function tempMessageId() {
   const random =
     typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
@@ -613,7 +625,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
   async function send(text: string, retryId?: string, quote: ReplyQuote | null = retryId ? null : replyTo): Promise<boolean> {
     setComposerError(null);
     // Same rules as the server, for instant feedback (the server still checks every message)
-    const pre = checkMessage(text);
+    const pre = instantCheck(text);
     if (!pre.ok) {
       showRefusal(pre.message);
       return false;

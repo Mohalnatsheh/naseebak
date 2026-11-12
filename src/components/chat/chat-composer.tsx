@@ -211,7 +211,12 @@ export const ChatComposer = forwardRef<ChatComposerHandle, {
     const value = text.trim();
     if (!value || sending || value.length > MAX) return;
     setSending(true);
-    const ok = await onSend(value);
+    let ok = false;
+    try {
+      ok = await onSend(value);
+    } catch {
+      // An error on this device: the text stays in the box to send again, and the spinner never stays on forever
+    }
     setSending(false);
     if (ok) setText("");
     area.current?.focus();

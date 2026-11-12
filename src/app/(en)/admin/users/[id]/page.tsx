@@ -179,6 +179,10 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
   const [lastNameDraft, setLastNameDraft] = useState("");
   const [nameError, setNameError] = useState("");
   const [savingName, setSavingName] = useState(false);
+  const [genderEditorOpen, setGenderEditorOpen] = useState(false);
+  const [genderReason, setGenderReason] = useState("");
+  const [genderError, setGenderError] = useState("");
+  const [savingGender, setSavingGender] = useState(false);
   const [flagging, setFlagging] = useState(false);
   const [actionError, setActionError] = useState("");
   const [endingChatId, setEndingChatId] = useState<string | null>(null);
@@ -320,6 +324,45 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
       setCreditsError("Network error — please try again");
     } finally {
       setSavingCredits(false);
+    }
+  }
+
+  function openGenderEditor() {
+    setGenderReason("");
+    setGenderError("");
+    setGenderEditorOpen(!genderEditorOpen);
+  }
+
+  async function handleSaveGender() {
+    if (!user) return;
+    if (!genderReason.trim()) {
+      setGenderError("Add a short reason for the change");
+      return;
+    }
+    setSavingGender(true);
+    setGenderError("");
+    try {
+      const res = await fetch(`/api/admin/users/${id}/gender`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ gender: user.gender === "MALE" ? "FEMALE" : "MALE", reason: genderReason.trim() }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setGenderEditorOpen(false);
+        await Promise.all([fetchUser(), fetchCycle(), fetchSuggestions()]);
+        toast.success(
+          `Gender changed. ${plural(data.closed ?? 0, "open card")} closed` +
+            (data.refunded ? `, ${plural(data.refunded, "credit")} refunded` : ""),
+        );
+      } else {
+        setGenderError(data.error || "Could not change the gender");
+      }
+    } catch (err) {
+      console.error(err);
+      setGenderError("Network error — please try again");
+    } finally {
+      setSavingGender(false);
     }
   }
 
@@ -521,6 +564,11 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
           <Button variant="outline" size="sm" onClick={openNameEditor}>
             <Pencil className="h-4 w-4 me-2" /> Edit name
           </Button>
+          {user.role === "USER" && (
+            <Button variant="outline" size="sm" onClick={openGenderEditor}>
+              <UsersIcon className="h-4 w-4 me-2" /> Change gender
+            </Button>
+          )}
           <Button
             variant="outline"
             size="sm"
@@ -584,6 +632,43 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
             </div>
             <p className="text-xs text-muted-foreground">Arabic letters, as at sign-up. The member sees the new name straight away, and so does anyone they are matched with.</p>
             {nameError && <p className="text-sm text-destructive">{nameError}</p>}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Gender inline editor: for members who picked the wrong gender at sign-up (src/lib/admin/change-gender.ts) */}
+      {genderEditorOpen && (
+        <Card>
+          <CardContent className="pt-6 space-y-3">
+            {totalMatches > 0 ? (
+              <p className="text-sm text-destructive">
+                This member has {plural(totalMatches, "match", "matches")}. A match stores who is the woman and who is the man, so the gender can&apos;t be changed.
+              </p>
+            ) : (
+              <>
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className="text-sm font-medium">
+                    {user.gender === "MALE" ? "Male" : "Female"} → {user.gender === "MALE" ? "Female" : "Male"}
+                  </span>
+                  <Input
+                    aria-label="Reason"
+                    placeholder="Reason (required), e.g. picked the wrong gender at sign-up"
+                    maxLength={200}
+                    value={genderReason}
+                    onChange={(e) => setGenderReason(e.target.value)}
+                    className="flex-1 min-w-[220px]"
+                  />
+                  <Button size="sm" onClick={handleSaveGender} disabled={savingGender}>
+                    {savingGender ? <Loader2 className="h-4 w-4 animate-spin" /> : "Change gender"}
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setGenderEditorOpen(false)}>Cancel</Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  All the member&apos;s open cards close, unanswered paid «مهتم» on them are refunded (the member&apos;s and the other people&apos;s), the hijab / beard answers and preferences are cleared so the member is asked again, and new cards from the right side are found straight away. The member gets no notice.
+                </p>
+              </>
+            )}
+            {genderError && <p className="text-sm text-destructive">{genderError}</p>}
           </CardContent>
         </Card>
       )}

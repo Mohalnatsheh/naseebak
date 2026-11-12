@@ -7,8 +7,10 @@ import { sendOtpSchema, normalizePhone } from "@/lib/validations/auth";
 import { getMaintenanceState, isRegistrationOpen } from "@/lib/settings";
 import { countrySignupBlock } from "@/lib/countries/settings";
 import { TEST_OTP, hasFixedOtp } from "@/lib/test-accounts";
+import { fixedOtpOverride } from "@/lib/otp-overrides";
 
-// Fixed OTP for test numbers — bypass SMS (list and EXTRA_TEST_PHONES in lib/test-accounts)
+// Fixed OTP, SMS bypassed: test numbers (EXTRA_TEST_PHONES) use TEST_OTP; a per-number override
+// (FIXED_OTP_OVERRIDES, a real member, not the test group) uses its own code. See lib/otp-overrides.
 
 export async function POST(request: Request) {
   try {
@@ -91,11 +93,11 @@ export async function POST(request: Request) {
       },
     });
 
-    // Use fixed OTP for test number, random for everyone else
-    const isTestPhone = hasFixedOtp(phone);
-    const generatedCode = isTestPhone
-      ? TEST_OTP
-      : Math.floor(100000 + Math.random() * 900000).toString();
+    // A per-number override (real member, own code) wins; otherwise test numbers use TEST_OTP,
+    // everyone else a random code. A fixed code (either kind) skips the SMS.
+    const fixedCode = fixedOtpOverride(phone) ?? (hasFixedOtp(phone) ? TEST_OTP : null);
+    const skipSms = fixedCode !== null;
+    const generatedCode = fixedCode ?? Math.floor(100000 + Math.random() * 900000).toString();
 
     // Store OTP with 5-minute expiry
     const stored = await db.otp.create({
@@ -106,8 +108,8 @@ export async function POST(request: Request) {
       },
     });
 
-    // Send SMS (skip for test phone)
-    if (!isTestPhone) {
+    // Send SMS (skip when the code is fixed)
+    if (!skipSms) {
       const sent = await sendOtpCode(phone, generatedCode);
       if (!sent) {
         // Don't tell the person a code is on its way when it isn't: they would wait for nothing

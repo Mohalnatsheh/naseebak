@@ -257,6 +257,7 @@ src/
 - Suggestion gate: always `meetsSuggestionGate()` (server) or `qualifiesForSuggestions()` (client). Matches are never gated.
 - Only `role: USER` accounts get or receive suggestions.
 - Test accounts (`src/lib/test-accounts.ts`) meet only each other. On production only `EXTRA_TEST_PHONES` count.
+- `FIXED_OTP_OVERRIDES` (server `.env` only, `phone:code` pairs, `src/lib/otp-overrides.ts`, 2026-11-12, owner): a fixed sign-in code and no SMS for that number, which stays a normal member (not the test group). One Lebanese number set in production. Numbers stay in the `.env`, never in the repo. Anyone who knows the number and code can sign in.
 - Never put a real or review phone number in a doc, and never send personal data in analytics params. Dashboard page titles stay fixed labels.
 - Sign-up never reveals whether a number is registered. Sign-in learns it from `verify-otp` (after the code). `send-otp` still returns `userExists` only for app builds before 2026-11-07: remove it once the force update requires the newer app.
 - GA runs on public pages and the dashboard with ids stripped, never in `/admin`. GTM and the Pixel are off the dashboard, admin, `/pay`, `/payments` and login.
@@ -358,7 +359,7 @@ Detail: [docs/reference/suggestions-and-credits.md](docs/reference/suggestions-a
 
 ## Deployment
 
-**Production: `129ea8f` (JOD charging, switch `jod_charging` ON since 2026-11-11 22:26 (owner); Pro chat delete and the «مهتم» paywall, both ON since 2026-11-11), deployed 2026-11-11 with `--db-push` (one nullable column `payments.chargeCurrency`; backup `/root/backups/naseeb-before-deploy-129ea8f-20261111-2222.dump`), slot b. Lebanon is on since 2026-11-10 (owner): active, registration open, no sales (no prices approved), polls off.**
+**Production: `92dc3e4` (per-number fixed sign-in code `FIXED_OTP_OVERRIDES`, one number set in the `.env`, 2026-11-12; on top of `129ea8f`: JOD charging, switch `jod_charging` ON since 2026-11-11 22:26 (owner); Pro chat delete and the «مهتم» paywall, both ON since 2026-11-11), deployed 2026-11-12, no schema change, slot a. Lebanon is on since 2026-11-10 (owner): active, registration open, no sales (no prices approved), polls off.**
 
 Update that one line after each deploy. Don't list past versions. The live revision is in `/var/www/naseebak/REVISION`.
 

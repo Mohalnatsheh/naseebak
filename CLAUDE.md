@@ -183,6 +183,7 @@ src/
 - **Client components must never import a runtime value from a module that imports `@/lib/db`** (`feed.ts`, `settings.ts`, `credits.ts`, `intro/*`, `matching/*`). It breaks `next build` while tsc and vitest pass. Use `import type` and db-free modules such as `src/lib/suggestions/feed-types.ts`.
 - Never name a top-level `const` helper `short`, `long`, `int`, `float`, `char`, `byte` or similar. The production minifier drops it and the page crashes with "X is not defined".
 - After touching code that client pages import at load (schemas, option tables), test a production build.
+- No regex lookbehind (`(?<=`, `(?<!`) in code the browser loads: Safari before iOS 16.4 throws on it when it runs, which froze every chat send there (2026-10-19 to 11-13). Capture the character instead. `src/__tests__/lib/no-regex-lookbehind.test.ts` fails otherwise.
 - `pnpm lint` stays at 0 problems. A targeted `eslint-disable-next-line <rule> -- <reason>` is only for blob:/data: image previews.
 - Raw SQL must state instants as UTC (`::timestamptz AT TIME ZONE 'UTC'`): production Postgres runs in Europe/Berlin, columns are UTC without a zone.
 - Any write to a `User` row bumps `updatedAt`, so scheduler writes on idle users must preserve "last seen" (see `runReengagement`).
@@ -359,7 +360,7 @@ Detail: [docs/reference/suggestions-and-credits.md](docs/reference/suggestions-a
 
 ## Deployment
 
-**Production: `4b53ac0` (Admin «Change gender» on the member page: closes the open cards, refunds unanswered «مهتم», clears hijab/beard answers, refused with any match, 2026-11-12; on top of `92dc3e4`: per-number fixed sign-in code `FIXED_OTP_OVERRIDES`; JOD charging, switch `jod_charging` ON since 2026-11-11 22:26 (owner); Pro chat delete and the «مهتم» paywall, both ON since 2026-11-11), deployed 2026-11-12, no schema change, slot b. Lebanon is on since 2026-11-10 (owner): active, registration open, no sales (no prices approved), polls off.**
+**Production: `13c49e2` (chat sends again on iPhones before iOS 16.4: no regex lookbehind in browser code, guard test `no-regex-lookbehind`, 2026-11-13; on top of `4b53ac0`: Admin «Change gender» on the member page: closes the open cards, refunds unanswered «مهتم», clears hijab/beard answers, refused with any match, 2026-11-12; on top of `92dc3e4`: per-number fixed sign-in code `FIXED_OTP_OVERRIDES`; JOD charging, switch `jod_charging` ON since 2026-11-11 22:26 (owner); Pro chat delete and the «مهتم» paywall, both ON since 2026-11-11), deployed 2026-11-13, no schema change, slot a. Lebanon is on since 2026-11-10 (owner): active, registration open, no sales (no prices approved), polls off.**
 
 Update that one line after each deploy. Don't list past versions. The live revision is in `/var/www/naseebak/REVISION`.
 

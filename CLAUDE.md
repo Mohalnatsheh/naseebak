@@ -359,7 +359,7 @@ Detail: [docs/reference/suggestions-and-credits.md](docs/reference/suggestions-a
 
 ## Deployment
 
-**Production: `92dc3e4` (per-number fixed sign-in code `FIXED_OTP_OVERRIDES`, one number set in the `.env`, 2026-11-12; on top of `129ea8f`: JOD charging, switch `jod_charging` ON since 2026-11-11 22:26 (owner); Pro chat delete and the «مهتم» paywall, both ON since 2026-11-11), deployed 2026-11-12, no schema change, slot a. Lebanon is on since 2026-11-10 (owner): active, registration open, no sales (no prices approved), polls off.**
+**Production: `4b53ac0` (Admin «Change gender» on the member page: closes the open cards, refunds unanswered «مهتم», clears hijab/beard answers, refused with any match, 2026-11-12; on top of `92dc3e4`: per-number fixed sign-in code `FIXED_OTP_OVERRIDES`; JOD charging, switch `jod_charging` ON since 2026-11-11 22:26 (owner); Pro chat delete and the «مهتم» paywall, both ON since 2026-11-11), deployed 2026-11-12, no schema change, slot b. Lebanon is on since 2026-11-10 (owner): active, registration open, no sales (no prices approved), polls off.**
 
 Update that one line after each deploy. Don't list past versions. The live revision is in `/var/www/naseebak/REVISION`.
 

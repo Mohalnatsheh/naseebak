@@ -44,7 +44,7 @@ class HomeInterestedCards extends StatelessWidget {
         padding: const EdgeInsets.only(bottom: AppSpace.xl),
         child: HomeLoadErrorRow(
           key: const Key('home-interested-error'),
-          text: 'تعذّر تحميل من اهتم بك.',
+          text: forViewer(female, 'تعذّر تحميل من اهتم بك.', 'تعذّر تحميل من اهتم بكِ.'),
           onRetry: onRetry,
         ),
       );

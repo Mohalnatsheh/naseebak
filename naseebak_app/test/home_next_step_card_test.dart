@@ -100,6 +100,32 @@ void main() {
     );
   });
 
+  test('female viewer: titles and CTA labels of each branch', () {
+    final liked = nextStepFor(Counts(flags: flags, likedYou: 2), female: true);
+    expect(liked.title, 'شخصان أبديا اهتمامهما بكِ');
+    expect(liked.ctaLabel, 'شاهدي من أبدى اهتمامه');
+    expect(nextStepFor(Counts(flags: flags, likedYou: 1), female: true).title, 'شخص أبدى اهتمامه بكِ');
+    expect(nextStepFor(Counts(flags: flags, likedYou: 5), female: true).title, '5 أشخاص أبدوا اهتمامهم بكِ');
+    expect(nextStepFor(Counts(flags: flags, likedYou: 12), female: true).title, '12 شخصاً أبدوا اهتمامهم بكِ');
+    expect(nextStepFor(Counts(flags: flags, newSuggestions: 3), female: true).ctaLabel, 'تصفّحي الاقتراحات');
+    expect(nextStepFor(Counts(flags: flags, unreadChats: 1), female: true).ctaLabel, 'افتحي المحادثات');
+    expect(nextStepFor(Counts(flags: flags, newSuggestions: 3)).ctaLabel, 'تصفّح الاقتراحات');
+    expect(nextStepFor(Counts(flags: flags, unreadChats: 1)).ctaLabel, 'افتح المحادثات');
+    expect(nextStepFor(Counts(flags: flags, likedYou: 1)).ctaLabel, 'شاهد من أبدى اهتمامه');
+  });
+
+  testWidgets('stat label «مهتمون بك» follows the viewer', (tester) async {
+    for (final female in [false, true]) {
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(body: NextStepCard(counts: const Counts(flags: CycleFlags()), female: female)),
+      ));
+      expect(
+        find.descendant(of: find.byKey(const Key('next-step-stat-liked')), matching: find.text(female ? 'مهتمون بكِ' : 'مهتمون بك')),
+        findsOneWidget,
+      );
+    }
+  });
+
   test('quiet: older server fields null; profile steps', () {
     final unfinished = profile(
       60,

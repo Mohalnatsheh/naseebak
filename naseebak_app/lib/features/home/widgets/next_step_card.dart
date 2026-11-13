@@ -41,10 +41,10 @@ NextStepMessage nextStepFor(
   if (liked > 0) {
     final who = arabicCount(
       liked,
-      one: 'شخص أبدى اهتمامه بك',
-      two: 'شخصان أبديا اهتمامهما بك',
-      few: 'أشخاص أبدوا اهتمامهم بك',
-      many: 'شخصاً أبدوا اهتمامهم بك',
+      one: 'شخص أبدى اهتمامه ب${g('ك', 'كِ')}',
+      two: 'شخصان أبديا اهتمامهما ب${g('ك', 'كِ')}',
+      few: 'أشخاص أبدوا اهتمامهم ب${g('ك', 'كِ')}',
+      many: 'شخصاً أبدوا اهتمامهم ب${g('ك', 'كِ')}',
     );
     return NextStepMessage(
       title: who,
@@ -54,7 +54,7 @@ NextStepMessage nextStepFor(
               'ردّكِ على من أبدى اهتمامه بكِ مجاني.',
             )
           : null,
-      ctaLabel: 'شاهد من أبدى اهتمامه',
+      ctaLabel: g('شاهد من أبدى اهتمامه', 'شاهدي من أبدى اهتمامه'),
       route: '/suggestions?tab=interested',
     );
   }
@@ -68,14 +68,14 @@ NextStepMessage nextStepFor(
     );
     return NextStepMessage(
       title: '$what بانتظار${g('ك', 'كِ')}',
-      ctaLabel: 'تصفّح الاقتراحات',
+      ctaLabel: g('تصفّح الاقتراحات', 'تصفّحي الاقتراحات'),
       route: '/suggestions?tab=new',
     );
   }
   if (c.unreadChats > 0) {
     return NextStepMessage(
       title: 'رسائل جديدة في محادثات${g('ك', 'كِ')}',
-      ctaLabel: 'افتح المحادثات',
+      ctaLabel: g('افتح المحادثات', 'افتحي المحادثات'),
       route: '/chats',
     );
   }
@@ -169,7 +169,7 @@ class NextStepCard extends StatelessWidget {
               _Stat(
                 key: const Key('next-step-stat-liked'),
                 value: counts.likedYou ?? 0,
-                label: 'مهتمون بك',
+                label: forViewer(female, 'مهتمون بك', 'مهتمون بكِ'),
               ),
               _Stat(
                 key: const Key('next-step-stat-chats'),

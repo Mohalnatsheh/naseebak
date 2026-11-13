@@ -238,6 +238,8 @@ void main() {
       await pumpCards(tester, interestedResponse: const FakeResponse(500, {'error': 'خطأ'}));
       expect(find.byKey(const Key('home-interested-error')), findsOneWidget);
       expect(find.byKey(const Key('home-interested-cards')), findsNothing);
+      // The harness views as a woman
+      expect(find.text('تعذّر تحميل من اهتم بكِ.'), findsOneWidget);
     });
   });
 

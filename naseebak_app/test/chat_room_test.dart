@@ -427,6 +427,39 @@ void main() {
       expect(find.text('إعادة الإرسال'), findsOneWidget);
     });
 
+    testWidgets('a failed text reopened from the device is not taken for an earlier identical one (B10)',
+        (tester) async {
+      final cache = MemoryChatCache();
+      final earlier = {...msg(1, mine: true), 'body': 'نص'};
+      await cache.write(
+          'u1',
+          'c1',
+          CachedChat(
+            conversation: ChatSummary.fromJson(conv),
+            messages: [
+              ChatMessage.fromJson(earlier),
+              ChatMessage(
+                id: 'local-n1',
+                body: 'نص',
+                createdAt: chatT0.add(const Duration(minutes: 1, seconds: 30)),
+                mine: true,
+                state: SendState.failed,
+                nonce: 'n1',
+                maybeSent: true,
+              ),
+            ],
+            hasMore: false,
+          ));
+      final adapter = FakeAdapter()
+        ..on('GET', '/api/chats/c1', FakeResponse(200, {...page([]), 'messages': [earlier]}));
+      await openRoom(tester, adapter, cache);
+      await tester.pumpAndSettle();
+      expect(find.text('نص'), findsNWidgets(2));
+      expect(find.text('إعادة الإرسال'), findsOneWidget);
+      final saved = (await cache.read('u1', 'c1'))!;
+      expect(saved.messages.where((m) => m.state == SendState.failed).single.nonce, 'n1');
+    });
+
     testWidgets('a failure after a sign-out writes nothing back', (tester) async {
       final cache = MemoryChatCache();
       final (container, release) = await sendThenLeave(tester, cache);

@@ -31,18 +31,29 @@ abstract class ChatCache {
   /// A text that failed after its chat was left (audit B2): added to the chat's copy (replacing one with the same
   /// nonce), so the next visit shows it with «إعادة الإرسال». With no copy yet, one is started from [conversation]
   /// (`hasMore`, so older messages still load from the API); without a conversation nothing is written.
-  Future<void> addFailed(String memberId, String chatId, ChatMessage failed, {ChatSummary? conversation}) =>
-      _addFailed(memberId, chatId, failed, conversation: conversation);
+  ///
+  /// Calls for one chat run one after another: two texts failing together never overwrite each other.
+  Future<void> addFailed(String memberId, String chatId, ChatMessage failed, {ChatSummary? conversation}) {
+    final key = '$memberId/$chatId';
+    final next = (_failedChains[key] ?? Future<void>.value()).then((_) async {
+      final updated = withFailed(await read(memberId, chatId), failed, conversation);
+      if (updated != null) await write(memberId, chatId, updated);
+    });
+    _failedChains[key] = next;
+    next.whenComplete(() {
+      if (identical(_failedChains[key], next)) _failedChains.remove(key);
+    }).ignore();
+    return next;
+  }
 
-  Future<void> _addFailed(String memberId, String chatId, ChatMessage failed,
-      {ChatSummary? conversation, bool Function()? stillValid}) async {
-    final copy = await read(memberId, chatId);
-    if (stillValid != null && !stillValid()) return;
+  final _failedChains = <String, Future<void>>{};
+
+  /// [copy] with [failed] added (replacing one with the same nonce); null when there is no copy and no conversation
+  static CachedChat? withFailed(CachedChat? copy, ChatMessage failed, ChatSummary? conversation) {
     final chat = copy?.conversation ?? conversation;
-    if (chat == null) return;
+    if (chat == null) return null;
     final messages = [...?copy?.messages.where((m) => m.nonce == null || m.nonce != failed.nonce), failed];
-    await write(memberId, chatId,
-        CachedChat(conversation: chat, messages: sortedForChat(messages), hasMore: copy?.hasMore ?? true));
+    return CachedChat(conversation: chat, messages: sortedForChat(messages), hasMore: copy?.hasMore ?? true);
   }
 
   /// Only confirmed messages, the newest [keep]
@@ -174,37 +185,43 @@ class FileChatCache extends ChatCache {
     // Encoded now: the caller keeps changing its message list while the write waits its turn
     final json = jsonEncode(ChatCache.encode(chat));
     final generation = _generation;
-    return _queue(memberId, chatId, () async {
-      File? tmp;
-      try {
-        if (generation != _generation) return;
-        final f = await _file(memberId, chatId);
-        await f.parent.create(recursive: true);
-        // Write then rename: a crash mid-write never leaves a half file
-        tmp = File('${f.path}.${DateTime.now().microsecondsSinceEpoch}-${_tmpSeq++}.tmp');
-        await tmp.writeAsString(json, flush: true);
-        if (generation != _generation) {
-          await tmp.delete();
-          return;
-        }
-        await tmp.rename(f.path);
-      } catch (e) {
-        debugPrint('[chat-cache] write failed: $e');
-        try {
-          if (tmp != null && await tmp.exists()) await tmp.delete();
-        } catch (_) {}
-      }
-    });
+    return _queue(memberId, chatId, () => _writeFile(memberId, chatId, json, generation));
   }
 
-  /// After the writes already queued for this chat (the copy read is the newest), and never across a sign-out
+  /// Inside a queued job: write then rename, unless a sign-out came after [generation]
+  Future<void> _writeFile(String memberId, String chatId, String json, int generation) async {
+    File? tmp;
+    try {
+      if (generation != _generation) return;
+      final f = await _file(memberId, chatId);
+      await f.parent.create(recursive: true);
+      // Write then rename: a crash mid-write never leaves a half file
+      tmp = File('${f.path}.${DateTime.now().microsecondsSinceEpoch}-${_tmpSeq++}.tmp');
+      await tmp.writeAsString(json, flush: true);
+      if (generation != _generation) {
+        await tmp.delete();
+        return;
+      }
+      await tmp.rename(f.path);
+    } catch (e) {
+      debugPrint('[chat-cache] write failed: $e');
+      try {
+        if (tmp != null && await tmp.exists()) await tmp.delete();
+      } catch (_) {}
+    }
+  }
+
+  /// The whole read-change-write in one queued job: after the writes queued before it, before any queued after it
+  /// (another failed text included), and never across a sign-out
   @override
-  Future<void> addFailed(String memberId, String chatId, ChatMessage failed, {ChatSummary? conversation}) async {
+  Future<void> addFailed(String memberId, String chatId, ChatMessage failed, {ChatSummary? conversation}) {
     final generation = _generation;
-    await (_queues['${_safe(memberId)}/${_safe(chatId)}'] ?? Future<void>.value());
-    if (generation != _generation) return;
-    await _addFailed(memberId, chatId, failed,
-        conversation: conversation, stillValid: () => generation == _generation);
+    return _queue(memberId, chatId, () async {
+      if (generation != _generation) return;
+      final updated = ChatCache.withFailed(await read(memberId, chatId), failed, conversation);
+      if (updated == null) return;
+      await _writeFile(memberId, chatId, jsonEncode(ChatCache.encode(updated)), generation);
+    });
   }
 
   @override

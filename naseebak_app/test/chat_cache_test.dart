@@ -202,4 +202,17 @@ void main() {
     await late;
     expect(await cache.read('u1', 'c2'), isNull);
   });
+
+  test('two texts failing together are both kept (no lost update), in memory and on the device', () async {
+    for (final c in <ChatCache>[MemoryChatCache(), cache]) {
+      await c.write('u1', 'c1', chat([1]));
+      final a = c.addFailed('u1', 'c1', failedText('n1', 'أولى'));
+      final b = c.addFailed('u1', 'c1', failedText('n2', 'ثانية'));
+      await Future.wait([a, b]);
+      final back = (await c.read('u1', 'c1'))!;
+      expect(back.messages.where((m) => m.state == SendState.failed).map((m) => m.body).toSet(), {'أولى', 'ثانية'},
+          reason: '$c');
+      expect(back.messages.first.id, 'm1');
+    }
+  });
 }

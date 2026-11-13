@@ -561,9 +561,13 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     });
     // What this device already has: the chat shows at once, the network only adds what changed
     final member = _memberId;
+    // Messages the device copy already held as sent: never the server's copy of a text kept as failed (audit B10,
+    // an earlier identical text of mine would otherwise take its place); a retry is safe, the server knows the nonce
+    final heldAtOpen = <String>{};
     if (member != null && _chat == null) {
       final cached = await _cache.read(member, widget.chatId);
       if (cached != null && mounted && _chat == null) {
+        heldAtOpen.addAll(cached.messages.where((m) => m.state == SendState.sent).map((m) => m.id));
         setState(() {
           _chat = cached.conversation;
           _messages
@@ -584,7 +588,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
         if (page.bothWrote == true) _serverBothWrote = true;
         _mergeLatest(page);
         // A text kept as failed (offline) that the server saved after all
-        _reconcile(page.messages);
+        _reconcile(page.messages.where((m) => !heldAtOpen.contains(m.id)));
         _deleteEnabled = page.deleteEnabled;
         // The device copy too: what was cleared, hidden or deleted meanwhile
         _applyDeletes(clearedBefore: page.clearedBefore, hidden: page.hiddenIds, deleted: page.deletedIds);

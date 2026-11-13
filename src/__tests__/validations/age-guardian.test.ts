@@ -48,6 +48,13 @@ describe("guardian contact", () => {
     expect(parentInfoSchema.safeParse({ ...ok, parentName: "Ahmad" }).success).toBe(false);
     expect(parentInfoSchema.safeParse({ ...ok, parentPhone: "123" }).success).toBe(false);
     expect(parentInfoSchema.safeParse({ ...ok, relationship: "الأب" }).success).toBe(false);
-    expect(parentInfoSchema.safeParse({ ...ok, address: "" }).success).toBe(false);
+  });
+
+  it("the address is optional (owner, 2026-11-13): empty or missing saves as null, a long one is refused", () => {
+    expect(parentInfoSchema.parse({ ...ok, address: "" }).address).toBeNull();
+    expect(parentInfoSchema.parse({ ...ok, address: "   " }).address).toBeNull();
+    expect(parentInfoSchema.parse({ ...ok, address: undefined }).address).toBeNull();
+    expect(parentInfoSchema.parse({ ...ok, address: "عم" }).address).toBe("عم");
+    expect(parentInfoSchema.safeParse({ ...ok, address: "ع".repeat(301) }).success).toBe(false);
   });
 });

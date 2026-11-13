@@ -113,7 +113,7 @@ export function GuardianEditor({
         </p>
         {introMode && !original.parentName && (
           <p className="text-caption leading-relaxed text-muted-ink">
-            يُطلب وليّ الأمر عند أول تعارف عائلي فقط. يمكنك تركه فارغاً الآن، وإذا بدأت بتعبئته فكل الحقول مطلوبة.
+            يُطلب وليّ الأمر عند أول تعارف عائلي فقط. يمكنك تركه فارغاً الآن، وإذا بدأت بتعبئته فالاسم والرقم وصلة القرابة مطلوبة، والعنوان اختياري.
           </p>
         )}
         <Field id={`${ID}-parentName`} label="اسم ولي الأمر" error={issues.parentName}>
@@ -148,7 +148,7 @@ export function GuardianEditor({
             error={!!issues.relationship}
           />
         </Field>
-        <Field id={`${ID}-address`} label="العنوان" error={issues.address}>
+        <Field id={`${ID}-address`} label="العنوان (اختياري)" error={issues.address}>
           <textarea
             id={`${ID}-address`}
             rows={3}

@@ -401,7 +401,6 @@ export default function ProfileSetupPage() {
         if (!parentForm.parentName) errors.parentName = "اسم ولي الأمر مطلوب";
         if (!parentForm.parentPhone) errors.parentPhone = `رقم ${country.words.phone} ولي الأمر مطلوب`;
         if (!parentForm.relationship) errors.relationship = "صلة القرابة مطلوبة";
-        if (!parentForm.address) errors.address = "العنوان مطلوب";
         // Same rules as the API (the other family sees this contact)
         const guardian = parentInfoSchemaFor(country.code).safeParse({ ...parentForm, notes: undefined });
         if (!guardian.success) {
@@ -1001,7 +1000,7 @@ export default function ProfileSetupPage() {
               <ChoiceGroup id="relationship" cols={2} options={guardianRelationships} isSelected={(v) => parentForm.relationship === v} onSelect={(v) => updateParent("relationship", v)} error={!!fieldErrors.relationship} />
             </Field>
 
-            <Field id="address" label="العنوان" error={fieldErrors.address}>
+            <Field id="address" label="العنوان (اختياري)" error={fieldErrors.address}>
               <textarea id="address" value={parentForm.address} onChange={(e) => updateParent("address", e.target.value)} aria-invalid={!!fieldErrors.address} className={textareaClass(!!fieldErrors.address, "min-h-[80px]")} placeholder="العنوان التفصيلي (المدينة، الحي، الشارع...)" />
             </Field>
 

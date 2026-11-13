@@ -287,7 +287,6 @@ export function ShortSetup({ guardianStep }: { guardianStep: boolean }) {
       if (!guardian.parentName) e.parentName = "اسم ولي الأمر مطلوب";
       if (!guardian.parentPhone) e.parentPhone = `رقم ${country.words.phone} ولي الأمر مطلوب`;
       if (!guardian.relationship) e.relationship = "صلة القرابة مطلوبة";
-      if (!guardian.address) e.address = "العنوان مطلوب";
       // Same rules as the API (the other family sees this contact)
       const parsed = parentInfoSchemaFor(country.code).safeParse({ ...guardian, notes: undefined });
       if (!parsed.success) {
@@ -639,7 +638,7 @@ export function ShortSetup({ guardianStep }: { guardianStep: boolean }) {
                 invalid={!!errors.relationship}
               />
             </Field>
-            <Field id="address" label="العنوان" error={errors.address}>
+            <Field id="address" label="العنوان (اختياري)" error={errors.address}>
               <textarea
                 id="address"
                 value={guardian.address}

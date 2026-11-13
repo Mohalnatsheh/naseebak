@@ -455,7 +455,6 @@ export default function ProfileEditPage() {
       if (!form.parentName) return { field: "parentName", message: "يرجى إدخال اسم ولي الأمر" };
       if (!form.parentPhone) return { field: "parentPhone", message: `يرجى إدخال رقم ${country.words.phone} ولي الأمر` };
       if (!form.relationship) return { field: "relationship", message: "يرجى اختيار صلة القرابة" };
-      if (!form.parentAddress) return { field: "parentAddress", message: "يرجى إدخال العنوان" };
       // Same rules as the API (the other family sees this contact) — only when it is being changed,
       // so an older entry never blocks an unrelated edit
       const guardianEdited =
@@ -1636,7 +1635,7 @@ export default function ProfileEditPage() {
         <Card className="overflow-hidden">
           <div className="h-1.5 bg-gradient-to-l from-primary via-primary/50 to-accent" />
           <CardHeader>
-            <CardTitle>معلومات ولي الأمر</CardTitle>
+            <CardTitle>معلومات ولي الأمر{introMode && !originalForm.parentName && <> <OptionalTag /></>}</CardTitle>
             <CardDescription>
               {introMode ? "بيانات وليّ الأمر للتعارف العائلي" : "بيانات ولي الأمر لتنسيق الزيارات العائلية"}
             </CardDescription>
@@ -1653,7 +1652,7 @@ export default function ProfileEditPage() {
             {/* New cycle with no guardian yet: the step is optional until it is started (QA WA-15) */}
             {introMode && !originalForm.parentName && (
               <p className="text-xs leading-relaxed text-muted-foreground">
-                يُطلب وليّ الأمر عند أول تعارف عائلي فقط. يمكنك تركه فارغاً الآن، وإذا بدأت بتعبئته فالحقول المعلَّمة بـ * مطلوبة.
+                يُطلب وليّ الأمر عند أول تعارف عائلي فقط. يمكنك تركه فارغاً الآن، وإذا بدأت بتعبئته فالاسم والرقم وصلة القرابة مطلوبة، والعنوان اختياري.
               </p>
             )}
 
@@ -1698,7 +1697,7 @@ export default function ProfileEditPage() {
             </div>
 
             <div className="space-y-2">
-              <RequiredLabel htmlFor="edit-field-20">العنوان</RequiredLabel>
+              <Label htmlFor="edit-field-20">العنوان <OptionalTag /></Label>
               <textarea
                 id="edit-field-20" {...inv("parentAddress")}
                 value={form.parentAddress}

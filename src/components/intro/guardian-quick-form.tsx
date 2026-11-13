@@ -91,7 +91,7 @@ export function GuardianQuickForm({
           للتعارف العائلي نحتاج بيانات وليّ الأمر. تبقى سرية، ولا تظهر إلا لعائلة الطرف الآخر عند تعارف عائلي على توافق متبادل.
         </p>
       </div>
-      <p className="text-xs text-muted-foreground">كل الحقول مطلوبة، ومنها العنوان.</p>
+      <p className="text-xs text-muted-foreground">الاسم والرقم وصلة القرابة مطلوبة، والعنوان اختياري.</p>
       <Field id="gq-parentName" label="اسم ولي الأمر" error={errors.parentName}>
         <Input id="gq-parentName" value={form.parentName} onChange={(e) => update("parentName", e.target.value)} placeholder="الاسم الكامل لولي الأمر" aria-invalid={!!errors.parentName} />
       </Field>
@@ -101,7 +101,7 @@ export function GuardianQuickForm({
       <Field id="gq-relationship" label="صلة القرابة" error={errors.relationship}>
         <ChoiceGroup id="gq-relationship" cols={2} options={RELATIONSHIPS} isSelected={(v) => form.relationship === v} onSelect={(v) => update("relationship", v)} error={!!errors.relationship} />
       </Field>
-      <Field id="gq-address" label="العنوان" error={errors.address}>
+      <Field id="gq-address" label="العنوان (اختياري)" error={errors.address}>
         <Input id="gq-address" value={form.address} onChange={(e) => update("address", e.target.value)} placeholder="المدينة والحي" aria-invalid={!!errors.address} />
       </Field>
       <p className="text-xs text-muted-foreground">

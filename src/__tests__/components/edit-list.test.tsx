@@ -584,7 +584,7 @@ describe("fix round 2", () => {
     fireEvent.change(within(dialog).getByLabelText("اسم ولي الأمر"), { target: { value: "خالد الخطيب" } });
     fireEvent.change(within(dialog).getByLabelText("رقم هاتف ولي الأمر"), { target: { value: "0791234567" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "الأب" }));
-    fireEvent.change(within(dialog).getByLabelText("العنوان"), { target: { value: "عمّان، الجبيهة" } });
+    fireEvent.change(within(dialog).getByLabelText("العنوان (اختياري)"), { target: { value: "عمّان، الجبيهة" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "حفظ" }));
     await waitFor(() => expect(screen.getByRole("status").textContent).toContain("حُفظت بيانات وليّ الأمر."));
     openRow("parentName");
@@ -618,7 +618,7 @@ describe("guardian row (website)", () => {
     expect((within(dialog).getByLabelText("اسم ولي الأمر") as HTMLInputElement).value).toBe("خالد الخطيب");
     expect((within(dialog).getByLabelText("رقم هاتف ولي الأمر") as HTMLInputElement).value).toBe("+962791234567");
     expect(within(dialog).getByRole("button", { name: "الأب" }).getAttribute("aria-pressed")).toBe("true");
-    expect((within(dialog).getByLabelText("العنوان") as HTMLTextAreaElement).value).toBe("عمّان، الجبيهة");
+    expect((within(dialog).getByLabelText("العنوان (اختياري)") as HTMLTextAreaElement).value).toBe("عمّان، الجبيهة");
     fireEvent.click(within(dialog).getByRole("button", { name: "الأم" }));
     fireEvent.click(within(dialog).getByRole("checkbox"));
     fireEvent.click(within(dialog).getByRole("button", { name: "حفظ" }));
@@ -651,7 +651,8 @@ describe("guardian row (website)", () => {
     expect(document.getElementById(name.getAttribute("aria-describedby")!)?.textContent).toBe("يرجى كتابة اسم ولي الأمر باللغة العربية");
     expect(within(dialog).getByText("رقم وليّ الأمر يجب أن يختلف عن رقم هاتفك")).toBeTruthy();
     expect(within(dialog).getByText("صلة القرابة مطلوبة")).toBeTruthy();
-    expect(within(dialog).getByText("العنوان مطلوب")).toBeTruthy();
+    // The address is optional (owner, 2026-11-13)
+    expect(within(dialog).queryByText("العنوان مطلوب")).toBeNull();
     expect(calls()).toEqual([]);
   });
 

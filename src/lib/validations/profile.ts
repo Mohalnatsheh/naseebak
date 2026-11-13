@@ -160,7 +160,13 @@ export function parentInfoSchemaFor(country: unknown) {
         .refine((v) => !v || isValidPhone(v, c.code), `رقم ${c.words.phone} ولي الأمر غير صالح. مثال: ${c.phone.example}`),
     ),
   relationship: z.enum(["father", "mother", "brother", "guardian"], { message: "صلة القرابة مطلوبة" }),
-  address: z.string().trim().min(3, "العنوان مطلوب").max(300, "العنوان طويل جداً"),
+  // Optional (owner, 2026-11-13): name, phone and relationship are the contact; empty saves as null
+  address: z
+    .string()
+    .trim()
+    .max(300, "العنوان طويل جداً")
+    .nullish()
+    .transform((v) => (v ? v : null)),
   notes: z.string().max(500, "الحد الأقصى 500 حرف").optional().nullable(),
   });
 }

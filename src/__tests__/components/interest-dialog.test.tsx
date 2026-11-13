@@ -60,7 +60,7 @@ describe("InterestDialog", () => {
     fireEvent.change(screen.getByLabelText("اسم ولي الأمر"), { target: { value: "محمد أحمد" } });
     fireEvent.change(screen.getByLabelText("رقم هاتف ولي الأمر"), { target: { value: "0791234567" } });
     fireEvent.click(screen.getByRole("button", { name: "الأب" }));
-    fireEvent.change(screen.getByLabelText("العنوان"), { target: { value: "عمّان، الجبيهة" } });
+    fireEvent.change(screen.getByLabelText("العنوان (اختياري)"), { target: { value: "عمّان، الجبيهة" } });
     fireEvent.click(screen.getByRole("button", { name: "حفظ بيانات وليّ الأمر" }));
 
     await waitFor(() => expect(confirm()).toBeEnabled());
@@ -85,7 +85,7 @@ describe("InterestDialog", () => {
     fireEvent.change(screen.getByLabelText("اسم ولي الأمر"), { target: { value: "محمد أحمد" } });
     fireEvent.change(screen.getByLabelText("رقم هاتف ولي الأمر"), { target: { value: "0791234567" } });
     fireEvent.click(screen.getByRole("button", { name: "الأب" }));
-    fireEvent.change(screen.getByLabelText("العنوان"), { target: { value: "عمّان، الجبيهة" } });
+    fireEvent.change(screen.getByLabelText("العنوان (اختياري)"), { target: { value: "عمّان، الجبيهة" } });
     fireEvent.click(screen.getByRole("button", { name: "حفظ بيانات وليّ الأمر" }));
     await waitFor(() => expect(screen.getByRole("button", { name: /تأكيد/ })).toBeEnabled());
 
@@ -111,7 +111,7 @@ describe("InterestDialog", () => {
     fireEvent.change(screen.getByLabelText("اسم ولي الأمر"), { target: { value: "محمد أحمد" } });
     fireEvent.change(screen.getByLabelText("رقم هاتف ولي الأمر"), { target: { value: "0791234567" } });
     fireEvent.click(screen.getByRole("button", { name: "الأب" }));
-    fireEvent.change(screen.getByLabelText("العنوان"), { target: { value: "عمّان، الجبيهة" } });
+    fireEvent.change(screen.getByLabelText("العنوان (اختياري)"), { target: { value: "عمّان، الجبيهة" } });
     fireEvent.click(screen.getByRole("button", { name: "حفظ بيانات وليّ الأمر" }));
     await waitFor(() => expect(screen.getByRole("button", { name: /تأكيد/ })).toBeEnabled());
     fireEvent.click(screen.getByRole("button", { name: /تأكيد/ }));

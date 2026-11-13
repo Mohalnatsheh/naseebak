@@ -58,7 +58,7 @@ export function guardianFormIssues(
   else if (!isValidPhone(phone, c.code)) out.parentPhone = `رقم ${c.words.phone} ولي الأمر غير صالح. مثال: ${c.phone.example}`;
   if (!["father", "mother", "brother", "guardian"].includes(v.relationship)) out.relationship = "صلة القرابة مطلوبة";
   const address = v.address.trim();
-  if (address.length < 3) out.address = "العنوان مطلوب";
-  else if (address.length > 300) out.address = "العنوان طويل جداً";
+  // Optional (owner, 2026-11-13)
+  if (address.length > 300) out.address = "العنوان طويل جداً";
   return out;
 }

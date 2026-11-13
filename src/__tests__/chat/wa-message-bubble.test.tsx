@@ -174,7 +174,8 @@ describe("WaMessageBubble", () => {
     expect(props.actions!.onReply).toHaveBeenCalledWith(m);
   });
 
-  it("a touch swipe inward past the threshold replies; a mouse drag does not", () => {
+  it("a touch swipe inward past the threshold replies (and cancels the long press); a mouse drag does not", () => {
+    vi.useFakeTimers();
     // jsdom lays out LTR: the partner's bubble sits on the right there, so inward is a negative dx
     const m = message({ mine: false });
     const { container, props } = setup(m);
@@ -189,9 +190,52 @@ describe("WaMessageBubble", () => {
     expect(props.actions!.onReply).not.toHaveBeenCalled();
     fireEvent.pointerDown(bubble, { pointerType: "touch", clientX: 200, clientY: 50 });
     fireEvent.pointerMove(bubble, { pointerType: "touch", clientX: 120, clientY: 50 });
+    act(() => vi.advanceTimersByTime(450));
     fireEvent.pointerUp(bubble, { pointerType: "touch", clientX: 120, clientY: 50 });
     expect(props.actions!.onReply).toHaveBeenCalledTimes(1);
     expect(props.onSelect).not.toHaveBeenCalled();
+  });
+
+  it("a tap with a few px of inward jitter still opens the photo", () => {
+    const a = actions();
+    const m = { ...photo(), mine: false };
+    const { container, getByRole } = setup(m, { actions: a });
+    const bubble = bubbleOf(container);
+    fireEvent.pointerDown(bubble, { pointerType: "touch", clientX: 200, clientY: 50 });
+    fireEvent.pointerMove(bubble, { pointerType: "touch", clientX: 196, clientY: 50 });
+    fireEvent.pointerUp(bubble, { pointerType: "touch", clientX: 196, clientY: 50 });
+    fireEvent.click(getByRole("button", { name: "عرض الصورة بالحجم الكامل" }));
+    expect(a.onOpenPhoto).toHaveBeenCalledTimes(1);
+    expect(bubble.style.transform).toBe("");
+  });
+
+  it("dragging the voice waveform seeks only: no swipe, no reply", () => {
+    const m = message({
+      mine: false,
+      kind: "VOICE",
+      body: "رسالة صوتية",
+      media: { url: "https://cdn.test/v.m4a", type: "audio/mp4", durationSec: 8, width: null, height: null },
+    });
+    const { container, getByRole, props } = setup(m);
+    const slider = getByRole("slider");
+    fireEvent.pointerDown(slider, { pointerType: "touch", clientX: 200, clientY: 50 });
+    fireEvent.pointerMove(slider, { pointerType: "touch", clientX: 100, clientY: 50 });
+    fireEvent.pointerUp(slider, { pointerType: "touch", clientX: 100, clientY: 50 });
+    expect(props.actions!.onReply).not.toHaveBeenCalled();
+    expect(bubbleOf(container).style.transform).toBe("");
+  });
+
+  it("Android's contextmenu during a touch long press selects only once", () => {
+    vi.useFakeTimers();
+    const { container, props } = setup(message());
+    const bubble = bubbleOf(container);
+    fireEvent.pointerDown(bubble, { pointerType: "touch", clientX: 50, clientY: 50 });
+    const ev = fireEvent.contextMenu(bubble);
+    expect(ev).toBe(false); // default prevented (no native menu)
+    act(() => vi.advanceTimersByTime(450));
+    fireEvent.contextMenu(bubble);
+    fireEvent.pointerUp(bubble, { pointerType: "touch", clientX: 50, clientY: 50 });
+    expect(props.onSelect).toHaveBeenCalledTimes(1);
   });
 
   it("Enter on the row selects (roving focus)", () => {

@@ -25,6 +25,8 @@ type Press = {
   x: number;
   y: number;
   rtl: boolean;
+  /** False on the voice waveform (a drag there seeks) */
+  swipe: boolean;
   timer: ReturnType<typeof setTimeout> | null;
   step: "none" | "track" | "reply";
 };
@@ -223,6 +225,8 @@ export function WaMessageBubble({
             onContextMenu={(e) => {
               if (!selectable) return;
               e.preventDefault();
+              // Android fires contextmenu on a touch long press too: the press's own timer selects (once)
+              if (press.current || swallowClick.current) return;
               onSelect(message);
             }}
             onPointerDown={(e) => {
@@ -237,6 +241,7 @@ export function WaMessageBubble({
                 x: e.clientX,
                 y: e.clientY,
                 rtl,
+                swipe: canReply && !(e.target as Element).closest?.('[role="slider"]'),
                 step: "none",
                 timer: selectable
                   ? setTimeout(() => {
@@ -254,8 +259,18 @@ export function WaMessageBubble({
               if (!p) return;
               const dx = e.clientX - p.x;
               const dy = e.clientY - p.y;
-              if (Math.hypot(dx, dy) > LONG_PRESS_SLOP_PX) stopTimer();
-              if (!canReply) return;
+              // A few px of wobble during a tap is neither a swipe nor a reason to eat the click
+              if (Math.hypot(dx, dy) <= LONG_PRESS_SLOP_PX) {
+                if (p.step !== "none") {
+                  // dragged back to where it began: no reply on release
+                  p.step = "none";
+                  setOffset(0);
+                  setReplyReady(false);
+                }
+                return;
+              }
+              stopTimer();
+              if (!p.swipe) return;
               const step = swipeReplyStep({ dx, dy, rtl: p.rtl, mine });
               p.step = step;
               if (step === "none") {

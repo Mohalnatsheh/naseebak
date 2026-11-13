@@ -118,7 +118,8 @@ describe("where «إعدادات الحساب» lives, by the switch", () => {
     expect(settingsHrefs()).toEqual(["/dashboard/account/settings"]);
     cleanup();
     render(<DashboardSidebar />);
-    expect(settingsHrefs()).toEqual(["/dashboard/account/settings"]);
+    // The sidebar entry opens «حسابي» (owner, 2026-11-13); the settings page is a row there
+    expect(settingsHrefs()).toEqual(["/dashboard/account"]);
 
     const { container } = render(<ProfilePage />);
     await screen.findByText("الملف الشخصي");
@@ -132,7 +133,7 @@ describe("where «إعدادات الحساب» lives, by the switch", () => {
     expect(settingsHrefs()).toEqual(["/dashboard/profile#account-settings"]);
     cleanup();
     render(<DashboardSidebar />);
-    expect(settingsHrefs()).toEqual(["/dashboard/profile#account-settings"]);
+    expect(settingsHrefs()).toEqual(["/dashboard/account"]);
 
     const { container } = render(<ProfilePage />);
     await waitFor(() => expect(container.querySelector("#account-settings")).not.toBeNull());

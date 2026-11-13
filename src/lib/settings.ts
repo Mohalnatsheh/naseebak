@@ -23,6 +23,8 @@ const DEFAULTS: Record<string, string> = {
   pro_enabled: "false",
   // Pro members delete a message or clear a chat (hidden from members, never erased)
   chat_delete_enabled: "false",
+  // WhatsApp-style chat layout on the website (2026-11-13), off = today's chat
+  chat_whatsapp_layout: "false",
   // Jordan charged in JOD instead of USD for new purchases (2026-11-11). Open checkouts and Pro subscriptions keep theirs
   jod_charging: "false",
   // Sale offer (2026-11-13): +percent% credits on purchases and the first Pro payment inside the window. 0 = off
@@ -102,6 +104,11 @@ export interface CycleFlags {
 /** Pro chat delete switch (`chat_delete_enabled`, Admin → Settings). Default off */
 export async function getChatDeleteEnabled(): Promise<boolean> {
   return (await getSetting("chat_delete_enabled")) === "true";
+}
+
+/** WhatsApp-style chat layout on the website (`chat_whatsapp_layout`, Admin → Settings). Default off */
+export async function getChatWhatsappLayout(): Promise<boolean> {
+  return (await getSetting("chat_whatsapp_layout")) === "true";
 }
 
 /** Whether a new purchase by a member of this country is charged in JOD (switch `jod_charging`, Jordan only) */

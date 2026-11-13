@@ -29,11 +29,12 @@ interface State {
   interestPaywall: boolean;
   proEnabled: boolean;
   chatDeleteEnabled: boolean;
+  chatWhatsappLayout: boolean;
   jodCharging: boolean;
   creditsMigratedAt: string | null;
 }
 
-type Key = "introRequests" | "chat" | "mutualSuggestions" | "creditOnInterest" | "activeFirstFeed" | "saRelaxedMatching" | "lbRelaxedMatching" | "freeInterestReply" | "interestPaywall" | "proEnabled" | "chatDeleteEnabled" | "jodCharging";
+type Key = "introRequests" | "chat" | "mutualSuggestions" | "creditOnInterest" | "activeFirstFeed" | "saRelaxedMatching" | "lbRelaxedMatching" | "freeInterestReply" | "interestPaywall" | "proEnabled" | "chatDeleteEnabled" | "chatWhatsappLayout" | "jodCharging";
 
 /** Admin → Settings: the switches for the new user cycle, in plain words. */
 export function NewCycleSettingsCard() {
@@ -70,7 +71,7 @@ export function NewCycleSettingsCard() {
 
   function toggle(key: Key, value: boolean) {
     // The feed order, Saudi and Lebanese relaxed matching, the free reply and Pro sales are safe to turn off at once: nothing in flight depends on them
-    const quickOff = key === "activeFirstFeed" || key === "saRelaxedMatching" || key === "lbRelaxedMatching" || key === "freeInterestReply" || key === "interestPaywall" || key === "proEnabled" || key === "chatDeleteEnabled" || key === "jodCharging";
+    const quickOff = key === "activeFirstFeed" || key === "saRelaxedMatching" || key === "lbRelaxedMatching" || key === "freeInterestReply" || key === "interestPaywall" || key === "proEnabled" || key === "chatDeleteEnabled" || key === "chatWhatsappLayout" || key === "jodCharging";
     if (!value && !quickOff) setConfirmOff(key);
     else if (value && key === "introRequests") setConfirmIntroOn(true);
     else save(key, value);
@@ -185,6 +186,14 @@ export function NewCycleSettingsCard() {
       title: "Pro: delete messages and clear chats",
       text: "Pro members can delete a message or clear a chat, for themselves or for everyone. Nothing is erased: it is only hidden from members. Off by default. Members' existing deletions stay hidden when off.",
       on: !!state?.chatDeleteEnabled,
+      disabled: false,
+    },
+    {
+      key: "chatWhatsappLayout" as const,
+      icon: MessageCircle,
+      title: "WhatsApp-style chat (website)",
+      text: "The website chat uses a WhatsApp-like layout in Naseebak's colours. The app and the data are unchanged. Off by default: off shows today's chat.",
+      on: !!state?.chatWhatsappLayout,
       disabled: false,
     },
     {

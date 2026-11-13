@@ -1,0 +1,566 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sign-in and Edit Redesign</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#f4f3f0;--card:#fff;--line:#e2dfd9;--navy:#22476a;--gold:#c19250;--goldink:#8a6327;--goldsoft:#f6eedf;--red:#d13b30;--redsoft:#fbeceb;--green:#1f6b47;--greensoft:#e7f3ec;--ink:#1d2430;--muted:#62666e;--chip:#f1efeb;--amber:#fdf3e1;--amberink:#7a5a14}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Cairo,sans-serif;background:#e7e5e0;color:var(--ink);padding:32px 24px 80px}
+h1.page{font-size:26px;font-weight:800;margin-bottom:6px}
+h2.part{font-size:20px;font-weight:800;margin:10px 0 14px;color:var(--navy)}
+p.lead{color:var(--muted);font-size:15px;margin-bottom:28px;max-width:960px}
+.row{display:flex;flex-wrap:wrap;gap:28px;align-items:flex-start;margin-bottom:48px}
+.cap{font-size:14px;font-weight:700;margin-bottom:8px;color:var(--navy)}
+.cap small{display:block;font-weight:400;color:var(--muted);font-size:12px;max-width:390px}
+.legend{background:#fff;border-radius:12px;padding:16px 20px;max-width:1240px;font-size:14px;line-height:1.9;margin-bottom:36px}
+.legend b{color:var(--navy)}
+/* phone frame */
+.phone{width:390px;height:844px;background:var(--bg);border-radius:44px;border:10px solid #111;position:relative;overflow:hidden;display:flex;flex-direction:column}
+.sb{height:44px;display:flex;justify-content:space-between;align-items:center;padding:0 26px;font-size:14px;font-weight:700;flex:none;direction:ltr}
+.scroll{flex:1;overflow:hidden;padding:0 16px}
+.webbar{height:52px;display:flex;justify-content:space-between;align-items:center;padding:0 16px;background:#fff;border-bottom:.5px solid var(--line);flex:none}
+.webbar b{color:var(--navy);font-size:20px;font-weight:800}
+.webbar span{font-size:13px;color:var(--muted)}
+/* desktop frame */
+.desk{width:1240px;background:var(--bg);border-radius:14px;border:1px solid #cfccc5;overflow:hidden;display:flex;position:relative}
+.desk.auth{flex-direction:column;min-height:700px}
+.dtop{height:64px;display:flex;justify-content:space-between;align-items:center;padding:0 32px;border-bottom:.5px solid var(--line);background:#fff}
+.dtop b{color:var(--navy);font-size:24px;font-weight:800}
+.dtop span{font-size:14px;color:var(--muted)}
+.dtop span a{color:var(--navy);font-weight:700;text-decoration:none}
+.center{width:440px;margin:56px auto 40px}
+.side{width:230px;background:#fff;border-inline-end:.5px solid var(--line);padding:22px 14px;flex:none}
+.logo{font-size:26px;font-weight:800;color:var(--navy);margin:0 8px 18px}
+.me{display:flex;gap:10px;align-items:center;margin:0 8px 18px}
+.me .av{width:40px;height:40px;border-radius:50%;background:#e4e1db}
+.me b{font-size:14px;display:block}.me span{font-size:12px;color:var(--muted)}
+.nav a{display:flex;justify-content:space-between;align-items:center;padding:9px 12px;border-radius:10px;font-size:14px;color:var(--ink);text-decoration:none;margin-bottom:2px}
+.nav a.on{background:#eef1f5;color:var(--navy);font-weight:700}
+.nav .lbl{font-size:12px;color:var(--muted);margin:14px 12px 6px}
+.main{flex:1;min-width:0;position:relative}
+.topbar{height:60px;border-bottom:.5px solid var(--line);display:flex;justify-content:flex-end;align-items:center;gap:10px;padding:0 24px;direction:ltr}
+.pill{display:inline-flex;align-items:center;gap:6px;background:#fff;border:.5px solid var(--line);border-radius:20px;padding:5px 12px;font-size:13px;font-weight:600}
+.pill b{color:var(--goldink)}
+.content{padding:26px 40px 110px;max-width:760px;margin:0 auto}
+/* text */
+.back{font-size:15px;color:var(--navy);font-weight:600;margin:6px 0 14px;display:flex;align-items:center;gap:4px}
+.h{font-size:28px;font-weight:800;line-height:1.35}
+.sub{font-size:14px;color:var(--muted);margin:4px 0 20px;line-height:1.7}
+.lbl2{font-size:13px;color:var(--muted);margin:16px 4px 6px}
+.hint{font-size:12px;color:var(--muted);margin:8px 4px 0;line-height:1.7}
+.err{font-size:13px;color:var(--red);margin:8px 4px 0;font-weight:600}
+/* groups and inputs */
+.group{background:var(--card);border-radius:12px;overflow:hidden}
+.li{display:flex;align-items:center;gap:12px;padding:12px 14px;border-bottom:.5px solid var(--line);min-height:52px;position:relative}
+.li:last-child{border-bottom:0}
+.li .k{font-size:15px;flex:1;min-width:0}
+.li .k small{display:block;font-size:12px;color:var(--muted)}
+.li .v{font-size:15px;color:var(--muted);text-align:end}
+.li .v.set{color:var(--ink)}
+.li .v.add{color:var(--navy);font-weight:600}
+.li.chg{background:#f7f9fc}
+.li.chg::before{content:"";position:absolute;inset-inline-start:0;top:10px;bottom:10px;width:3px;border-radius:2px;background:var(--navy)}
+.li.lock .v{color:#9a968e}
+.chev{color:#a9a49b;font-size:18px}
+.tag{font-size:11px;font-weight:700;border-radius:6px;padding:1px 7px;white-space:nowrap}
+.tag.rev{background:var(--amber);color:var(--amberink)}
+.tag.now{background:var(--greensoft);color:var(--green)}
+.tag.chg{background:#e8eef5;color:var(--navy)}
+.phonefield{background:#fff;border-radius:12px;overflow:hidden}
+.phonefield .cty{display:flex;align-items:center;gap:10px;padding:13px 14px;border-bottom:.5px solid var(--line);font-size:15px}
+.phonefield .cty .chev{margin-inline-start:auto}
+.phonefield .num{display:flex;align-items:center;direction:ltr;font-size:20px;padding:12px 14px;gap:12px}
+.phonefield .num .dc{color:var(--muted);font-size:17px;padding-inline-end:12px;border-inline-end:.5px solid var(--line)}
+.phonefield .num .caret{display:inline-block;width:2px;height:22px;background:var(--navy);vertical-align:middle;margin-left:1px}
+.flag{width:26px;height:18px;border-radius:3px;background:linear-gradient(#111 0 33%,#fff 33% 66%,#2f9e6a 66%);position:relative;flex:none}
+.flag::before{content:"";position:absolute;inset-inline-end:0;top:0;bottom:0;width:0;border-top:9px solid transparent;border-bottom:9px solid transparent;border-right:11px solid #c8102e}
+.flag.sa{background:#1f6b47}.flag.sa::before{display:none}
+.flag.lb{background:linear-gradient(#c8102e 0 25%,#fff 25% 75%,#c8102e 75%)}.flag.lb::before{display:none}
+.btn{height:52px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700}
+.btn.p{background:var(--navy);color:#fff}
+.btn.off{background:#c9cfd6;color:#fff}
+.btn.s{background:#fff;color:var(--navy);border:1px solid var(--line)}
+.btn.sm{height:40px;font-size:14px;padding:0 18px}
+.link{color:var(--navy);font-weight:700}
+.otp{display:flex;gap:8px;direction:ltr;justify-content:center}
+.otp i{font-style:normal;width:54px;height:58px;border-radius:12px;background:#fff;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:700}
+.otp i.f{border:2px solid var(--navy)}
+.otp.bad i{border-color:var(--red);color:var(--red)}
+.via{display:flex;gap:10px;align-items:center;background:#fff;border-radius:12px;padding:10px 14px;font-size:13px;color:var(--muted);margin-top:16px}
+.via .ic{width:30px;height:30px;border-radius:50%;background:var(--greensoft);color:var(--green);display:flex;align-items:center;justify-content:center;font-weight:800;flex:none}
+.row2{display:flex;justify-content:space-between;align-items:center;font-size:14px;margin-top:14px;padding:0 4px}
+.row2 .m{color:var(--muted)}
+.gender{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.gender div{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px;text-align:center;position:relative}
+.gender div b{display:block;font-size:17px}
+.gender div span{font-size:12px;color:var(--muted)}
+.gender div.on{border:2px solid var(--navy)}
+.gender div.on::after{content:"✓";position:absolute;top:6px;inset-inline-start:10px;color:var(--navy);font-weight:800}
+.check{display:flex;gap:10px;align-items:flex-start;background:#fff;border-radius:12px;padding:12px 14px;font-size:13px;line-height:1.8}
+.check .box{width:22px;height:22px;border-radius:6px;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;flex:none;margin-top:2px;font-size:13px}
+.check .box.e{background:#fff;border:1.5px solid #b9b4ab}
+.check u{color:var(--navy);text-decoration:underline}
+.input{background:#fff;border-radius:12px;padding:10px 14px;border:1px solid transparent}
+.input small{display:block;font-size:12px;color:var(--muted)}
+.input div{font-size:16px;min-height:24px}
+.input.f{border:2px solid var(--navy)}
+.input.bad{border:2px solid var(--red)}
+.ph{color:#a29d94}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chips span{background:#fff;border:1px solid var(--line);border-radius:20px;padding:7px 16px;font-size:14px}
+.chips span.on{background:var(--navy);border-color:var(--navy);color:#fff;font-weight:600}
+.steps{display:flex;gap:6px;margin:4px 0 6px}
+.steps i{flex:1;height:4px;border-radius:2px;background:#dcd8d0}
+.steps i.on{background:var(--navy)}
+.stepnames{display:flex;justify-content:space-between;font-size:12px;color:var(--muted)}
+.stepnames b{color:var(--navy)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.banner{border-radius:12px;padding:11px 14px;font-size:13px;line-height:1.8;display:flex;gap:10px;align-items:flex-start;margin-bottom:14px}
+.banner.rev{background:var(--amber);color:var(--amberink)}
+.banner.info{background:#eef1f5;color:var(--ink)}
+.banner.ok{background:var(--greensoft);color:var(--green)}
+.banner.bad{background:var(--redsoft);color:var(--red)}
+.banner b{font-weight:700}
+.secT{font-size:13px;color:var(--muted);margin:18px 6px 6px}
+/* sticky save bar */
+.savebar{position:absolute;inset-inline:0;bottom:0;background:#fff;border-top:.5px solid var(--line);padding:12px 16px;display:flex;align-items:center;gap:12px}
+.savebar .t{flex:1;font-size:13px;line-height:1.6}
+.savebar .t b{font-size:14px;display:block}
+.savebar .t span{color:var(--muted)}
+/* sheet + dialog */
+.dim{position:absolute;inset:0;background:rgba(20,26,34,.32)}
+.sheet{position:absolute;inset-inline:0;bottom:0;background:var(--bg);border-radius:24px 24px 0 0;padding:8px 16px 26px}
+.sheet .grab{width:38px;height:5px;border-radius:3px;background:#cfcbc3;margin:0 auto 10px}
+.sheet .bar{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;font-size:16px}
+.sheet .bar b{font-size:17px}
+.sheet .bar span{color:var(--navy)}
+.dialog{position:absolute;top:120px;inset-inline-start:50%;transform:translateX(50%);width:460px;background:var(--bg);border-radius:16px;padding:18px 20px 20px;box-shadow:0 20px 50px rgba(0,0,0,.25)}
+.dialog .bar{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.dialog .bar b{font-size:18px}
+.x{width:32px;height:32px;border-radius:50%;background:#fff;border:.5px solid var(--line);display:flex;align-items:center;justify-content:center;color:var(--muted)}
+.done{width:64px;height:64px;border-radius:50%;background:var(--greensoft);color:var(--green);display:flex;align-items:center;justify-content:center;font-size:30px;font-weight:800;margin:0 auto 14px}
+.later .li .k{font-size:14px}
+.mini{font-size:12px;color:var(--muted)}
+.kbd{position:absolute;inset-inline:0;bottom:0;height:250px;background:#d3d5da;display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:8px 6px 30px;direction:ltr}
+.kbd i{font-style:normal;background:#fff;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:22px}
+.kbd i.n{background:transparent}
+</style>
+</head>
+<body>
+
+<h1 class="page">نصيبك: إعادة تصميم الدخول وإنشاء الحساب وتعديل الملف (مسودة للنقاش)</h1>
+<p class="lead">الموقع يتبع تصميم التطبيق من 12 نوفمبر (شاشات Phone وOtp وRegister وSetup وProfileEdit في <code>docs/design-mockup/app-mockup</code>). خطوات التطبيق نفسها، بعرض الكمبيوتر وعلى الهاتف. الأسماء والأرقام أمثلة.</p>
+
+<div class="legend">
+<b>ما الذي يتغيّر:</b><br>
+1. <b>بداية واحدة للدخول والتسجيل:</b> «ما رقم هاتفك؟» ثم شاشة الرمز. بعد الرمز، العضو المسجّل يدخل مباشرة، والرقم الجديد يكمل إلى «بياناتك الأساسية». لا يُكشف قبل الرمز إن كان الرقم مسجّلاً، كما اليوم.<br>
+2. <b>إنشاء الحساب بطاقة قصيرة:</b> الاسم، «أنا»، الموافقة. رمز الدعوة خلف رابط صغير. الصورة تُضاف لاحقاً من «صوري». لا توجد بعده خطوة «تم بنجاح» منفصلة.<br>
+3. <b>الإعداد 3 خطوات قصيرة</b> بأسماء ظاهرة: «عنك»، «حالتك»، «من تبحث عنه». باقي الأسئلة اختيارية، وتظهر بعد الإعداد في قائمة «أكمل ملفك متى شئت».<br>
+4. <b>تعديل الملف قائمة واحدة بدل 5 خطوات.</b> نقرة على سطر تفتح نافذة صغيرة لذلك السؤال. كل سطر معدّل يُعلَّم، ثم زر «حفظ» واحد مثبّت في الأسفل. الحقول الفارغة وتفضيلات الشريك تُحفظ فوراً، وتغيير قيمة محفوظة يُرسل للمراجعة كطلب واحد. كل سطر يقول قبل الحفظ ما سيحدث له.<br>
+5. <b>الأخطاء تظهر تحت الحقل نفسه</b> وبنص بسيط، لا في شريط أعلى الصفحة.<br>
+6. <b>لا يتغيّر:</b> الرمز عبر واتساب في السعودية ولبنان، الأرقام العربية مقبولة، طلب واحد قيد المراجعة في كل مرة، «المذهب» للبنان فقط، ولي الأمر يُطلب فقط عند خطوة العائلة.
+</div>
+
+<h2 class="part">1. الدخول وإنشاء الحساب · الموقع على الكمبيوتر</h2>
+<div class="row">
+<div>
+<div class="cap">رقم الهاتف<small>بطاقة واحدة في وسط الصفحة. الدولة تتبع زائر الموقع، ويمكن تغييرها من السطر الأول.</small></div>
+<div class="desk auth" style="width:600px">
+ <div class="dtop"><b>نصيبك</b><span>جديد على نصيبك؟ <a>إنشاء حساب</a></span></div>
+ <div class="center" style="width:420px">
+  <div class="h">ما رقم هاتفك؟</div>
+  <div class="sub">سنرسل لك رمز دخول من 6 أرقام برسالة نصية.</div>
+  <div class="phonefield">
+   <div class="cty"><span class="flag"></span>الأردن<span class="chev">‹</span></div>
+   <div class="num"><span class="dc">+962</span><span>79 123 4567<span class="caret"></span></span></div>
+  </div>
+  <div class="hint">لا يظهر رقمك لأي عضو.</div>
+  <div class="btn p" style="margin-top:22px">إرسال الرمز</div>
+  <div class="hint" style="text-align:center;margin-top:16px">بالمتابعة توافق على <u class="link" style="text-decoration:underline">الشروط</u> و<u class="link" style="text-decoration:underline">سياسة الخصوصية</u>.</div>
+ </div>
+</div>
+</div>
+
+<div>
+<div class="cap">الرمز<small>6 خانات، يكمل وحده عند آخر رقم. اسم القناة واضح: واتساب في السعودية ولبنان.</small></div>
+<div class="desk auth" style="width:600px">
+ <div class="dtop"><b>نصيبك</b><span></span></div>
+ <div class="center" style="width:420px">
+  <div class="back">› رجوع</div>
+  <div class="h">أدخل الرمز</div>
+  <div class="sub">أرسلنا رمزاً من 6 أرقام إلى <bdi dir="ltr">+966 5• ••• ••12</bdi></div>
+  <div class="otp"><i>4</i><i>8</i><i>1</i><i class="f"></i><i></i><i></i></div>
+  <div class="via"><span class="ic">✓</span>وصل الرمز عبر <b style="color:var(--ink)">واتساب</b>. افتح المحادثة من «نصيبك».</div>
+  <div class="row2"><span class="m">إعادة الإرسال بعد <bdi>0:42</bdi></span><span class="link">تغيير الرقم</span></div>
+ </div>
+</div>
+</div>
+</div>
+
+<div class="row">
+<div>
+<div class="cap">الرمز خطأ<small>الخطأ تحت الخانات مباشرة، وتُمسح الخانات للمحاولة من جديد.</small></div>
+<div class="desk auth" style="width:600px;min-height:520px">
+ <div class="dtop"><b>نصيبك</b><span></span></div>
+ <div class="center" style="width:420px;margin-top:40px">
+  <div class="back">› رجوع</div>
+  <div class="h">أدخل الرمز</div>
+  <div class="sub">أرسلنا رمزاً من 6 أرقام برسالة نصية إلى <bdi dir="ltr">+962 7• ••• ••67</bdi></div>
+  <div class="otp bad"><i>4</i><i>8</i><i>1</i><i>9</i><i>2</i><i>2</i></div>
+  <div class="err" style="text-align:center">الرمز غير صحيح. تأكد من آخر رسالة وصلتك.</div>
+  <div class="row2"><span class="link">إعادة إرسال الرمز</span><span class="link">تغيير الرقم</span></div>
+ </div>
+</div>
+</div>
+
+<div>
+<div class="cap">بياناتك الأساسية (رقم جديد فقط)<small>بعد الرمز مباشرة. 3 أسئلة، والدعوة خلف رابط. الصورة تُضاف لاحقاً من «صوري».</small></div>
+<div class="desk auth" style="width:600px">
+ <div class="dtop"><b>نصيبك</b><span></span></div>
+ <div class="center" style="width:440px;margin-top:36px">
+  <div class="h">بياناتك الأساسية</div>
+  <div class="sub">خطوة أخيرة لإنشاء حسابك. يظهر اسمك الأول فقط للطرف الآخر.</div>
+  <div class="lbl2">الاسم بالعربية</div>
+  <div class="group">
+   <div class="li"><span class="k">الاسم الأول</span><span class="v set">أحمد</span></div>
+   <div class="li"><span class="k">اسم العائلة</span><span class="v ph">مثل: الخطيب</span></div>
+  </div>
+  <div class="err">اكتب اسم العائلة بالعربية.</div>
+  <div class="lbl2">أنا</div>
+  <div class="gender"><div class="on"><b>رجل</b><span>أبحث عن زوجة</span></div><div><b>امرأة</b><span>أبحث عن زوج</span></div></div>
+  <div class="hint"><span class="link">لديك رمز دعوة؟</span></div>
+  <div class="check" style="margin-top:14px"><span class="box">✓</span><span>أوافق على <u>الشروط والأحكام</u> و<u>سياسة الخصوصية</u>، وأؤكد أن عمري 18 سنة أو أكثر.</span></div>
+  <div class="btn p" style="margin-top:18px">إنشاء الحساب</div>
+ </div>
+</div>
+</div>
+</div>
+
+<h2 class="part">2. الدخول وإنشاء الحساب · الموقع على الهاتف</h2>
+<div class="row">
+<div>
+<div class="cap">رقم الهاتف<small>نفس شاشة التطبيق. لوحة الأرقام تفتح وحدها، والزر فوقها.</small></div>
+<div class="phone">
+ <div class="sb"><span>9:41</span><span>●●● ▮</span></div>
+ <div class="webbar"><b>نصيبك</b><span>جديد؟ <span class="link">إنشاء حساب</span></span></div>
+ <div class="scroll" style="padding-top:22px">
+  <div class="h" style="font-size:26px">ما رقم هاتفك؟</div>
+  <div class="sub">سنرسل لك رمز دخول من 6 أرقام برسالة نصية.</div>
+  <div class="phonefield">
+   <div class="cty"><span class="flag"></span>الأردن<span class="chev">‹</span></div>
+   <div class="num"><span class="dc">+962</span><span>79 123<span class="caret"></span></span></div>
+  </div>
+  <div class="hint">لا يظهر رقمك لأي عضو.</div>
+ </div>
+ <div style="position:absolute;inset-inline:16px;bottom:262px"><div class="btn p">إرسال الرمز</div></div>
+ <div class="kbd"><i>1</i><i>2</i><i>3</i><i>4</i><i>5</i><i>6</i><i>7</i><i>8</i><i>9</i><i class="n"></i><i>0</i><i class="n">⌫</i></div>
+</div>
+</div>
+
+<div>
+<div class="cap">الرمز عبر واتساب (السعودية ولبنان)<small>يقبل الأرقام العربية (٤٨١…) ويحوّلها. يكمل وحده عند الرقم السادس.</small></div>
+<div class="phone">
+ <div class="sb"><span>9:41</span><span>●●● ▮</span></div>
+ <div class="webbar"><b>نصيبك</b><span></span></div>
+ <div class="scroll" style="padding-top:14px">
+  <div class="back">› رجوع</div>
+  <div class="h" style="font-size:26px">أدخل الرمز</div>
+  <div class="sub">أرسلنا رمزاً من 6 أرقام عبر واتساب إلى <bdi dir="ltr">+961 3• ••• ••45</bdi></div>
+  <div class="otp"><i>4</i><i>8</i><i class="f"></i><i></i><i></i><i></i></div>
+  <div class="row2"><span class="m">إعادة الإرسال بعد <bdi>0:42</bdi></span><span class="link">تغيير الرقم</span></div>
+ </div>
+ <div class="kbd"><i>1</i><i>2</i><i>3</i><i>4</i><i>5</i><i>6</i><i>7</i><i>8</i><i>9</i><i class="n"></i><i>0</i><i class="n">⌫</i></div>
+</div>
+</div>
+
+<div>
+<div class="cap">بياناتك الأساسية<small>كل شيء ظاهر دون تمرير، والزر في آخر الشاشة.</small></div>
+<div class="phone">
+ <div class="sb"><span>9:41</span><span>●●● ▮</span></div>
+ <div class="webbar"><b>نصيبك</b><span></span></div>
+ <div class="scroll" style="padding-top:16px">
+  <div class="h" style="font-size:26px">بياناتك الأساسية</div>
+  <div class="sub" style="margin-bottom:8px">خطوة أخيرة لإنشاء حسابك. يظهر اسمك الأول فقط للطرف الآخر.</div>
+  <div class="lbl2">الاسم بالعربية</div>
+  <div class="group">
+   <div class="li"><span class="k">الاسم الأول</span><span class="v set">أحمد</span></div>
+   <div class="li"><span class="k">اسم العائلة</span><span class="v set">الخطيب</span></div>
+  </div>
+  <div class="lbl2">أنا</div>
+  <div class="gender"><div class="on"><b>رجل</b><span>أبحث عن زوجة</span></div><div><b>امرأة</b><span>أبحث عن زوج</span></div></div>
+  <div class="hint"><span class="link">لديك رمز دعوة؟</span></div>
+  <div class="check" style="margin-top:12px"><span class="box">✓</span><span>أوافق على <u>الشروط والأحكام</u> و<u>سياسة الخصوصية</u>، وأؤكد أن عمري 18 سنة أو أكثر.</span></div>
+ </div>
+ <div style="padding:12px 16px 30px"><div class="btn p">إنشاء الحساب</div></div>
+</div>
+</div>
+</div>
+
+<h2 class="part">3. الإعداد بعد إنشاء الحساب · 3 خطوات قصيرة</h2>
+<div class="row">
+<div>
+<div class="cap">الخطوة 1 «عنك» على الكمبيوتر<small>أسماء الخطوات ظاهرة. 4 أسئلة فقط. الحفظ تلقائي، ويكمل العضو من حيث توقف.</small></div>
+<div class="desk" style="width:760px">
+ <div class="main">
+  <div class="dtop"><b>نصيبك</b><span class="link" style="font-weight:600">تسجيل الخروج</span></div>
+  <div class="content" style="max-width:520px;padding-bottom:30px">
+   <div class="steps"><i class="on"></i><i></i><i></i></div>
+   <div class="stepnames"><b>1. عنك</b><span>2. حالتك</span><span>3. من تبحث عنه</span></div>
+   <div class="h" style="margin-top:18px">معلوماتك الأساسية</div>
+   <div class="sub">أسئلة قليلة فقط، وباقي ملفك اختياري يمكنك إكماله لاحقاً.</div>
+   <div class="lbl2">تاريخ الميلاد</div>
+   <div class="grid2" style="grid-template-columns:1fr 1.4fr 1fr"><div class="input"><small>اليوم</small><div>14</div></div><div class="input"><small>الشهر</small><div>مارس</div></div><div class="input"><small>السنة</small><div>1995</div></div></div>
+   <div class="lbl2">الجنسية والمدينة</div>
+   <div class="group">
+    <div class="li"><span class="k">الجنسية</span><span class="v set">أردني</span><span class="chev">‹</span></div>
+    <div class="li"><span class="k">المدينة</span><span class="v set">عمّان</span><span class="chev">‹</span></div>
+   </div>
+   <div class="lbl2">المستوى التعليمي</div>
+   <div class="chips"><span>ثانوية عامة</span><span>دبلوم</span><span class="on">بكالوريوس</span><span>ماجستير</span><span>دكتوراه</span></div>
+   <div style="display:flex;justify-content:space-between;align-items:center;margin-top:26px"><span class="mini">✓ حُفظ تلقائياً</span><div class="btn p sm" style="width:160px;height:48px">التالي</div></div>
+  </div>
+ </div>
+</div>
+</div>
+
+<div>
+<div class="cap">الخطوة 2 «حالتك» على الهاتف (لبنان)<small>«المذهب» يظهر للبنان فقط. عدد الأبناء يظهر لغير الأعزب فقط.</small></div>
+<div class="phone">
+ <div class="sb"><span>9:41</span><span>●●● ▮</span></div>
+ <div class="scroll" style="padding-top:8px">
+  <div style="display:flex;justify-content:space-between;font-size:14px;margin-bottom:6px"><span class="link" style="font-weight:600">› السابق</span><span class="mini">الخطوة 2 من 3</span></div>
+  <div class="steps"><i class="on"></i><i class="on"></i><i></i></div>
+  <div class="h" style="font-size:24px;margin-top:14px">حالتك الاجتماعية</div>
+  <div class="sub" style="margin-bottom:6px">تساعدنا على اقتراح من يناسبك.</div>
+  <div class="lbl2">الحالة الاجتماعية</div>
+  <div class="chips"><span class="on">أعزب</span><span>مطلّق</span><span>أرمل</span></div>
+  <div class="lbl2">الالتزام الديني</div>
+  <div class="chips"><span>ملتزم جداً</span><span class="on">ملتزم</span><span>متوسط</span><span>غير ملتزم</span></div>
+  <div class="lbl2">المذهب</div>
+  <div class="chips"><span>سني</span><span>شيعي</span><span>أفضّل عدم الذكر</span></div>
+  <div class="err">اختر المذهب للمتابعة.</div>
+ </div>
+ <div style="padding:12px 16px 30px"><div class="btn p">التالي</div></div>
+</div>
+</div>
+
+<div>
+<div class="cap">انتهى الإعداد<small>بدل صفحة «تم بنجاح» قبل الإعداد، صفحة واحدة بعده: إلى الاقتراحات، مع قائمة اختيارية.</small></div>
+<div class="phone">
+ <div class="sb"><span>9:41</span><span>●●● ▮</span></div>
+ <div class="scroll" style="padding-top:40px">
+  <div class="done">✓</div>
+  <div class="h" style="font-size:24px;text-align:center">ملفك جاهز</div>
+  <div class="sub" style="text-align:center">نبحث الآن عمّن يناسبك. ستجد اقتراحاتك في «الاقتراحات».</div>
+  <div class="btn p">عرض الاقتراحات</div>
+  <div class="secT" style="margin-top:26px">أكمل ملفك متى شئت · يزيد فرصك</div>
+  <div class="group later">
+   <div class="li"><span class="k">نبذة عنك</span><span class="v add">إضافة</span><span class="chev">‹</span></div>
+   <div class="li"><span class="k">الوظيفة والطول</span><span class="v add">إضافة</span><span class="chev">‹</span></div>
+   <div class="li"><span class="k">صوري<small>مخفية حتى التوافق المتبادل</small></span><span class="v add">إضافة</span><span class="chev">‹</span></div>
+   <div class="li"><span class="k">تفضيلات الشريك</span><span class="v add">إضافة</span><span class="chev">‹</span></div>
+  </div>
+ </div>
+</div>
+</div>
+</div>
+
+<h2 class="part">4. تعديل الملف · قائمة واحدة وزر حفظ واحد</h2>
+<div class="row">
+<div>
+<div class="cap">الموقع على الكمبيوتر: تعديل سطرين<small style="max-width:none">السطر المعدّل يُعلَّم بخط أزرق. شريط الحفظ يقول ما سيُحفظ فوراً وما سيُرسل للمراجعة قبل الضغط.</small></div>
+<div class="desk" style="height:900px">
+ <div class="side">
+  <div class="logo">نصيبك</div>
+  <div class="me"><span class="av"></span><div><b>أحمد الخطيب</b><span>الأردن</span></div></div>
+  <div class="nav"><a>الرئيسية</a><a>الاقتراحات</a><a>التوافقات</a><a>المحادثات</a><div class="lbl">الحساب</div><a class="on">الملف الشخصي</a><a>صوري</a><a>تفضيلات الشريك</a><a>رصيدك</a><a>إعدادات الحساب</a></div>
+ </div>
+ <div class="main">
+  <div class="topbar"><span class="pill">رصيدك <b>7</b></span></div>
+  <div class="content" style="padding-top:18px">
+   <div class="back">› ملفي</div>
+   <div class="h" style="font-size:26px">تعديل ملفي</div>
+   <div class="sub" style="margin-bottom:10px">الحقول الفارغة تُحفظ فوراً. تغيير معلومة محفوظة يراجعه فريق نصيبك قبل ظهوره.</div>
+   <div class="secT">البيانات الأساسية</div>
+   <div class="group">
+    <div class="li"><span class="k">تاريخ الميلاد</span><span class="v set">14 مارس 1995</span><span class="chev">‹</span></div>
+    <div class="li chg"><span class="k">المدينة</span><span class="tag chg">للمراجعة</span><span class="v set">الزرقاء</span><span class="chev">‹</span></div>
+    <div class="li"><span class="k">الحالة الاجتماعية</span><span class="v set">أعزب</span><span class="chev">‹</span></div>
+    <div class="li"><span class="k">الالتزام الديني</span><span class="v set">ملتزم</span><span class="chev">‹</span></div>
+   </div>
+   <div class="secT">التعليم والعمل</div>
+   <div class="group">
+    <div class="li"><span class="k">المستوى التعليمي</span><span class="v set">بكالوريوس</span><span class="chev">‹</span></div>
+    <div class="li chg"><span class="k">التخصص</span><span class="tag now">يُحفظ فوراً</span><span class="v set">هندسة برمجيات</span><span class="chev">‹</span></div>
+    <div class="li"><span class="k">الوظيفة</span><span class="v set">محاسب</span><span class="chev">‹</span></div>
+   </div>
+   <div class="secT">المظهر ونمط الحياة</div>
+   <div class="group">
+    <div class="li"><span class="k">الطول</span><span class="v set">178 سم</span><span class="chev">‹</span></div>
+    <div class="li"><span class="k">اللحية</span><span class="v set">ملتحٍ</span><span class="chev">‹</span></div>
+    <div class="li"><span class="k">نمط الحياة</span><span class="v add">إضافة</span><span class="chev">‹</span></div>
+   </div>
+  </div>
+  <div class="savebar" style="padding:14px 40px">
+   <div class="t"><b>تعديلان</b><span>التخصص يُحفظ فوراً · المدينة تُرسل للمراجعة</span></div>
+   <div class="btn s sm">تراجع</div><div class="btn p sm" style="width:150px">حفظ</div>
+  </div>
+ </div>
+</div>
+</div>
+</div>
+
+<div class="row">
+<div>
+<div class="cap">الموقع على الكمبيوتر: نافذة سؤال واحد<small style="max-width:none">نقرة على «المدينة» تفتح نافذة صغيرة. «تم» يعلّم السطر فقط، والحفظ من الشريط.</small></div>
+<div class="desk" style="height:620px;width:900px">
+ <div class="main">
+  <div class="topbar"></div>
+  <div class="content" style="padding-top:18px;opacity:.5"><div class="h" style="font-size:26px">تعديل ملفي</div></div>
+  <div class="dim"></div>
+  <div class="dialog" style="top:80px">
+   <div class="bar"><b>المدينة</b><span class="x">✕</span></div>
+   <div class="banner rev" style="margin-bottom:12px">تغيير مدينتك من «عمّان» يُرسل لفريق نصيبك للمراجعة قبل ظهوره.</div>
+   <div class="chips"><span>عمّان</span><span>إربد</span><span class="on">الزرقاء</span><span>السلط</span><span>العقبة</span><span>مادبا</span><span>الكرك</span><span>جرش</span><span>عجلون</span><span>المفرق</span><span>الطفيلة</span><span>معان</span></div>
+   <div class="lbl2">المنطقة (اختياري)</div>
+   <div class="input"><div class="ph">مثل: الزرقاء الجديدة</div></div>
+   <div style="display:flex;gap:10px;margin-top:18px"><div class="btn p" style="flex:1">تم</div><div class="btn s" style="width:120px">إلغاء</div></div>
+  </div>
+ </div>
+</div>
+</div>
+
+<div>
+<div class="cap">طلب قيد المراجعة<small>السطر المنتظر مقفل ويقول ذلك. باقي المعلومات المحفوظة مقفلة أيضاً حتى المراجعة أو السحب؛ الحقول الفارغة تبقى متاحة.</small></div>
+<div class="phone">
+ <div class="sb"><span>9:41</span><span>●●● ▮</span></div>
+ <div class="webbar"><b>نصيبك</b><span class="pill">رصيدك <b>7</b></span></div>
+ <div class="scroll" style="padding-top:12px">
+  <div class="h" style="font-size:24px">تعديل ملفي</div>
+  <div class="banner rev" style="margin-top:10px"><span>⏱</span><span><b>طلبك قيد المراجعة:</b> المدينة. يمكنك تعبئة الحقول الفارغة الآن، وتغيير المعلومات الأخرى بعد المراجعة. <span class="link">سحب الطلب</span></span></div>
+  <div class="secT" style="margin-top:6px">البيانات الأساسية</div>
+  <div class="group">
+   <div class="li lock"><span class="k">المدينة<small>الحالية: عمّان</small></span><span class="tag rev">قيد المراجعة</span><span class="v">الزرقاء</span></div>
+   <div class="li lock"><span class="k">الحالة الاجتماعية</span><span class="v">أعزب</span><span class="mini">🔒</span></div>
+   <div class="li lock"><span class="k">الالتزام الديني</span><span class="v">ملتزم</span><span class="mini">🔒</span></div>
+  </div>
+  <div class="secT">المظهر ونمط الحياة</div>
+  <div class="group">
+   <div class="li"><span class="k">نمط الحياة</span><span class="v add">إضافة</span><span class="chev">‹</span></div>
+   <div class="li"><span class="k">مهارة الطبخ</span><span class="v add">إضافة</span><span class="chev">‹</span></div>
+   <div class="li lock"><span class="k">الطول</span><span class="v">178 سم</span><span class="mini">🔒</span></div>
+  </div>
+ </div>
+</div>
+</div>
+</div>
+
+<div class="row">
+<div>
+<div class="cap">الموقع على الهاتف: سؤال في نافذة من الأسفل<small>نفس سلوك التطبيق. النص الطويل له عدّاد أحرف.</small></div>
+<div class="phone">
+ <div class="sb"><span>9:41</span><span>●●● ▮</span></div>
+ <div class="webbar"><b>نصيبك</b><span></span></div>
+ <div class="scroll" style="padding-top:12px;opacity:.55"><div class="h" style="font-size:24px">تعديل ملفي</div></div>
+ <div class="dim"></div>
+ <div class="sheet">
+  <div class="grab"></div>
+  <div class="bar"><span>إلغاء</span><b>نبذة عني</b><span style="font-weight:700">تم</span></div>
+  <div class="banner rev" style="margin-bottom:10px">تغيير نبذة محفوظة يُرسل للمراجعة قبل ظهوره.</div>
+  <div class="input f" style="min-height:140px"><div style="line-height:1.8">أحب القراءة والمشي، وأقدّر الصراحة والهدوء. أعمل محاسباً وأقضي عطلتي مع العائلة</div></div>
+  <div class="hint" style="text-align:end"><bdi>79 / 500</bdi></div>
+ </div>
+</div>
+</div>
+
+<div>
+<div class="cap">الموقع على الهاتف: شريط الحفظ<small>الشريط يظهر فقط بعد أول تعديل. الخروج دون حفظ يسأل «تجاهل التعديلات؟».</small></div>
+<div class="phone">
+ <div class="sb"><span>9:41</span><span>●●● ▮</span></div>
+ <div class="webbar"><b>نصيبك</b><span class="pill">رصيدك <b>7</b></span></div>
+ <div class="scroll" style="padding-top:12px">
+  <div class="back">› ملفي</div>
+  <div class="h" style="font-size:24px">تعديل ملفي</div>
+  <div class="secT">عنّي</div>
+  <div class="group">
+   <div class="li chg"><span class="k">نبذة عني<small>أحب القراءة والمشي، وأقدّر الصراحة…</small></span><span class="tag chg">للمراجعة</span><span class="chev">‹</span></div>
+   <div class="li chg"><span class="k">الهوايات<small>القراءة، المشي، السفر</small></span><span class="tag now">فوراً</span><span class="chev">‹</span></div>
+   <div class="li"><span class="k">الاهتمامات</span><span class="v add">إضافة</span><span class="chev">‹</span></div>
+   <div class="li"><span class="k">القيم العائلية</span><span class="v add">إضافة</span><span class="chev">‹</span></div>
+  </div>
+  <div class="secT">العائلة والسكن</div>
+  <div class="group">
+   <div class="li"><span class="k">عدد الإخوة</span><span class="v set">4</span><span class="chev">‹</span></div>
+   <div class="li"><span class="k">السكن</span><span class="v add">إضافة</span><span class="chev">‹</span></div>
+  </div>
+ </div>
+ <div class="savebar" style="position:static;padding-bottom:28px">
+  <div class="t"><b>تعديلان</b><span>واحد فوراً · واحد للمراجعة</span></div>
+  <div class="btn p sm" style="width:110px;height:48px">حفظ</div>
+ </div>
+</div>
+</div>
+
+<div>
+<div class="cap">بعد الحفظ<small>رسالة واحدة تقول ما حدث لكل جزء، في أعلى القائمة نفسها.</small></div>
+<div class="phone">
+ <div class="sb"><span>9:41</span><span>●●● ▮</span></div>
+ <div class="webbar"><b>نصيبك</b><span class="pill">رصيدك <b>7</b></span></div>
+ <div class="scroll" style="padding-top:12px">
+  <div class="back">› ملفي</div>
+  <div class="h" style="font-size:24px">تعديل ملفي</div>
+  <div class="banner ok" style="margin-top:10px"><span>✓</span><span><b>حُفظت الهوايات.</b> نبذتك الجديدة أُرسلت للمراجعة، وستظهر بعد الموافقة.</span></div>
+  <div class="secT" style="margin-top:4px">عنّي</div>
+  <div class="group">
+   <div class="li lock"><span class="k">نبذة عني<small>الحالية: أحب القراءة والمشي، وأقدّر…</small></span><span class="tag rev">قيد المراجعة</span></div>
+   <div class="li"><span class="k">الهوايات<small>القراءة، المشي، السفر</small></span><span class="chev">‹</span></div>
+   <div class="li"><span class="k">الاهتمامات</span><span class="v add">إضافة</span><span class="chev">‹</span></div>
+  </div>
+ </div>
+</div>
+</div>
+</div>
+
+<h2 class="part">5. التطبيق</h2>
+<div class="legend" style="max-width:1240px">
+الدخول والتسجيل والإعداد في التطبيق تُبنى كما في تصميم 12 نوفمبر: <b>Phone، Otp، OtpWhatsapp، OtpError، Register، Setup، SetupBasics، SetupSocial، SetupSectLB، SetupLooking، MyProfile، ProfileEdit، QuickEditSheet</b>. ما يضيفه هذا التصميم للتطبيق:<br>
+1. شاشة الهاتف بلا تبويب «تسجيل الدخول | حساب جديد» وبلا زر «إنشاء الحساب» الذي لا ينشئ حساباً: زر واحد «إرسال الرمز».<br>
+2. شاشة «تعديل ملفي» تعمل كما في الموقع أعلاه: سطر معدّل معلَّم، شريط حفظ واحد يقول «فوراً / للمراجعة»، أسطر مقفلة أثناء طلب قيد المراجعة.<br>
+3. نافذة «نبذة عني» السريعة في «ملفي» تتبع نفس القاعدة: لا ترسل طلباً ثانياً إن كان هناك طلب قيد المراجعة.<br>
+4. «انتهى الإعداد» بنفس قائمة «أكمل ملفك متى شئت».
+</div>
+<div class="row">
+<div>
+<div class="cap">التطبيق · تعديل ملفي مع تعديلين<small>نفس شاشة ProfileEdit، مع الأسطر المعلّمة وشريط الحفظ بدل زر «حفظ» في الأعلى.</small></div>
+<div class="phone">
+ <div class="sb"><span>9:41</span><span>●●● ▮</span></div>
+ <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 16px 10px;flex:none"><span class="link" style="font-weight:600">› ملفي</span><b style="font-size:17px">تعديل ملفي</b><span style="width:50px"></span></div>
+ <div class="scroll">
+  <div class="secT" style="margin-top:4px">البيانات الأساسية</div>
+  <div class="group">
+   <div class="li"><span class="k">تاريخ الميلاد</span><span class="v set">14 مارس 1995</span><span class="chev">‹</span></div>
+   <div class="li chg"><span class="k">المدينة</span><span class="tag chg">للمراجعة</span><span class="v set">الزرقاء</span><span class="chev">‹</span></div>
+   <div class="li"><span class="k">الحالة الاجتماعية</span><span class="v set">أعزب</span><span class="chev">‹</span></div>
+   <div class="li"><span class="k">منطقة أصل العائلة</span><span class="v add">إضافة</span><span class="chev">‹</span></div>
+  </div>
+  <div class="secT">التعليم والعمل</div>
+  <div class="group">
+   <div class="li"><span class="k">المستوى التعليمي</span><span class="v set">بكالوريوس</span><span class="chev">‹</span></div>
+   <div class="li chg"><span class="k">التخصص</span><span class="tag now">فوراً</span><span class="v set">هندسة برمجيات</span><span class="chev">‹</span></div>
+   <div class="li"><span class="k">الوظيفة</span><span class="v set">محاسب</span><span class="chev">‹</span></div>
+   <div class="li"><span class="k">الطول</span><span class="v set">178 سم</span><span class="chev">‹</span></div>
+  </div>
+ </div>
+ <div class="savebar" style="position:static;padding-bottom:28px">
+  <div class="t"><b>تعديلان</b><span>واحد فوراً · واحد للمراجعة</span></div>
+  <div class="btn p sm" style="width:110px;height:48px">حفظ</div>
+ </div>
+</div>
+</div>
+</div>
+
+</body>
+</html>

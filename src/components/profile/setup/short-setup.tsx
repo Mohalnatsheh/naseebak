@@ -122,6 +122,10 @@ function Chips({
   );
 }
 
+/** Stored as free text in both setup schemas (shortText / longText), so "" clears them */
+const CLEARABLE_TEXT = new Set(["area", "prefHijab", "prefBeard", "prefChildrenAcceptance"]);
+const isTextControl = (field: EditField) => field.control === "text" || field.control === "longText";
+
 /** The sub-line under each step's title */
 function stepSub(id: SetupStepId, gender: string): string {
   switch (id) {
@@ -162,6 +166,8 @@ export function ShortSetup({ guardianStep }: { guardianStep: boolean }) {
   const [step, setStep] = useState(0);
   // The highest `setupStep` stored or sent: it never goes back (the legacy wizard resumes from it)
   const highestStored = useRef(0);
+  // The answers the server holds (as loaded, plus what the autosave sent since): an emptied one is sent as cleared
+  const serverValues = useRef<Values>({});
   const [form, setForm] = useState<Values>({});
   const [stored, setStored] = useState<Values>({});
   const [ticked, setTicked] = useState<string[]>([]);
@@ -214,6 +220,7 @@ export function ShortSetup({ guardianStep }: { guardianStep: boolean }) {
       setCountryCode(code);
       setStored(p);
       highestStored.current = typeof p.setupStep === "number" ? p.setupStep : 0;
+      serverValues.current = { ...p };
       setTicked(Array.isArray(p.dealbreakers) ? p.dealbreakers.map(String) : []);
       const fromServer = formFromProfile(p, userGender, code);
       const next = { ...fromServer };
@@ -263,12 +270,15 @@ export function ShortSetup({ guardianStep }: { guardianStep: boolean }) {
   // Each step and the done screen start at the top
   const topRef = useRef<HTMLDivElement>(null);
   const firstRender = useRef(true);
+  const headingRef = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
     if (firstRender.current) {
       firstRender.current = false;
       return;
     }
     topRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+    // Screen readers hear the new step's name
+    headingRef.current?.focus({ preventScroll: true });
   }, [step, done]);
 
   function clearErrors(keys: string[]) {
@@ -338,14 +348,21 @@ export function ShortSetup({ guardianStep }: { guardianStep: boolean }) {
   }
 
   /** Every step's answers as stored values, empty ones left out (the server keeps what it has), through `sendableChanges` */
-  function payload(): Values {
+  function payload(lastStep = steps.length - 1): Values {
     const out: Values = {};
-    for (const s of steps) {
+    for (const [i, s] of steps.entries()) {
+      if (i > lastStep) break;
       for (const field of shownFields(s)) {
         const values = toPatch(field, Object.fromEntries(rowKeys(field).map((k) => [k, form[k]])));
         for (const [key, raw] of Object.entries(values)) {
           const v = typeof raw === "string" ? raw.trim() : raw;
           if (!isEmptyStored(v)) out[key] = v;
+          // An answer removed here (a list emptied, a text erased, the old city's area) must be cleared on the
+          // server too: "" and [] are accepted by the draft and the final save. Choices can't be unselected, and a
+          // number can't be cleared (the schemas' numbers aren't nullable), so those stay as stored.
+          else if (!isEmptyStored(serverValues.current[key]) && (Array.isArray(v) || CLEARABLE_TEXT.has(key) || isTextControl(field))) {
+            out[key] = Array.isArray(v) ? [] : "";
+          }
         }
       }
     }
@@ -389,7 +406,11 @@ export function ShortSetup({ guardianStep }: { guardianStep: boolean }) {
     const nextStep = step + 1;
     const toStore = stepToStore(nextStep);
     highestStored.current = toStore;
-    saveToServer(toStore, payload());
+    // Only the steps checked so far: a later step's invalid answer (a restored draft) would fail the whole draft
+    const draft = payload(step);
+    saveToServer(toStore, draft);
+    // Only what it now holds; a cleared answer stays known, so the final save clears it again if this draft failed
+    for (const [key, v] of Object.entries(draft)) if (!isEmptyStored(v)) serverValues.current[key] = v;
     setStep(nextStep);
   }
 
@@ -503,7 +524,9 @@ export function ShortSetup({ guardianStep }: { guardianStep: boolean }) {
         <p className="text-caption text-muted-ink">{`الخطوة ${step + 1} من ${totalSteps}`}</p>
       </div>
 
-      <h1 className="font-display text-display-sm text-ink">{heading.title}</h1>
+      <h1 ref={headingRef} tabIndex={-1} className="font-display text-display-sm text-ink outline-none">
+        {heading.title}
+      </h1>
       <p className="mt-1 mb-6 text-body text-muted-ink">{heading.sub}</p>
 
       <div className="space-y-6">

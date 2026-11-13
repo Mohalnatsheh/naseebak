@@ -294,7 +294,7 @@ describe("ShortSetup: every field in 7 steps (auth_profile_redesign)", () => {
     expect(screen.getByRole("link", { name: "عرض الاقتراحات" }).getAttribute("href")).toBe("/dashboard/suggestions");
     // «ملفك جاهز» lists only what is still empty: no height yet, photos always; about me and preferences are filled
     const later = screen.getAllByRole("link").map((a) => a.getAttribute("href"));
-    expect(later).toContain("/dashboard/profile/edit?field=job");
+    expect(later).toContain("/dashboard/profile/edit?field=height");
     expect(later).toContain("/dashboard/photos");
     expect(later).not.toContain("/dashboard/profile/edit?field=aboutMe");
     expect(later).not.toContain("/dashboard/profile/edit?field=prefAgeMin");
@@ -400,6 +400,58 @@ describe("ShortSetup: every field in 7 steps (auth_profile_redesign)", () => {
     expect(screen.getByText("الخطوة 1 من 7")).toBeTruthy();
   });
 
+  it("an answer removed during setup is cleared on the server: the old city's area (draft and final save)", async () => {
+    ctx.mutual = false;
+    mockProfile({ ...FULL, area: "عبدون" });
+    render(<ShortSetup guardianStep={false} />);
+    await waitHeading("من تبحث عنه");
+    for (let i = 0; i < 5; i++) fireEvent.click(screen.getByRole("button", { name: /السابق/ }));
+    expect(heading("عنك")).toBeTruthy();
+    fireEvent.click(within(group("city")).getByRole("button", { name: "إربد" }));
+    next();
+    expect(autoSave.saveToServer.mock.calls[0][1]).toMatchObject({ city: "إربد", area: "" });
+    for (let i = 0; i < 4; i++) next();
+    expect(heading("من تبحث عنه")).toBeTruthy();
+    await finish();
+    await waitHeading("ملفك جاهز");
+    expect(body("/api/profile")).toMatchObject({ city: "إربد", area: "" });
+  });
+
+  it("a preference list emptied during setup is sent as []", async () => {
+    mockProfile({ ...FULL, prefCity: ["عمّان"], dealbreakers: ["city"] });
+    render(<ShortSetup guardianStep={false} />);
+    await waitHeading("شروط أساسية");
+    fireEvent.click(screen.getByRole("button", { name: /السابق/ }));
+    fireEvent.click(within(group("prefCity")).getByRole("button", { name: /عمّان/ }));
+    next();
+    expect(autoSave.saveToServer.mock.calls[0][1]).toMatchObject({ prefCity: [] });
+    await finish();
+    await waitHeading("ملفك جاهز");
+    expect(body("/api/profile")).toMatchObject({ prefCity: [], dealbreakers: [] });
+  });
+
+  it("the step autosave sends only the steps checked so far", async () => {
+    // A restored draft holds siblings 25 (step 4 refuses it): the step 2 draft must not carry it
+    localDraft.value = { savedAt: new Date().toISOString(), form: { numberOfSiblings: "25" } };
+    mockProfile({ ...FULL, smokingStatus: null, housingType: null });
+    render(<ShortSetup guardianStep={false} />);
+    await waitHeading("الدين ونمط الحياة");
+    fireEvent.click(screen.getByRole("button", { name: "لا أدخن" }));
+    next();
+    const draft = autoSave.saveToServer.mock.calls[0][1] as Record<string, unknown>;
+    expect(draft).toMatchObject({ dateOfBirth: "1995-03-14", smokingStatus: "لا أدخن" });
+    for (const key of ["numberOfSiblings", "job", "aboutMe", "prefAgeMin"]) expect(draft[key]).toBeUndefined();
+  });
+
+  it("a new step moves the focus to its title", async () => {
+    mockProfile({ ...STEP_YOU, ...STEP_FAITH, smokingStatus: null });
+    render(<ShortSetup guardianStep={false} />);
+    await waitHeading("الدين ونمط الحياة");
+    fireEvent.click(screen.getByRole("button", { name: "لا أدخن" }));
+    next();
+    expect(document.activeElement).toBe(heading("التعليم والعمل"));
+  });
+
   it("a failed profile load shows a retry and never the form", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(() => json({ error: "x" }, false));
     render(<ShortSetup guardianStep={false} />);
@@ -428,7 +480,7 @@ describe("/dashboard/profile/setup follows auth_profile_redesign", () => {
     const { unmount } = render(<SetupDone gender="MALE" />);
     expect(screen.getAllByText("إضافة")).toHaveLength(4);
     unmount();
-    render(<SetupDone gender="MALE" profile={{ aboutMe: "نبذة", job: "مهندس", height: 175, prefEducation: ["بكالوريوس"] }} />);
+    render(<SetupDone gender="MALE" profile={{ aboutMe: "نبذة", height: 175, prefEducation: ["بكالوريوس"] }} />);
     expect(screen.getAllByText("إضافة")).toHaveLength(1);
     expect(screen.getByRole("link", { name: /صوري/ }).getAttribute("href")).toBe("/dashboard/photos");
   });
@@ -437,6 +489,6 @@ describe("/dashboard/profile/setup follows auth_profile_redesign", () => {
     render(<SetupDone gender="FEMALE" />);
     expect(screen.getByText("أكملي ملفكِ متى شئتِ · يزيد فرصكِ")).toBeTruthy();
     expect(screen.queryByText("أكمل ملفك متى شئت · يزيد فرصك")).toBeNull();
-    for (const key of ["aboutMe", "job", "prefAgeMin"]) expect(editField(key)?.key).toBe(key);
+    for (const key of ["aboutMe", "height", "prefAgeMin"]) expect(editField(key)?.key).toBe(key);
   });
 });

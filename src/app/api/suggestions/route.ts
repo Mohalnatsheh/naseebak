@@ -5,9 +5,9 @@ import { parsePagination } from "@/lib/utils";
 import { autoSuggestWithReason, type SuggestEmptyReason } from "@/lib/matching/auto-suggest";
 import { touchLastActive } from "@/lib/activity";
 import { recordActivityDay } from "@/lib/activity-days";
-import { getCycleFlags } from "@/lib/settings";
+import { getCycleFlags, getReligionEnabled } from "@/lib/settings";
 import { countNewItems, hasOpenMutual, suggestionOrder } from "@/lib/suggestions/feed";
-import { visibleSect } from "@/lib/profile-sect";
+import { publicReligionFields } from "@/lib/profile-religion";
 
 export async function GET(request: Request) {
   try {
@@ -113,6 +113,7 @@ export async function GET(request: Request) {
                   religiosity: true,
                   smokingStatus: true,
                   sect: true,
+                  religion: true,
                   aboutMe: true,
                   hobbies: true,
                   interests: true,
@@ -140,7 +141,9 @@ export async function GET(request: Request) {
       db.suggestion.count({ where }),
     ]);
 
+    const religionOn = await getReligionEnabled().catch(() => false);
     const formattedSuggestions = suggestions.map((s) => {
+      const rel = publicReligionFields(s.candidate.profile, religionOn);
       const age = s.candidate.profile?.dateOfBirth
         ? Math.floor((Date.now() - new Date(s.candidate.profile.dateOfBirth).getTime()) / (365.25 * 24 * 60 * 60 * 1000))
         : null;
@@ -169,14 +172,15 @@ export async function GET(request: Request) {
           childrenCount: s.candidate.profile?.childrenCount ?? 0,
           religiosity: s.candidate.profile?.religiosity,
           smokingStatus: s.candidate.profile?.smokingStatus,
-          sect: visibleSect(s.candidate.profile?.sect),
+          sect: rel.sect,
+          religion: rel.religion,
           aboutMe: s.candidate.profile?.aboutMe,
           hobbies: s.candidate.profile?.hobbies,
           interests: s.candidate.profile?.interests,
           lifestyle: s.candidate.profile?.lifestyle,
-          beard: s.candidate.profile?.beard,
-          hijab: s.candidate.profile?.hijab,
-          niqab: s.candidate.profile?.niqab,
+          beard: rel.beard,
+          hijab: rel.hijab,
+          niqab: rel.niqab,
           tribe: s.candidate.profile?.tribe,
           familyOriginArea: s.candidate.profile?.familyOriginArea,
           numberOfSiblings: s.candidate.profile?.numberOfSiblings,

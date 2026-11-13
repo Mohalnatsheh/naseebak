@@ -10,7 +10,7 @@ const db = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/intro/match", () => ({ createMutualMatch: vi.fn() }));
-const settings = vi.hoisted(() => ({ getCycleFlags: vi.fn() }));
+const settings = vi.hoisted(() => ({ getCycleFlags: vi.fn(), getReligionEnabled: vi.fn(async () => false) }));
 vi.mock("@/lib/settings", () => settings);
 
 import { getSuggestionFeed } from "@/lib/suggestions/feed";

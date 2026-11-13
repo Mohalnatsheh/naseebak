@@ -12,6 +12,7 @@ vi.mock("@/lib/matching/auto-suggest", () => ({ autoSuggestForUser: vi.fn(async 
 vi.mock("@/lib/settings", () => ({ getReligionEnabled: vi.fn(async () => false) }));
 
 import { PUT } from "@/app/api/profile/dealbreakers/route";
+import { toFeedCandidate } from "@/lib/suggestions/feed";
 
 const put = (keys: string[]) =>
   PUT(new Request("http://x/api/profile/dealbreakers", { method: "PUT", body: JSON.stringify({ keys }) }));
@@ -40,5 +41,26 @@ describe("PUT /api/profile/dealbreakers: «الديانة»", () => {
       expect(res.status).toBe(200);
       expect(db.profile.updateMany).toHaveBeenCalledWith({ where: { userId: "u1" }, data: { dealbreakers: ["age", "hijab", "beard"] } });
     }
+  });
+});
+
+describe("cards: «الديانة»", () => {
+  const person = (profile: object) => ({
+    id: "p1", firstName: "A", isVerified: false, gender: "FEMALE", personalityResult: null,
+    profile: { dateOfBirth: new Date("1995-01-01"), prefReligion: "لا مانع", ...profile },
+  });
+
+  it("cards send religion only while the switch is on and mask a Christian's Muslim-only answers", () => {
+    const on = toFeedCandidate(person({ religion: "مسيحي", hijab: false, sect: "سني" }), true);
+    expect(on.religion).toBe("مسيحي");
+    expect(on.hijab).toBeNull();
+    expect(on.sect).toBeNull();
+    const off = toFeedCandidate(person({ religion: "مسيحي", hijab: false, sect: "سني" }), false);
+    expect(off.religion).toBeNull();
+    expect(off.hijab).toBeNull();
+    const muslim = toFeedCandidate(person({ religion: null, hijab: true }), true);
+    expect(muslim.religion).toBe("مسلم");
+    expect(muslim.hijab).toBe(true);
+    expect(JSON.stringify(on)).not.toContain("prefReligion");
   });
 });

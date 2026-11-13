@@ -9,7 +9,7 @@ const db = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/intro/match", () => ({ createMutualMatch: vi.fn() }));
-const settings = vi.hoisted(() => ({ getCycleFlags: vi.fn() }));
+const settings = vi.hoisted(() => ({ getCycleFlags: vi.fn(), getReligionEnabled: vi.fn() }));
 vi.mock("@/lib/settings", () => settings);
 
 import { ACTIVE_FIRST_GROUP_DAYS, activityGroup, activityLabel, countMutualTabs, countNewItems, getSuggestionFeed, NEW_TAB_LIMIT, type OpenFeedItem } from "@/lib/suggestions/feed";
@@ -30,6 +30,7 @@ const mutualRow = (id: string, other = person("f1", "FEMALE"), iAmRecipient = fa
 beforeEach(() => {
   vi.clearAllMocks();
   settings.getCycleFlags.mockResolvedValue({ introRequests: true, chat: true, mutualSuggestions: true, creditOnInterest: false });
+  settings.getReligionEnabled.mockResolvedValue(false);
   db.user.findUnique.mockResolvedValue(me);
   db.block.findMany.mockResolvedValue([]);
   db.suggestion.updateMany.mockResolvedValue({ count: 0 });
@@ -37,6 +38,15 @@ beforeEach(() => {
   db.suggestion.groupBy.mockResolvedValue([]);
   db.like.findMany.mockResolvedValue([]);
   db.mutualMatch.findMany.mockResolvedValue([]);
+});
+
+describe("getSuggestionFeed — religion", () => {
+  it("passes the switch to the cards", async () => {
+    settings.getReligionEnabled.mockResolvedValue(true);
+    db.suggestion.findMany.mockResolvedValueOnce([mutualRow("s1")]).mockResolvedValueOnce([]);
+    const { items } = await getSuggestionFeed("me", "new", 1);
+    expect((items[0] as OpenFeedItem).candidate.religion).toBe("مسلم");
+  });
 });
 
 describe("getSuggestionFeed — new", () => {

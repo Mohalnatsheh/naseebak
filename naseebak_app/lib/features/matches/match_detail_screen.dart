@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../app/providers.dart';
 import '../../core/analytics/analytics.dart';
@@ -528,7 +529,7 @@ class _IntroPanelState extends ConsumerState<IntroPanel> {
         switch (s.familyStatus) {
           case 'accepted':
             if (s.contacts != null) {
-              children.add(_GuardianCard(contact: s.contacts!, dialCode: ref.read(authControllerProvider).me?.country.dialDigits));
+              children.add(GuardianCard(contact: s.contacts!, dialCode: ref.read(authControllerProvider).me?.country.dialDigits));
             } else {
               children.add(const InfoBanner(
                 text: 'تم قبول التعارف العائلي. تظهر بيانات التواصل عندما يشاركها الطرفان.',
@@ -769,13 +770,29 @@ class _ReplyRow extends StatelessWidget {
   }
 }
 
-class _GuardianCard extends StatelessWidget {
-  const _GuardianCard({required this.contact, this.dialCode});
+/// The shared guardian's details with «اتصال» and «واتساب» (the number stays selectable). [openLink] is for tests.
+class GuardianCard extends StatelessWidget {
+  const GuardianCard({super.key, required this.contact, this.dialCode, this.openLink});
   final GuardianContact contact;
   final String? dialCode;
+  final Future<bool> Function(Uri url)? openLink;
 
   @override
   Widget build(BuildContext context) {
+    final dial = (dialCode ?? '').isEmpty ? '962' : dialCode!;
+    final links = guardianLinks(contact.phone, dial);
+    final open = openLink ?? (Uri u) => launchUrl(u, mode: LaunchMode.externalApplication);
+    Widget action(String label, IconData icon, Uri url, {required bool filled}) {
+      final child = Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(icon, size: 18), const SizedBox(width: 6), Text(label)]);
+      final style = (filled ? FilledButton.styleFrom : OutlinedButton.styleFrom)(minimumSize: const Size.fromHeight(48));
+      void tap() => open(url).catchError((_) => false);
+      return Expanded(
+        child: filled
+            ? FilledButton(key: Key('guardian-$label'), style: style, onPressed: tap, child: child)
+            : OutlinedButton(key: Key('guardian-$label'), style: style, onPressed: tap, child: child),
+      );
+    }
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(color: AppColors.successBg, borderRadius: BorderRadius.circular(16)),
@@ -788,8 +805,14 @@ class _GuardianCard extends StatelessWidget {
           const SizedBox(height: 4),
           Directionality(
             textDirection: TextDirection.ltr,
-            child: SelectableText(formatGuardianPhone(contact.phone, dialCode: (dialCode ?? '').isEmpty ? '962' : dialCode!), style: AppText.body.copyWith(fontWeight: FontWeight.w700)),
+            child: SelectableText(formatGuardianPhone(contact.phone, dialCode: dial), style: AppText.body.copyWith(fontWeight: FontWeight.w700)),
           ),
+          const SizedBox(height: AppSpace.md),
+          Row(children: [
+            action('اتصال', Icons.call_outlined, links.tel, filled: true),
+            const SizedBox(width: AppSpace.sm),
+            action('واتساب', Icons.chat_outlined, links.wa, filled: false),
+          ]),
         ],
       ),
     );

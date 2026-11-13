@@ -71,14 +71,7 @@ String visitStatusLabel(String status) => switch (status) {
 /// "+962 79 123 4567". A local "07…" number takes [dialCode] (the member's country). Lebanon's shorter numbers are
 /// grouped too: "+961 71 123 456", "+961 3 123 456".
 String formatGuardianPhone(String raw, {String dialCode = '962'}) {
-  final digits = raw.replaceAll(RegExp(r'\D'), '');
-  String? known;
-  for (final d in const ['962', '966', '961']) {
-    // Lebanon's 3XXXXXX is 10 digits with its dial code
-    if (digits.startsWith(d) && digits.length > (d == '961' ? 9 : 10)) known = d;
-  }
-  final dial = known ?? dialCode;
-  final intl = known != null ? digits : digits.startsWith('0') ? '$dial${digits.substring(1)}' : digits;
+  final (:dial, :intl) = _guardianDigits(raw, dialCode);
   final local = intl.startsWith(dial) ? intl.substring(dial.length) : intl;
   if (local.length == 9) return '+$dial ${local.substring(0, 2)} ${local.substring(2, 5)} ${local.substring(5)}';
   if (dial == '961' && (local.length == 8 || local.length == 7)) {
@@ -86,6 +79,28 @@ String formatGuardianPhone(String raw, {String dialCode = '962'}) {
     return '+$dial ${local.substring(0, head)} ${local.substring(head, head + 3)} ${local.substring(head + 3)}';
   }
   return '+$intl';
+}
+
+/// The dial code and the full international digits of a guardian's number (shared by the display and the links, so
+/// both use the same number). A leading "00" is the same as "+".
+({String dial, String intl}) _guardianDigits(String raw, String dialCode) {
+  var digits = raw.replaceAll(RegExp(r'\D'), '');
+  if (digits.startsWith('00')) digits = digits.substring(2);
+  String? known;
+  for (final d in const ['962', '966', '961']) {
+    // Lebanon's 3XXXXXX is 10 digits with its dial code
+    if (digits.startsWith(d) && digits.length > (d == '961' ? 9 : 10)) known = d;
+  }
+  final dial = known ?? dialCode;
+  final intl = known != null ? digits : digits.startsWith('0') ? '$dial${digits.substring(1)}' : digits;
+  return (dial: dial, intl: intl);
+}
+
+/// The call and WhatsApp links for a guardian's number, as the website builds them (`tel:+<intl>`,
+/// `https://wa.me/<intl>` in guardian-contact-card.tsx).
+({Uri tel, Uri wa}) guardianLinks(String phone, String dialCode) {
+  final intl = _guardianDigits(phone, dialCode).intl;
+  return (tel: Uri.parse('tel:+$intl'), wa: Uri.parse('https://wa.me/$intl'));
 }
 
 class GuardianContact {

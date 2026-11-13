@@ -40,6 +40,7 @@ class ChatTestRoom {
     this.starters = const [],
     this.partnerTyping = false,
     this.pollInterval = const Duration(hours: 1),
+    this.expiresAt,
   }) : messages = messages ?? [msg(1)];
 
   String status;
@@ -47,6 +48,9 @@ class ChatTestRoom {
   List<String> starters;
   bool partnerTyping;
   final Duration pollInterval;
+
+  /// The conversation's `expiresAt` (default: far ahead)
+  final DateTime? expiresAt;
 
   /// `polledAt` on every answer (null = a server before the field)
   String? polledAt;
@@ -78,7 +82,7 @@ class ChatTestRoom {
       final after = req.queryParameters['after'] as String?;
       final from = after == null ? null : DateTime.parse(after);
       return FakeResponse(200, {
-          'conversation': {...conv, 'status': status},
+          'conversation': {...conv, 'status': status, if (expiresAt != null) 'expiresAt': expiresAt!.toUtc().toIso8601String()},
           'messages': [
             for (final m in messages)
               if (from == null || !DateTime.parse(m['createdAt'] as String).isBefore(from)) m,
@@ -86,6 +90,7 @@ class ChatTestRoom {
           'hasMore': false,
           'chatEnabled': true,
           'partnerTyping': partnerTyping,
+          'deleteEnabled': true,
           'starters': starters,
           'polledAt': ?polledAt,
           if (req.queryParameters['reactionsSince'] != null) 'reactionUpdates': reactionUpdates,

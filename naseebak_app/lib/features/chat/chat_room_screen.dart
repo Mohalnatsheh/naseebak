@@ -25,7 +25,6 @@ import '../home/counts.dart';
 import '../home/gendered_copy.dart';
 import '../matches/match_detail_screen.dart' show ReportAnswer, ReportSheet;
 import '../matches/matches_repository.dart';
-import '../pro/pro_badge.dart';
 import '../pro/pro_repository.dart';
 import 'chat_background.dart';
 import 'chat_bubble.dart';
@@ -38,6 +37,7 @@ import 'chat_models.dart';
 import 'chat_status_bar.dart';
 import 'hold_to_record.dart';
 import 'last_chat.dart';
+import 'wa_chat_header.dart';
 import 'media_bubbles.dart' show ChatPhotoGallery, formatVoiceDuration;
 import 'message_menu.dart';
 import 'photo_preview_screen.dart';
@@ -2146,103 +2146,28 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     final status = _statusLine(chat, left, female);
     final deleteMode = _deleteMode();
     return Scaffold(
-      appBar: AppBar(
-        titleSpacing: 0,
-        toolbarHeight: kToolbarHeight * (textScale < 1 ? 1 : textScale),
-        title: InkWell(
-          key: const Key('chat-header'),
-          borderRadius: BorderRadius.circular(12),
-          // The match page: the family introduction, the photos, ending the match
-          onTap: canOpenMatch ? _openMatch : null,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            child: Row(
-              children: [
-                // One avatar (P2-5) with the chat's time as a gold arc around it (S4); the initial is decoration (the
-                // name says who it is, QA A-L08). The arc's days are said on a tap, and to screen readers.
-                Semantics(
-                  label: left?.text,
-                  button: left != null,
-                  child: GestureDetector(
-                    key: const Key('chat-time-arc'),
-                    onTap: left == null ? null : () => showSnack(context, left.text),
-                    // One Pro marker in the header: the «Pro» badge by the name (no dot here, review A2 minor 4)
-                    child: MemberAvatar(
-                      name: chat?.partnerName ?? '',
-                      size: 42,
-                      timeLeft: chat?.status == 'ACTIVE' ? chatTimeFraction(chat?.expiresAt) : null,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Flexible(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Flexible(
-                            child: NameWithBadge(
-                              isPro: chat?.partnerIsPro ?? false,
-                              child: Text(chat?.partnerName ?? 'المحادثة', maxLines: 1, overflow: TextOverflow.ellipsis),
-                            ),
-                          ),
-                          // The match's seal (S1), small
-                          if (chat != null) const Padding(padding: EdgeInsetsDirectional.only(start: 6), child: SealMark(size: 16)),
-                        ],
-                      ),
-                      ?status,
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        actions: [
-          if (chat != null)
-            PopupMenuButton<String>(
-              tooltip: 'خيارات',
-              onSelected: (v) {
-                switch (v) {
-                  case 'match':
-                    _openMatch();
-                  case 'extend':
-                    _extend();
-                  case 'end':
-                    _end();
-                  case 'report':
-                    _end(report: true);
-                  case 'clear':
-                    _clearChat();
-                }
-              },
-              itemBuilder: (_) => [
-                if (!chat.matchHidden) const PopupMenuItem(value: 'match', child: Text('صفحة التوافق')),
-                if (chat.canExtend) const PopupMenuItem(value: 'extend', child: Text('تمديد 7 أيام')),
-                if (chat.canSend) const PopupMenuItem(value: 'end', child: Text('إنهاء المحادثة')),
-                // Pro chat delete (a closed chat too: «مسح لديّ» works there)
-                if (deleteMode != DeleteMode.hidden)
-                  PopupMenuItem(
-                    key: const Key('chat-clear'),
-                    value: 'clear',
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Text('مسح المحادثة'),
-                        if (deleteMode == DeleteMode.upsell) ...[
-                          const SizedBox(width: 8),
-                          const Icon(Icons.lock_rounded, size: 16, color: AppColors.goldText, semanticLabel: 'مع Pro'),
-                        ],
-                      ],
-                    ),
-                  ),
-                const PopupMenuItem(value: 'report', child: Text('إبلاغ')),
-              ],
-            ),
-        ],
+      appBar: WaChatHeader(
+        chat: chat,
+        status: status,
+        left: left,
+        deleteMode: deleteMode,
+        textScale: textScale,
+        // The match page: the family introduction, the photos, ending the match
+        onOpenMatch: canOpenMatch ? _openMatch : null,
+        onMenu: (a) {
+          switch (a) {
+            case ChatMenuAction.match:
+              _openMatch();
+            case ChatMenuAction.extend:
+              _extend();
+            case ChatMenuAction.clear:
+              _clearChat();
+            case ChatMenuAction.report:
+              _end(report: true);
+            case ChatMenuAction.end:
+              _end();
+          }
+        },
       ),
       // The chat: no screenshots (Android), hidden during screen recording (iOS)
       body: SecureArea(

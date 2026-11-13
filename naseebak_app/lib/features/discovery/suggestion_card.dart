@@ -109,6 +109,7 @@ class SuggestionCard extends StatelessWidget {
                       button: true,
                       label: 'الملف كاملاً: ${c.firstName}',
                       excludeSemantics: true,
+                      onTap: onOpen,
                       child: ConstrainedBox(
                         key: Key('card-full-${item.id}'),
                         constraints: const BoxConstraints(minHeight: 44),
@@ -190,15 +191,7 @@ class SuggestionCard extends StatelessWidget {
     return LayoutBuilder(builder: (context, box) {
       final narrow = box.maxWidth < 280 || MediaQuery.textScalerOf(context).scale(16) / 16 > 1.25 && box.maxWidth < 360;
       final score = item.compatibilityScore > 0
-          ? Container(
-              key: Key('card-score-${item.id}'),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(color: AppColors.goldSoft, borderRadius: BorderRadius.circular(AppRadius.sm)),
-              child: Text(
-                'توافق ${item.compatibilityScore.round()}%',
-                style: AppText.caption.copyWith(color: AppColors.goldText, fontWeight: FontWeight.w700),
-              ),
-            )
+          ? ScorePill(key: Key('card-score-${item.id}'), score: item.compatibilityScore)
           : null;
       final who = Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -264,6 +257,22 @@ class SuggestionCard extends StatelessWidget {
             if (onReport != null) const PopupMenuItem(value: 'report', child: Text('إبلاغ وحظر')),
             if (onBlock != null) const PopupMenuItem(value: 'block', child: Text('حظر')),
           ],
+        ),
+      );
+}
+
+/// The compatibility score as a small gold pill «توافق 86%» (accent-ink on accent-soft), on the card and the profile
+class ScorePill extends StatelessWidget {
+  const ScorePill({super.key, required this.score});
+  final double score;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(color: AppColors.goldSoft, borderRadius: BorderRadius.circular(AppRadius.sm)),
+        child: Text(
+          'توافق ${score.round()}%',
+          style: AppText.caption.copyWith(color: AppColors.goldText, fontWeight: FontWeight.w700),
         ),
       );
 }

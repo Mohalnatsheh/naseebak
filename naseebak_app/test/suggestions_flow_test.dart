@@ -679,6 +679,33 @@ void main() {
       expect(find.byKey(const Key('profile-zero-balance')), findsOneWidget);
     });
 
+    testWidgets('the balance drops to 0 while the profile is open: its «مهتم» locks at once', (tester) async {
+      final h = Harness(credits: 1);
+      await h.pump(tester);
+      await open(tester, 's1');
+      expect(tester.widget<FilledButton>(find.byKey(const Key('profile-interested-s1'))).onPressed, isNotNull);
+      h.container.read(authControllerProvider.notifier).updateCredits(0);
+      await pumpFor(tester);
+      expect(tester.widget<FilledButton>(find.byKey(const Key('profile-interested-s1'))).onPressed, isNull);
+      expect(find.byKey(const Key('profile-zero-balance')), findsOneWidget);
+    });
+
+    testWidgets('a double tap on the card opens one profile', (tester) async {
+      final h = Harness();
+      await h.pump(tester);
+      // Two opens before the first route is built (a fast double tap)
+      final card = tester.widget<SuggestionCard>(find.byType(SuggestionCard));
+      card.onOpen();
+      card.onOpen();
+      await pumpFor(tester);
+      expect(find.byType(CandidateProfileScreen), findsOneWidget);
+      await tester.tap(find.byKey(const Key('profile-back')));
+      await pumpFor(tester);
+      expect(find.byType(CandidateProfileScreen), findsNothing);
+      // Closed: the card opens it again
+      await open(tester, 's1');
+    });
+
     testWidgets('0 credits with the paywall: the profile\'s «مهتم» opens «انتهى رصيدكِ», nothing sent',
         (tester) async {
       final h = Harness(credits: 0, interestPaywall: true);

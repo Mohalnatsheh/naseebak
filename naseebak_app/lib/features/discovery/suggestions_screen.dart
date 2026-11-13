@@ -222,6 +222,9 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
   bool _loadingMore = false;
   final Set<String> _busy = {};
 
+  /// A full profile is on screen (pushed from this list): a second tap meanwhile does nothing
+  bool _profileOpen = false;
+
   @override
   bool get wantKeepAlive => true;
 
@@ -298,7 +301,7 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
       if (actionable && state.note != null) Text(state.note!, style: AppText.caption.copyWith(color: AppColors.muted)),
       if (actionable && state.zeroBalance)
         Text(
-          'رصيدك صفر: «لا» مجاني، و«مهتم» ${appPayments ? 'يحتاج شحن الرصيد.' : 'يحتاج رصيداً.'}',
+          _zeroBalanceText(appPayments),
           key: const Key('profile-zero-balance'),
           style: AppText.caption.copyWith(color: AppColors.warning),
         ),
@@ -316,8 +319,10 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
   /// One tap on a card: the full profile over the tab (root navigator, above the tab bar). Its «مهتم» / «لا» run the
   /// card's own handlers after it closes, so the sheet, paywall, confirmation, snack and errors are the card's.
   Future<void> _openProfile(FeedItem item) async {
-    if (_busy.contains(item.id)) return;
-    final answer = await Navigator.of(context, rootNavigator: true).push<ProfileAnswer>(MaterialPageRoute(
+    // A double tap pushes one profile, not two
+    if (_busy.contains(item.id) || _profileOpen) return;
+    _profileOpen = true;
+    final Future<ProfileAnswer?> pushed = Navigator.of(context, rootNavigator: true).push<ProfileAnswer>(MaterialPageRoute(
       builder: (_) => Consumer(builder: (context, ref, _) {
         // Watched like the list: a balance or switch that changes while the profile is open follows at once
         final me = ref.watch(authControllerProvider).me;
@@ -340,6 +345,12 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
         );
       }),
     ));
+    final ProfileAnswer? answer;
+    try {
+      answer = await pushed;
+    } finally {
+      _profileOpen = false;
+    }
     if (!mounted || answer == null) return;
     switch (answer) {
       case ProfileAnswer.interested:
@@ -625,6 +636,10 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
         text: '${_g('شخص مهتم بك ينتظر ردّك.', 'شخص مهتم بكِ ينتظر ردّكِ.')} الرد بـ«مهتم» مجاني حتى برصيد صفر.',
       );
 
+  /// The 0-credit line, the same in the list's banner and the full profile
+  static String _zeroBalanceText(bool canRecharge) =>
+      'رصيدك صفر: «لا» مجاني، و«مهتم» ${canRecharge ? 'يحتاج شحن الرصيد.' : 'يحتاج رصيداً.'}';
+
   /// 0 credits: everything stays visible and «لا» is free; only «مهتم» waits for a recharge
   Widget _zeroBalance(BuildContext context) {
     final canRecharge = ref.watch(appPaymentsProvider);
@@ -632,7 +647,7 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
       key: const Key('zero-balance'),
       warning: true,
       icon: Icons.account_balance_wallet_outlined,
-      text: 'رصيدك صفر: «لا» مجاني، و«مهتم» ${canRecharge ? 'يحتاج شحن الرصيد.' : 'يحتاج رصيداً.'}',
+      text: _zeroBalanceText(canRecharge),
       actionKey: const Key('recharge'),
       actionLabel: canRecharge ? _g('اشحن', 'اشحني') : null,
       onAction: canRecharge ? () => context.push('/credits') : null,

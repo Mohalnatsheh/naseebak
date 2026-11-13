@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:naseebak_app/features/discovery/candidate_profile_screen.dart';
 import 'package:naseebak_app/features/discovery/suggestion_models.dart';
 import 'package:naseebak_app/shared/person.dart';
+import 'package:naseebak_app/shared/widgets/person_details_view.dart';
 
 FeedItem item() => FeedItem(
       kind: FeedKind.mutual,
@@ -77,6 +78,9 @@ void main() {
     expect(find.text('165 سم'), findsOneWidget);
     expect(find.text('نص تعريفي'), findsOneWidget);
     expect(find.text('القراءة'), findsOneWidget);
+    // The same gold score pill as the card, not the ring
+    expect(find.text('توافق 82%'), findsOneWidget);
+    expect(find.byType(ScoreRing), findsNothing);
     expect(find.byTooltip('الاقتراحات'), findsOneWidget);
     expect(find.text('NOTE-LINE'), findsOneWidget);
   });

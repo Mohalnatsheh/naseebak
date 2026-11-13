@@ -5,6 +5,7 @@ import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/brand_kit.dart';
 import '../../shared/widgets/person_details_view.dart';
 import '../pro/pro_badge.dart';
+import 'suggestion_card.dart';
 import 'suggestion_models.dart';
 
 /// The answer a member gave from the full profile; the caller runs its own «مهتم» / «لا» handler.
@@ -48,7 +49,9 @@ class CandidateProfileScreen extends StatelessWidget {
     final actionable = item.actionableIn(tab);
     final subtitle = [if (c.age != null) '${c.age} سنة', if (c.city != null) c.city!].join(' · ');
     final menu = onReport != null || onBlock != null;
-    final ring = item.compatibilityScore > 0 ? ScoreRing(score: item.compatibilityScore, size: 56) : null;
+    final score = item.compatibilityScore > 0
+        ? ScorePill(key: Key('profile-score-${item.id}'), score: item.compatibilityScore)
+        : null;
     return Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: false,
@@ -112,7 +115,7 @@ class CandidateProfileScreen extends StatelessWidget {
                     ],
                   ),
                 ),
-                if (ring != null) ...[const SizedBox(width: AppSpace.sm), ring],
+                if (score != null) ...[const SizedBox(width: AppSpace.sm), score],
               ],
             ),
             const SizedBox(height: AppSpace.md),

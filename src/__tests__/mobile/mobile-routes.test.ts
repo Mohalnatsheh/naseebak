@@ -23,6 +23,7 @@ vi.mock("@/lib/settings", () => ({
   getMaintenanceState: async () => ({ enabled: false, message: "" }),
   getCycleFlags: async () => ({ introRequests: true, chat: true, mutualSuggestions: true, creditOnInterest: true }),
   jodChargingFor: async () => false,
+  activeOfferFor: async () => null,
 }));
 vi.mock("@/lib/payments/fulfil", () => fulfil);
 vi.mock("@/lib/stripe", () => ({ getStripe: () => ({ checkout: { sessions: { create: stripe.create, retrieve: stripe.retrieve } } }) }));

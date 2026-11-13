@@ -54,6 +54,9 @@ class AppColors {
 
   /// Safety note chip (its text stays `goldText`)
   static const safetyChip = Color(0xFFF9EDD9);
+
+  /// Secondary text and icons on the dark photo viewer: white at 70 %
+  static const onDarkMuted = Color(0xB3FFFFFF);
   static const chatMine = bubbleMine;
   static const chatTheirs = Colors.white;
   static const chatBackdrop = sand;

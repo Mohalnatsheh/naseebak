@@ -234,7 +234,7 @@ class _PhotoViewerState extends State<PhotoViewer> {
         Text(name, style: AppText.body.copyWith(color: Colors.white)),
         Text(
           '${chatDayLabel(m.createdAt)}، ${formatTime(m.createdAt)}',
-          style: AppText.caption.copyWith(color: Colors.white70),
+          style: AppText.caption.copyWith(color: AppColors.onDarkMuted),
         ),
       ],
     );
@@ -341,7 +341,7 @@ class _ViewerPageState extends ConsumerState<_ViewerPage> {
     image: provider,
     fit: BoxFit.contain,
     errorBuilder: (context, _, _) =>
-        const _MediaPlaceholder(icon: Icons.broken_image_outlined, text: photoErrorText, color: Colors.white70),
+        const _MediaPlaceholder(icon: Icons.broken_image_outlined, text: photoErrorText, color: AppColors.onDarkMuted),
   );
 
   @override
@@ -356,7 +356,7 @@ class _ViewerPageState extends ConsumerState<_ViewerPage> {
                 return const _MediaPlaceholder(
                   icon: Icons.broken_image_outlined,
                   text: photoErrorText,
-                  color: Colors.white70,
+                  color: AppColors.onDarkMuted,
                 );
               }
               final m = snap.data;

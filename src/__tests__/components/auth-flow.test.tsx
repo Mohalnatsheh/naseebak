@@ -161,6 +161,19 @@ describe("AuthFlow code step", () => {
     expect(signIn).toHaveBeenCalledWith("credentials", { phone: "962791234567", otp: "111111", redirect: false });
   });
 
+  it("a failed sign-in after a verified code offers a new code at once, not the wrong-code line", async () => {
+    mockFetch({ "/api/auth/send-otp": SENT, "/api/auth/verify-otp": { body: { success: true, userExists: true } } });
+    signIn.mockResolvedValue({ error: "CredentialsSignin" });
+    render(<AuthFlow mode="login" />);
+    await sendCode();
+    await pasteCode("111111");
+    await screen.findByText(/فشل تسجيل الدخول/);
+    expect(screen.queryByText("الرمز غير صحيح. تأكد من آخر رسالة وصلتك.")).toBeNull();
+    expect(screen.queryByText(/إعادة الإرسال بعد/)).toBeNull();
+    expect(screen.getByRole("button", { name: "إعادة إرسال الرمز" })).toBeTruthy();
+    expect(router.push).not.toHaveBeenCalled();
+  });
+
   it("an outside callbackUrl falls back to the dashboard", async () => {
     mockFetch({ "/api/auth/send-otp": SENT, "/api/auth/verify-otp": { body: { success: true, userExists: true } } });
     render(<AuthFlow mode="login" callbackUrl="https://evil.example/x" />);
@@ -265,6 +278,28 @@ describe("AuthFlow register card", () => {
     await screen.findByText(/هذا الرقم مسجّل بحساب سابق/);
     expect(signIn).toHaveBeenCalledTimes(1);
     expect(router.push).not.toHaveBeenCalledWith("/dashboard/profile/setup");
+  });
+
+  it("a refused invite code is said after the account is made, and «متابعة» goes on to setup", async () => {
+    await reachRegisterCard({ inviteCode: "AB12CD34" }, { "/api/referral/apply": { status: 400, body: { error: "رمز الدعوة غير صالح" } } });
+    fireEvent.change(screen.getByLabelText("الاسم الأول"), { target: { value: "سامي" } });
+    fireEvent.change(screen.getByLabelText("اسم العائلة"), { target: { value: "خالد" } });
+    fireEvent.click(screen.getByRole("button", { name: /رجل/ }));
+    fireEvent.click(screen.getByRole("checkbox"));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "إنشاء الحساب" }));
+    });
+    await screen.findByText("تم إنشاء حسابك. لم يُطبَّق رمز الدعوة: رمز الدعوة غير صالح");
+    expect(router.push).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "متابعة" }));
+    expect(router.push).toHaveBeenCalledWith("/dashboard/profile/setup");
+  });
+
+  it("«تغيير الرقم» on the register card goes back to the phone screen", async () => {
+    await reachRegisterCard();
+    fireEvent.click(screen.getByRole("button", { name: "تغيير الرقم" }));
+    expect(screen.getByRole("heading", { name: "ما رقم هاتفك؟" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "بياناتك الأساسية" })).toBeNull();
   });
 
   it("the old login page's handoff opens the register card (old links)", async () => {

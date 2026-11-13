@@ -24,6 +24,7 @@ import { takeLandingStart } from "@/lib/landing-start";
 const RESEND_SECONDS = 60;
 const BUSY = "الخادم مشغول حالياً. يمكنك المحاولة مرة أخرى بعد قليل.";
 const UNEXPECTED = "حدث خطأ غير متوقع. يمكنك المحاولة مرة أخرى.";
+const UNEXPECTED_SHORT = "حدث خطأ غير متوقع";
 export const WRONG_CODE = "الرمز غير صحيح. تأكد من آخر رسالة وصلتك.";
 /** The old login page's private handoff of a verified new number (kept readable for old links) */
 const HANDOFF_KEY = "naseeb:register-handoff";
@@ -88,6 +89,8 @@ export function AuthFlow({
   const [registering, setRegistering] = useState(false);
   const [registerError, setRegisterError] = useState("");
   const [existingAccount, setExistingAccount] = useState(false);
+  /** The account was made but the invite code was refused: said before going on to setup */
+  const [inviteNotice, setInviteNotice] = useState("");
   const [startGender, setStartGender] = useState<RegisterGender | undefined>(undefined);
   /** One verify request at a time (auto-submit at the sixth digit) */
   const verifyingRef = useRef(false);
@@ -189,6 +192,8 @@ export function AuthFlow({
     setCodeError("");
     setWrongCode(false);
     setResendIn(0);
+    setVerifiedCode("");
+    setRegisterError("");
   }
 
   function failCode(message: string, wrong = false) {
@@ -222,12 +227,16 @@ export function AuthFlow({
 
       const result = await signIn("credentials", { phone: sentTo, otp: code, redirect: false });
       if (result?.error) {
+        // The code was verified and is now used up: typing it again would only read as a wrong code, so a new one
+        // may be requested at once
         const waitMinutes = rateLimitedMinutes(result.code);
-        return failCode(
+        failCode(
           waitMinutes
             ? `محاولات دخول كثيرة غير ناجحة. يمكنك المحاولة مرة أخرى بعد ${arabicCount(waitMinutes, { one: "دقيقة", two: "دقيقتين", few: "دقائق", many: "دقيقة" })}.`
             : "فشل تسجيل الدخول. قد يكون حسابك معلقاً، أو يمكنك المحاولة مرة أخرى لاحقاً.",
         );
+        setResendIn(0);
+        return;
       }
       trackEvent("login", { method: "phone" });
       router.push(safeCallbackPath(callbackUrl, window.location.origin));
@@ -245,6 +254,27 @@ export function AuthFlow({
     setCodeError("");
     setWrongCode(false);
     if (next.every((d) => d)) void verify(next.join(""));
+  }
+
+  /** POST referral/apply; the refusal text, or null when applied */
+  async function applyInviteCode(code: string): Promise<string | null> {
+    try {
+      const res = await fetch("/api/referral/apply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code }),
+      });
+      if (res.ok) return null;
+      const data = await readJson(res);
+      return errorText(data?.error, UNEXPECTED_SHORT);
+    } catch {
+      return UNEXPECTED_SHORT;
+    }
+  }
+
+  function goToSetup() {
+    router.push("/dashboard/profile/setup");
+    router.refresh();
   }
 
   async function register(values: RegisterValues) {
@@ -290,16 +320,15 @@ export function AuthFlow({
       }
 
       if (values.referralCode) {
-        // Best effort: a refused code never blocks the account (it can be entered later from the dashboard)
-        await fetch("/api/referral/apply", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ code: values.referralCode }),
-        }).catch(() => undefined);
+        // The account exists either way; a refused code is said before moving on
+        const refused = await applyInviteCode(values.referralCode);
+        if (refused) {
+          setInviteNotice(`تم إنشاء حسابك. لم يُطبَّق رمز الدعوة: ${refused}`);
+          return;
+        }
       }
 
-      router.push("/dashboard/profile/setup");
-      router.refresh();
+      goToSetup();
     } catch {
       setRegisterError(UNEXPECTED);
     } finally {
@@ -370,6 +399,16 @@ export function AuthFlow({
               المتابعة إلى حسابي
             </Button>
           </div>
+        ) : inviteNotice ? (
+          <div role="status" className="space-y-4 rounded-xl bg-card p-5 text-body text-ink">
+            <p className="flex items-start gap-2">
+              <Info className="mt-1 size-5 shrink-0 text-primary" aria-hidden />
+              {inviteNotice}
+            </p>
+            <Button type="button" className="h-13 w-full rounded-xl text-body font-bold" onClick={goToSetup}>
+              متابعة
+            </Button>
+          </div>
         ) : (
           <RegisterCard
             country={dialCountryFor(sentTo, country)}
@@ -378,6 +417,7 @@ export function AuthFlow({
             submitting={registering}
             error={registerError}
             onSubmit={register}
+            onChangeNumber={backToPhone}
           />
         ))}
     </AuthFrame>

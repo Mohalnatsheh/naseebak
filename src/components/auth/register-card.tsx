@@ -48,6 +48,7 @@ export function RegisterCard({
   submitting,
   error,
   onSubmit,
+  onChangeNumber,
 }: {
   /** The number's country: the terms links follow it */
   country: CountryCode;
@@ -59,6 +60,8 @@ export function RegisterCard({
   /** A refusal not about one field (server error, expired code) */
   error: string;
   onSubmit: (values: RegisterValues) => void;
+  /** Back to the phone screen (e.g. the verified code expired before the account was made) */
+  onChangeNumber: () => void;
 }) {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -267,6 +270,15 @@ export function RegisterCard({
           {error}
         </p>
       )}
+      <div className="mt-2 flex justify-center">
+        <button
+          type="button"
+          onClick={onChangeNumber}
+          className="inline-flex min-h-11 items-center text-label font-bold text-primary hover:underline underline-offset-4"
+        >
+          تغيير الرقم
+        </button>
+      </div>
     </form>
   );
 }

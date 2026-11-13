@@ -13,6 +13,7 @@ import { DELETED_TRACE } from "@/lib/chat/visibility";
 import { RowTabContext, rowAfterKey } from "./row-focus";
 import { SWIPE_REPLY_PX, swipeReplyStep } from "./wa-chat-logic";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Popover } from "radix-ui";
 
 /** A press this long on a touch screen selects the message */
 const LONG_PRESS_MS = 450;
@@ -36,7 +37,9 @@ type Press = {
  * the end side (left in Arabic, as WhatsApp in Arabic); theirs: white on the start side. Classic keeps its own sides. A tail on the first of a run; time and ticks inside at the bottom end.
  * A long press (touch), right-click, the hover chevron (desktop) or Enter on the row selects the message (`onSelect`:
  * the room shows the selection bar); there is no per-bubble menu. A touch swipe inward replies; on desktop a reply
- * arrow shows on hover. Reactions sit in one pill at the bottom end edge (tap: `onReactionsTap`).
+ * arrow shows on hover. Reactions sit in one pill at the bottom end edge; a tap on it shows who reacted, with
+ * «إزالة تفاعلي» for mine. While a message is selected (`selecting`), a tap on another bubble selects that one instead
+ * (nothing opens or plays) and a tap on the selected one ends the selection (`onDeselect`).
  */
 export function WaMessageBubble({
   message,
@@ -50,7 +53,8 @@ export function WaMessageBubble({
   onSelect,
   onRetry,
   onDismissFailed,
-  onReactionsTap,
+  selecting = false,
+  onDeselect,
 }: {
   message: UiMessage;
   /** First of a run from one sender (chatRowLayout) */
@@ -69,8 +73,10 @@ export function WaMessageBubble({
   onSelect: (m: UiMessage) => void;
   onRetry: () => void;
   onDismissFailed: () => void;
-  /** The reaction pill */
-  onReactionsTap: (m: UiMessage) => void;
+  /** Some message (this one or another) is selected: a plain tap switches the selection */
+  selecting?: boolean;
+  /** A tap on the selected bubble (or on one that can't be selected) while selecting */
+  onDeselect?: () => void;
 }) {
   const mine = message.mine;
   const { country } = useDashboardData();
@@ -85,6 +91,9 @@ export function WaMessageBubble({
   const items = actions ? menuItemsForActions(message, actions) : null;
   const selectable = !!items && Object.values(items).some(Boolean);
   const canReply = !!items?.reply;
+  const canReact = !!items?.react;
+  const myEmoji = message.reactions.find((r) => r.mine)?.emoji;
+  const [whoOpen, setWhoOpen] = useState(false);
 
   // Long press and swipe (touch only); the click after a long press or a swipe is swallowed
   const press = useRef<Press | null>(null);
@@ -223,13 +232,14 @@ export function WaMessageBubble({
               canReply && "touch-pan-y"
             )}
             onContextMenu={(e) => {
-              if (!selectable) return;
+              if (!selectable || !e.currentTarget.contains(e.target as Node)) return;
               e.preventDefault();
               // Android fires contextmenu on a touch long press too: the press's own timer selects (once)
               if (press.current || swallowClick.current) return;
               onSelect(message);
             }}
             onPointerDown={(e) => {
+              if (!e.currentTarget.contains(e.target as Node)) return;
               swallowClick.current = false;
               if (e.pointerType === "mouse" || (!selectable && !canReply)) return;
               stopTimer();
@@ -288,10 +298,20 @@ export function WaMessageBubble({
               endPress();
             }}
             onClickCapture={(e) => {
-              if (!swallowClick.current) return;
-              swallowClick.current = false;
+              // Clicks inside the reactions popover reach here through the React tree only: not this bubble's
+              if (!e.currentTarget.contains(e.target as Node)) return;
+              if (swallowClick.current) {
+                swallowClick.current = false;
+                e.preventDefault();
+                e.stopPropagation();
+                return;
+              }
+              // Selection mode (one message at a time, as WhatsApp): a tap moves the selection, never opens or plays
+              if (!selecting || (e.target as Element).closest?.("[data-wa-reactions]")) return;
               e.preventDefault();
               e.stopPropagation();
+              if (selected || !selectable) onDeselect?.();
+              else onSelect(message);
             }}
           >
             {replyReady && (
@@ -363,19 +383,65 @@ export function WaMessageBubble({
             )}
             {!photo && time}
             {chips.length > 0 && (
-              <button
-                type="button"
-                data-testid="reaction-pill"
-                tabIndex={rowTab}
-                onClick={() => onReactionsTap(message)}
-                aria-label={`التفاعلات: ${chips.map((c) => c.emoji).join(" ")}${reactionCount > 1 ? ` · ${reactionCount}` : ""}`}
-                className="absolute -bottom-3.5 end-2 flex h-6 items-center gap-0.5 rounded-full border border-border/70 bg-card px-1.5 text-sm leading-none shadow-sm after:absolute after:-inset-2.5 after:content-['']"
-              >
-                {chips.map((c) => (
-                  <span key={c.emoji}>{c.emoji}</span>
-                ))}
-                {reactionCount > 1 && <span className="ms-0.5 text-caption font-semibold text-muted-foreground">{reactionCount}</span>}
-              </button>
+              <Popover.Root open={whoOpen} onOpenChange={setWhoOpen}>
+                <Popover.Trigger asChild>
+                  <button
+                    type="button"
+                    data-testid="reaction-pill"
+                    data-wa-reactions=""
+                    tabIndex={rowTab}
+                    aria-label={`التفاعلات: ${chips.map((c) => c.emoji).join(" ")}${reactionCount > 1 ? ` · ${reactionCount}` : ""}`}
+                    className="absolute -bottom-3.5 end-2 flex h-6 items-center gap-0.5 rounded-full border border-border/70 bg-card px-1.5 text-sm leading-none shadow-sm after:absolute after:-inset-2.5 after:content-['']"
+                  >
+                    {chips.map((c) => (
+                      <span key={c.emoji}>{c.emoji}</span>
+                    ))}
+                    {reactionCount > 1 && <span className="ms-0.5 text-caption font-semibold text-muted-foreground">{reactionCount}</span>}
+                  </button>
+                </Popover.Trigger>
+                <Popover.Portal>
+                  <Popover.Content
+                    dir="rtl"
+                    side="bottom"
+                    align={mine ? "end" : "start"}
+                    sideOffset={8}
+                    collisionPadding={8}
+                    aria-label="التفاعلات"
+                    data-wa-reactions=""
+                    // Its events travel the React tree to the bubble and the thread: keep them here
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onClick={(e) => e.stopPropagation()}
+                    onContextMenu={(e) => e.stopPropagation()}
+                    className="z-50 min-w-44 rounded-xl bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-border/60 outline-none"
+                  >
+                    <ul className="text-sm">
+                      {[...message.reactions]
+                        .sort((x, y) => Number(y.mine) - Number(x.mine))
+                        .map((r) => (
+                          <li key={`${r.mine ? "me" : "them"}-${r.emoji}`} className="flex min-h-11 items-center gap-2 px-2">
+                            <span className="text-xl leading-none" aria-hidden>
+                              {r.emoji}
+                            </span>
+                            <span className="font-semibold">{r.mine ? "أنت" : partnerName}</span>
+                            <span className="sr-only">{r.emoji}</span>
+                          </li>
+                        ))}
+                    </ul>
+                    {myEmoji && canReact && actions && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          actions.onReact(message, myEmoji);
+                          setWhoOpen(false);
+                        }}
+                        className="mt-1 flex min-h-11 w-full items-center justify-center rounded-lg border-t border-border/60 px-2 text-sm font-semibold text-destructive hover:bg-destructive/10"
+                      >
+                        إزالة تفاعلي
+                      </button>
+                    )}
+                  </Popover.Content>
+                </Popover.Portal>
+              </Popover.Root>
             )}
           </div>
           {side}

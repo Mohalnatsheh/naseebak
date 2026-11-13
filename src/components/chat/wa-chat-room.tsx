@@ -237,7 +237,7 @@ export function WaChatRoom({ model }: { model: ChatRoomModel }) {
           onScroll={handleScroll}
           onClick={(e) => {
             // A tap on the thread's background (not a bubble, not the reaction pill) ends the selection
-            if (selection && !(e.target as Element).closest?.("[data-wa-bubble],[data-wa-picker]")) clearSelection();
+            if (selection && !(e.target as Element).closest?.("[data-wa-bubble],[data-wa-picker],[data-wa-reactions]")) clearSelection();
           }}
           role="log"
           aria-live="polite"
@@ -322,8 +322,8 @@ export function WaChatRoom({ model }: { model: ChatRoomModel }) {
                         onSelect={select}
                         onRetry={() => (m.upload ? sendMedia(m.upload, m.id, m.replyTo) : send(m.body, m.id, m.replyTo))}
                         onDismissFailed={() => model.dismissFailed(m.id)}
-                        // The pill: the selection, with my own reaction ringed in the picker (tap it again to remove)
-                        onReactionsTap={select}
+                        selecting={!!selected}
+                        onDeselect={clearSelection}
                       />
                     </div>
                   </Fragment>

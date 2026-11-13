@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, render } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, within } from "@testing-library/react";
 
 vi.mock("@/contexts/dashboard-context", () => ({ useDashboardData: () => ({ country: "JO" }) }));
 
@@ -47,7 +47,7 @@ function setup(m: UiMessage, extra: Partial<Parameters<typeof WaMessageBubble>[0
     onSelect: vi.fn(),
     onRetry: vi.fn(),
     onDismissFailed: vi.fn(),
-    onReactionsTap: vi.fn(),
+    onDeselect: vi.fn(),
     ...extra,
   };
   const view = render(<WaMessageBubble {...props} />);
@@ -108,15 +108,48 @@ describe("WaMessageBubble", () => {
     expect(queryByTestId("reaction-pill")).toBeNull();
   });
 
-  it("one reaction pill with every emoji and a count over 1; tapping it calls onReactionsTap", () => {
-    const m = message({ reactions: [{ emoji: "❤️", mine: true }, { emoji: "👍", mine: false }] });
-    const { getByTestId, props } = setup(m);
+  it("one reaction pill with every emoji and a count over 1; a tap shows who reacted and removes mine", async () => {
+    const m = message({ reactions: [{ emoji: "👍", mine: false }, { emoji: "❤️", mine: true }] });
+    const { getByTestId, findByRole, props } = setup(m);
     const pill = getByTestId("reaction-pill");
     expect(pill.textContent).toContain("❤️");
     expect(pill.textContent).toContain("👍");
     expect(pill.textContent).toContain("2");
     fireEvent.click(pill);
-    expect(props.onReactionsTap).toHaveBeenCalledWith(m);
+    const who = await findByRole("dialog", { name: "التفاعلات" });
+    const rows = Array.from(who.querySelectorAll("li")).map((li) => li.textContent);
+    expect(rows[0]).toContain("أنت");
+    expect(rows[0]).toContain("❤️");
+    expect(rows[1]).toContain("سارة");
+    expect(rows[1]).toContain("👍");
+    expect(props.onSelect).not.toHaveBeenCalled();
+    fireEvent.click(within(who).getByRole("button", { name: "إزالة تفاعلي" }));
+    expect(props.actions!.onReact).toHaveBeenCalledWith(m, "❤️");
+  });
+
+  it("only the partner reacted, or reacting isn't allowed: no «إزالة تفاعلي»", async () => {
+    const theirs = setup(message({ reactions: [{ emoji: "👍", mine: false }] }));
+    fireEvent.click(theirs.getByTestId("reaction-pill"));
+    expect(within(await theirs.findByRole("dialog")).queryByRole("button", { name: "إزالة تفاعلي" })).toBeNull();
+    cleanup();
+    const closed = setup(message({ reactions: [{ emoji: "❤️", mine: true }] }), { actions: actions({ canInteract: false }) });
+    fireEvent.click(closed.getByTestId("reaction-pill"));
+    const who = await closed.findByRole("dialog");
+    expect(who.textContent).toContain("أنت");
+    expect(within(who).queryByRole("button", { name: "إزالة تفاعلي" })).toBeNull();
+  });
+
+  it("while selecting: a tap on a photo selects it instead of opening it; a tap on the selected bubble deselects", () => {
+    const a = actions();
+    const m = photo();
+    const { getByRole, rerender, props } = setup(m, { actions: a, selecting: true });
+    fireEvent.click(getByRole("button", { name: "عرض الصورة بالحجم الكامل" }));
+    expect(a.onOpenPhoto).not.toHaveBeenCalled();
+    expect(props.onSelect).toHaveBeenCalledWith(m);
+    rerender(<WaMessageBubble {...props} selecting selected />);
+    fireEvent.click(getByRole("button", { name: "عرض الصورة بالحجم الكامل" }));
+    expect(props.onDeselect).toHaveBeenCalledTimes(1);
+    expect(a.onOpenPhoto).not.toHaveBeenCalled();
   });
 
   it("the quote in my bubble names «أنت» or the partner, on the darker quote tone", () => {

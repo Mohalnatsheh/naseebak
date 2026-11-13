@@ -299,12 +299,30 @@ describe("WaChatRoom: selection", () => {
     expect(screen.queryByRole("button", { name: "إلغاء التحديد" })).toBeNull();
   });
 
-  it("a tap on the reaction pill opens the selection with my reaction ringed", () => {
-    const messages = [msg("b", 2, { readAt: at(2), reactions: [{ emoji: "❤️", mine: true }] })];
-    render(<WaChatRoom model={makeModel({ messages })} />);
+  it("a tap on the reaction pill shows who reacted (not the selection); «إزالة تفاعلي» toggles mine off", async () => {
+    const messages = [msg("b", 2, { readAt: at(2), reactions: [{ emoji: "❤️", mine: true }, { emoji: "👍", mine: false }] })];
+    const model = makeModel({ messages });
+    render(<WaChatRoom model={model} />);
     fireEvent.click(screen.getByTestId("reaction-pill"));
+    const who = await screen.findByRole("dialog", { name: "التفاعلات" });
+    expect(who.textContent).toContain("أنت");
+    expect(who.textContent).toContain("سلمى");
+    expect(screen.queryByRole("button", { name: "إلغاء التحديد" })).toBeNull();
+    fireEvent.click(within(who).getByRole("button", { name: "إزالة تفاعلي" }));
+    expect(model.ready!.messageActions.onReact).toHaveBeenCalledWith(expect.objectContaining({ id: "b" }), "❤️");
+  });
+
+  it("while one is selected, a tap on another bubble moves the selection there; a tap on it again ends it", () => {
+    render(<WaChatRoom model={makeModel()} />);
+    const current = () => document.querySelector("[data-message-id][aria-current='true']")?.getAttribute("data-message-id");
+    fireEvent.contextMenu(bubbleOf("نص b"));
+    expect(current()).toBe("b");
+    fireEvent.click(bubbleOf("نص a"));
+    expect(current()).toBe("a");
     expect(screen.getByRole("button", { name: "إلغاء التحديد" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "تفاعل ❤️" }).getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(bubbleOf("نص a"));
+    expect(current()).toBeUndefined();
+    expect(screen.queryByRole("button", { name: "إلغاء التحديد" })).toBeNull();
   });
 });
 

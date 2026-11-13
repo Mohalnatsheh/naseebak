@@ -130,6 +130,7 @@ export async function PATCH(request: Request) {
     if (parsed.data.chatWhatsappLayout !== undefined) {
       await setSetting("chat_whatsapp_layout", String(parsed.data.chatWhatsappLayout));
       console.log(`[admin settings] chat_whatsapp_layout=${parsed.data.chatWhatsappLayout} by ${result.session.user.id}`);
+    }
     if (parsed.data.authRedesign !== undefined) {
       await setSetting("auth_profile_redesign", String(parsed.data.authRedesign));
       console.log(`[admin settings] auth_profile_redesign=${parsed.data.authRedesign} by ${result.session.user.id}`);

@@ -20,6 +20,7 @@ vi.mock("@/lib/auth", () => ({ requireUser: vi.fn(async () => ({ session: { user
 vi.mock("@/lib/settings", () => ({
   getCycleFlags: settings.getCycleFlags,
   getDashboardRedesign: settings.getDashboardRedesign,
+  getAuthRedesignEnabled: async () => false,
 }));
 vi.mock("@/lib/chat/service", () => ({ chatHousekeepingForUser: vi.fn(async () => {}) }));
 vi.mock("@/lib/matches/state", () => ({

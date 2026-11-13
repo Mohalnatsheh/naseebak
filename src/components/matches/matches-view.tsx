@@ -490,6 +490,17 @@ export function MatchesView({ embedded = false }: { embedded?: boolean } = {}) {
     }
   }, [profileSheetId]);
 
+  /** Opening the panel again retries photos that failed last time */
+  function openProfileSheet(id: string) {
+    setPhotosFailed((prev) => (prev[id] ? { ...prev, [id]: false } : prev));
+    setProfileSheetId(id);
+  }
+
+  // The panel never outlives its match (a reload, another page of the list, a block): no surprise reopen later
+  useEffect(() => {
+    if (profileSheetId && !matches.some((x) => x.id === profileSheetId)) setProfileSheetId(null);
+  }, [matches, profileSheetId]);
+
   function toggleExpand(id: string) {
     setExpandedCards((prev) => {
       const next = new Set(prev);
@@ -848,14 +859,14 @@ export function MatchesView({ embedded = false }: { embedded?: boolean } = {}) {
                   actions={locked ? undefined :
                       <div className="flex gap-3">
                         {/* A closed match never shows photos (the API refuses them): no «عرض الصور» then (QA WM-12) */}
-                        {m.closed ? (
+                        {m.closed && !redesign ? (
                           <span className="flex-1" />
                         ) : redesign ? (
                           <Button
                             variant="outline"
                             aria-label={`الملف كاملاً: ${c.firstName}`}
                             className="flex-1 h-11 rounded-xl font-semibold border-primary/20 text-primary hover:bg-primary/5 hover:border-primary/30"
-                            onClick={() => setProfileSheetId(m.id)}
+                            onClick={() => openProfileSheet(m.id)}
                           >
                             <User className="h-4 w-4 me-2" aria-hidden="true" />
                             الملف كاملاً

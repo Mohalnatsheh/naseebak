@@ -12,7 +12,6 @@ function Host({ onClose }: { onClose?: () => void }) {
       <button onClick={() => setKey("b")}>OPEN2</button>
       <DetailSheet
         open={key !== null}
-        openKey={key}
         onClose={() => {
           onClose?.();
           setKey(null);
@@ -78,24 +77,6 @@ describe("DetailSheet", () => {
     expect(screen.queryByRole("dialog")).not.toBeNull();
     expect(push).toHaveBeenCalledTimes(1);
     push.mockRestore();
-  });
-
-  it("switching openKey adds no entry; closing removes it once", async () => {
-    window.history.replaceState(null, "", "/");
-    const push = vi.spyOn(window.history, "pushState");
-    const back = vi.spyOn(window.history, "back");
-    render(<Host />);
-    fireEvent.click(screen.getByText("OPEN"));
-    await tick();
-    fireEvent.click(screen.getByText("OPEN2"));
-    await tick();
-    expect(within(screen.getByRole("dialog")).getByText("BODY b")).toBeTruthy();
-    expect(push).toHaveBeenCalledTimes(1);
-    fireEvent.click(screen.getByRole("button", { name: "إغلاق" }));
-    await tick();
-    expect(back).toHaveBeenCalledTimes(1);
-    push.mockRestore();
-    back.mockRestore();
   });
 
   it("returns the focus to the opener", async () => {

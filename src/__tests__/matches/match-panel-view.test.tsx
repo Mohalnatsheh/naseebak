@@ -37,6 +37,7 @@ const matches = [
   match("m1", "سارة"),
   match("m2", "ليلى", { photosRevealed: false }),
   match("m3", "هند", { closed: "blocked", blockId: "b3" }),
+  match("m4", "رنا", { closed: "ended", partner: { ...partner("رنا"), job: "مهندس" } }),
 ];
 
 let photoCalls: string[] = [];
@@ -70,8 +71,14 @@ async function renderView() {
   await waitFor(() => expect(screen.getByTestId("intro-m1")).toBeTruthy());
 }
 
+// styled-jsx's `<style jsx global>` in a shared component warns under jsdom: that one line is noise
+const realConsoleError = console.error;
 beforeEach(() => {
   vi.restoreAllMocks();
+  vi.spyOn(console, "error").mockImplementation((...args) => {
+    if (String(args[0]).includes("non-boolean attribute")) return;
+    realConsoleError(...args);
+  });
   photosOk = true;
   mockFetch();
 });
@@ -98,7 +105,7 @@ describe("«التوافقات» card with dashboard_redesign on", () => {
     await renderView();
     expect(screen.getByRole("button", { name: "الملف كاملاً: سارة" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "الملف كاملاً: ليلى" })).toBeTruthy();
-    expect(screen.getAllByRole("button", { name: /الملف كاملاً/ })).toHaveLength(2);
+    expect(screen.getAllByRole("button", { name: /الملف كاملاً/ })).toHaveLength(3);
     expect(screen.queryByRole("button", { name: /عرض جميع التفاصيل/ })).toBeNull();
     expect(screen.queryByRole("button", { name: "عرض الصور" })).toBeNull();
     expect(screen.queryByText("الصور غير متاحة بعد")).toBeNull();
@@ -109,6 +116,26 @@ describe("«التوافقات» card with dashboard_redesign on", () => {
     await renderView();
     expect(screen.queryByRole("button", { name: "الملف كاملاً: هند" })).toBeNull();
     expect(screen.getByRole("button", { name: "إلغاء الحظر" })).toBeTruthy();
+  });
+
+  it("keeps the button on an ended match, whose panel shows no photos and asks for none", async () => {
+    setSwitch(true);
+    await renderView();
+    fireEvent.click(screen.getByRole("button", { name: "الملف كاملاً: رنا" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText("رنا، 27")).toBeTruthy();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(photoCalls).toEqual([]);
+    expect(dialog.querySelector("img")).toBeNull();
+    expect(within(dialog).queryByRole("button", { name: /عرض الصورة/ })).toBeNull();
+  });
+
+  it("shows the job with its partner-gender wording", async () => {
+    setSwitch(true);
+    await renderView();
+    fireEvent.click(screen.getByRole("button", { name: "الملف كاملاً: رنا" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText(/عمّان · مهندسة/)).toBeTruthy();
   });
 
   it("keeps the intro panel on every open card", async () => {
@@ -154,5 +181,22 @@ describe("«التوافقات» card with dashboard_redesign on", () => {
     await waitFor(() => expect(within(dialog).getAllByRole("button", { name: /عرض الصورة/ })).toHaveLength(1));
     expect(photoCalls).toEqual(["m1", "m1"]);
     expect(logged).toHaveBeenCalledTimes(1);
+  });
+
+  it("retries failed photos when the panel is opened again", async () => {
+    setSwitch(true);
+    photosOk = false;
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    await renderView();
+    fireEvent.click(screen.getByRole("button", { name: "الملف كاملاً: سارة" }));
+    let dialog = await screen.findByRole("dialog");
+    await waitFor(() => expect(within(dialog).getByText("تعذّر تحميل الصور.")).toBeTruthy());
+    fireEvent.click(within(dialog).getByRole("button", { name: "إغلاق" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    photosOk = true;
+    fireEvent.click(screen.getByRole("button", { name: "الملف كاملاً: سارة" }));
+    dialog = await screen.findByRole("dialog");
+    await waitFor(() => expect(within(dialog).getAllByRole("button", { name: /عرض الصورة/ })).toHaveLength(1));
+    expect(photoCalls).toEqual(["m1", "m1"]);
   });
 });

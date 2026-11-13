@@ -12,6 +12,7 @@ import type { MatchSummary } from "@/components/matches/match-types";
 import { useDashboardData } from "@/contexts/dashboard-context";
 import { formatDate } from "@/lib/countries";
 import { forPartner } from "@/lib/gendered-copy";
+import { describeOption, oppositeGender } from "@/lib/profile-options";
 
 /**
  * The whole profile of a matched person in one scroll: the revealed photos (only while the match is open and the
@@ -51,11 +52,11 @@ export function MatchProfileSheet({
   if (!match) return null;
   const p = match.partner;
   const title = p.age ? `${p.firstName}، ${p.age}` : p.firstName;
-  const meta = [p.city, p.job].filter(Boolean).join(" · ");
+  const meta = [p.city, p.job && describeOption("job", p.job, oppositeGender(profile?.gender))].filter(Boolean).join(" · ");
   const firstPhoto = showPhotos ? photos?.[0]?.url : undefined;
 
   return (
-    <DetailSheet open openKey={match.id} onClose={onClose} title={title}>
+    <DetailSheet open onClose={onClose} title={title}>
       <div className="flex flex-col items-center gap-2 text-center">
         <MemberAvatar name={p.firstName} size={96} photoUrl={firstPhoto} matched={!match.closed} dimmed={!!match.closed} />
         <SheetTitle className="font-display text-title">{title}</SheetTitle>

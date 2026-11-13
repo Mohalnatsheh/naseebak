@@ -12,8 +12,7 @@ on the suggestions page, so the detail opens as a panel over the list, not as it
 
 ## Decisions
 - Card (switch on): same header, status, chips, «خطوات التعارف» (`MatchIntroPanel`) and «إنهاء التوافق» as today;
-  «عرض جميع التفاصيل» and «عرض الصور» are replaced by one «الملف كاملاً» button. Locked/closed cards: no button,
-  as today (no photos, no details).
+  «عرض جميع التفاصيل» and «عرض الصور» are replaced by one «الملف كاملاً» button. Locked (blocked/inactive) cards: no button; ended/finished/engaged keep it without photos.
 - Panel (same shell as the suggestion `ProfileSheet`: inline-end side panel ≥ md at 440 px, full-screen on phones,
   ✕/Esc/back close, focus returns): photos when `photosRevealed` and the match is open (loaded with the existing
   `/api/matches/[id]/photos` loader; tap opens the existing `ImageLightbox`); name, age, city, job, «توافق بتاريخ …»;

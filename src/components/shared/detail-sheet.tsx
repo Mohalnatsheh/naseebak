@@ -12,8 +12,7 @@ let pendingRemoval: ReturnType<typeof setTimeout> | null = null;
  * in RTL) at 440 px on ≥ md, full-screen on phones. The ✕ and the `menu` sit in the header, `footer` is pinned at the
  * bottom, `children` scroll. Esc, ✕ and the browser's back button close it; the focus returns to what opened it.
  *
- * `open` drives the panel; `openKey` names who it shows. Switching it while open changes the content only: no new
- * history entry, no focus move. `children` should render the visible Radix `SheetTitle` (the dialog's name);
+ * `open` drives the panel; changing `children` while open adds no history entry and moves no focus. `children` should render the visible Radix `SheetTitle` (the dialog's name);
  * `title` is the fallback accessible name.
  */
 export function DetailSheet({
@@ -25,7 +24,6 @@ export function DetailSheet({
   children,
 }: {
   open: boolean;
-  openKey: string | null;
   onClose: () => void;
   title: string;
   menu?: ReactNode;

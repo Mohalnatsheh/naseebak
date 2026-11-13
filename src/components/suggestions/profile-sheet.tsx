@@ -42,7 +42,7 @@ export function ProfileSheet({
   const score = Math.round(item.compatibilityScore);
 
   return (
-    <DetailSheet open openKey={item.id} onClose={onClose} title={title} menu={menu} footer={footer}>
+    <DetailSheet open onClose={onClose} title={title} menu={menu} footer={footer}>
       <div className="flex flex-col items-center gap-2 text-center">
         <MemberAvatar name={c.firstName} size={96} locked />
         <div className="flex flex-wrap items-center justify-center gap-2">

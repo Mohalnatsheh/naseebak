@@ -60,14 +60,12 @@ describe("WaComposer: attach and camera", () => {
     expect(screen.queryByRole("button", { name: /الكاميرا/ })).toBeNull();
   });
 
-  it("locked: «إرفاق» and the camera open the Pro offer", () => {
+  it("locked: «إرفاق» opens the Pro offer", () => {
     coarse = true;
     const m = media("locked");
     renderComposer({ media: m });
     fireEvent.click(screen.getByRole("button", { name: /إرفاق/ }));
     expect(m.onLocked).toHaveBeenCalledTimes(1);
-    fireEvent.click(screen.getByRole("button", { name: /الكاميرا/ }));
-    expect(m.onLocked).toHaveBeenCalledTimes(2);
   });
 
   it("enabled on a phone: «إرفاق» opens «المعرض» and «الكاميرا»", () => {
@@ -88,13 +86,13 @@ describe("WaComposer: attach and camera", () => {
     expect(within(menu).queryByRole("menuitem", { name: "الكاميرا" })).toBeNull();
   });
 
-  it("the camera button shows on a coarse pointer only", () => {
+  it("no separate camera button (owner, 2026-11-13): the camera is in the attach menu on phones", () => {
     renderComposer({ media: media("enabled") });
-    expect(screen.queryByRole("button", { name: "الكاميرا" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /الكاميرا/ })).toBeNull();
     cleanup();
     coarse = true;
     renderComposer({ media: media("enabled") });
-    expect(screen.getByRole("button", { name: "الكاميرا" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /الكاميرا/ })).toBeNull();
     const input = document.querySelector('input[capture="environment"]') as HTMLInputElement;
     expect(input.accept).toBe("image/*");
   });

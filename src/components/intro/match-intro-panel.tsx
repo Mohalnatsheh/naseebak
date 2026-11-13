@@ -572,8 +572,10 @@ export function MatchIntroPanel({
               </div>
             </div>
             {(t.chip || t.action) && (
-              <div className="mt-auto flex flex-wrap items-center justify-between gap-2">
-                {t.chip ?? <span />}
+              // Chip, then the action under it, both on the reading side (owner, 2026-11-13: the action sat on the
+              // far side when a tile had no chip)
+              <div className="mt-auto flex flex-col items-start gap-2">
+                {t.chip}
                 {t.action}
               </div>
             )}

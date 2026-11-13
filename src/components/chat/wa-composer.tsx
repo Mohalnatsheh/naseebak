@@ -331,7 +331,7 @@ export const WaComposer = forwardRef<ChatComposerHandle, React.ComponentPropsWit
                         <ImageIcon className="h-4 w-4" aria-hidden />
                         المعرض
                       </DropdownMenuItem>
-                      {/* A desktop has no camera to pick from (as the camera button) */}
+                      {/* A desktop has no camera to pick from */}
                       {coarse && (
                         <DropdownMenuItem className="min-h-11" onSelect={() => camera.current?.click()}>
                           <Camera className="h-4 w-4" aria-hidden />
@@ -341,16 +341,7 @@ export const WaComposer = forwardRef<ChatComposerHandle, React.ComponentPropsWit
                     </DropdownMenuContent>
                   </DropdownMenu>
                 ))}
-              {media && coarse && (
-                <button
-                  type="button"
-                  onClick={() => (locked ? media.onLocked() : camera.current?.click())}
-                  aria-label={locked ? "الكاميرا · متاح لأعضاء Pro" : "الكاميرا"}
-                  className={cn(ICON_BUTTON, locked ? "text-muted-foreground/60 hover:bg-muted/60" : "text-muted-foreground hover:bg-muted")}
-                >
-                  <Camera className="h-5 w-5" aria-hidden />
-                </button>
-              )}
+              {/* No separate camera button (owner, 2026-11-13): «الكاميرا» is in the attach menu on phones */}
             </div>
           )}
           {media && !locked && (

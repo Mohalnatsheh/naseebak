@@ -38,6 +38,7 @@ import 'chat_status_bar.dart';
 import 'hold_to_record.dart';
 import 'last_chat.dart';
 import 'wa_chat_header.dart';
+import 'wa_composer.dart';
 import 'media_bubbles.dart' show ChatPhotoGallery, formatVoiceDuration;
 import 'message_menu.dart';
 import 'photo_preview_screen.dart';
@@ -233,6 +234,9 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
   /// visit, gone once I write)
   String? _unreadFromId;
   bool _unreadFixed = false;
+
+  /// The count the strip reads: fixed at open, never changed by what arrives later
+  int _unreadAtOpen = 0;
 
   /// The family step for the status bar (`/api/matches/{id}/intro`); null when there is none or it couldn't load
   FamilyStep? _family;
@@ -606,6 +610,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
       if (!_unreadFixed) {
         _unreadFixed = true;
         _unreadFromId = firstUnreadId(page.messages);
+        _unreadAtOpen = _unreadFromId == null ? 0 : unreadCountFrom(page.messages, _unreadFromId!);
         // Opened on unread messages: «رسائل جديدة» in view, not only the newest
         if (_unreadFromId != null) WidgetsBinding.instance.addPostFrameCallback((_) => _revealUnread());
       }
@@ -1002,7 +1007,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     } else if (n is ScrollEndNotification) {
       _stickyAfterLayout();
       _stickyHide?.cancel();
-      _stickyHide = Timer(const Duration(milliseconds: 1400), () {
+      _stickyHide = Timer(dateChipHideAfter, () {
         if (mounted && _scrolling) setState(() => _scrolling = false);
       });
     }
@@ -2342,11 +2347,11 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
         child: Padding(
           padding: const EdgeInsets.only(top: 4, bottom: 6),
           child: Material(
-            color: AppColors.goldLight.withValues(alpha: 0.35),
-            borderRadius: BorderRadius.circular(10),
+            color: AppColors.safetyChip,
+            borderRadius: BorderRadius.circular(AppRadius.md),
             child: InkWell(
               key: const Key('chat-safety'),
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(AppRadius.md),
               onTap: () => _safetyInfo(female),
               child: ConstrainedBox(
                 constraints: const BoxConstraints(minHeight: 44),
@@ -2359,15 +2364,17 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
                       const SizedBox(width: 6),
                       Flexible(
                         child: Text(
-                          forViewer(female, 'لحمايتك: لا تُشارك أرقاماً أو روابط', 'لحمايتكِ: لا تُشاركي أرقاماً أو روابط'),
+                          forViewer(
+                            female,
+                            'محادثة خاصة · لا تشارك الأرقام أو الحسابات',
+                            'محادثة خاصة · لا تشاركي الأرقام أو الحسابات',
+                          ),
                           maxLines: 2,
                           textAlign: TextAlign.center,
                           overflow: TextOverflow.ellipsis,
                           style: AppText.caption.copyWith(color: AppColors.goldText),
                         ),
                       ),
-                      const SizedBox(width: 4),
-                      const Icon(Icons.info_outline_rounded, size: 15, color: AppColors.goldText),
                     ],
                   ),
                 ),
@@ -2462,7 +2469,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             if (layout.daySeparator) _DayChip(label: chatDayLabel(m.createdAt)),
-                            if (layout.unreadDivider) const _UnreadDivider(),
+                            if (layout.unreadDivider) _UnreadDivider(count: _unreadAtOpen),
                             row,
                           ],
                         ),
@@ -2491,13 +2498,8 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
         if (_away)
           PositionedDirectional(
             bottom: 12,
-            start: 12,
-            child: FilledButton.tonalIcon(
-              key: const Key('chat-newest'),
-              onPressed: _toNewest,
-              icon: const Icon(Icons.arrow_downward_rounded, size: 18),
-              label: Text(_unseen > 0 ? 'الأحدث ($_unseen)' : 'الأحدث'),
-            ),
+            end: 12,
+            child: NewestButton(unseen: _unseen, onPressed: _toNewest),
           ),
       ],
     );
@@ -2805,7 +2807,7 @@ class ChatPill extends StatelessWidget {
     final ink = accent ? AppColors.navy : AppColors.muted;
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: accent ? AppColors.navy.withValues(alpha: 0.08 * fade) : Colors.white.withValues(alpha: 0.94 * fade),
+        color: accent ? AppColors.navy.withValues(alpha: 0.08 * fade) : AppColors.chatChip.withValues(alpha: AppColors.chatChip.a * fade),
         borderRadius: BorderRadius.circular(AppRadius.full),
         border: Border.all(color: (accent ? AppColors.navy.withValues(alpha: 0.25) : AppColors.line).withValues(alpha: fade)),
       ),
@@ -2817,21 +2819,33 @@ class ChatPill extends StatelessWidget {
   }
 }
 
-/// «رسائل جديدة» above the first message that was unread when the chat opened
+/// The full-width strip «N رسائل غير مقروءة» above the first message that was unread when the chat opened. It reaches
+/// the list's edges (the list's own side padding is 8).
 class _UnreadDivider extends StatelessWidget {
-  const _UnreadDivider();
+  const _UnreadDivider({required this.count});
+  final int count;
 
   @override
   Widget build(BuildContext context) {
-    return const Padding(
-      key: Key('chat-unread-divider'),
-      padding: EdgeInsets.only(top: 10, bottom: 2),
-      child: Row(
-        children: [
-          Expanded(child: Divider(color: AppColors.gold, thickness: 0.8)),
-          Padding(padding: EdgeInsets.symmetric(horizontal: 8), child: ChatPill(label: 'رسائل جديدة', accent: true)),
-          Expanded(child: Divider(color: AppColors.gold, thickness: 0.8)),
-        ],
+    return Padding(
+      padding: const EdgeInsets.only(top: 10, bottom: 4),
+      child: SizedBox(
+        height: 32,
+        child: LayoutBuilder(
+          builder: (context, c) => OverflowBox(
+            minWidth: c.maxWidth + 16,
+            maxWidth: c.maxWidth + 16,
+            child: Container(
+              key: const Key('chat-unread-divider'),
+              alignment: Alignment.center,
+              color: AppColors.chatChip,
+              child: Text(
+                unreadStripLabel(count),
+                style: AppText.label.copyWith(color: AppColors.navy),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

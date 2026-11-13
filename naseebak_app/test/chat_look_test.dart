@@ -57,6 +57,32 @@ void main() {
     });
   });
 
+  group('unread strip', () {
+    test('unreadStripLabel: 1, 2, 3, 12', () {
+      expect(unreadStripLabel(1), 'رسالة غير مقروءة');
+      expect(unreadStripLabel(2), 'رسالتان غير مقروءتين');
+      expect(unreadStripLabel(3), '3 رسائل غير مقروءة');
+      expect(unreadStripLabel(12), '12 رسالة غير مقروءة');
+    });
+
+    test('unreadCountFrom counts only the partner\'s messages from the first unread on', () {
+      final oldestFirst = [
+        m('a', day),
+        m('b', day.add(const Duration(minutes: 1))),
+        m('c', day.add(const Duration(minutes: 2)), mine: true),
+        m('d', day.add(const Duration(minutes: 3))),
+        m('e', day.add(const Duration(minutes: 4))),
+      ];
+      expect(unreadCountFrom(oldestFirst, 'b'), 3);
+      expect(unreadCountFrom(oldestFirst, 'd'), 2);
+      expect(unreadCountFrom(oldestFirst, 'zzz'), 0);
+    });
+
+    test('the date chip hides 1 s after scrolling stops', () {
+      expect(dateChipHideAfter, const Duration(seconds: 1));
+    });
+  });
+
   group('first unread', () {
     test('the oldest of their unread messages after my last one', () {
       final oldestFirst = [
@@ -210,23 +236,65 @@ void main() {
   });
 
   group('chat room', () {
-    testWidgets('«رسائل جديدة» sits above the first message that was unread on opening', (tester) async {
+    testWidgets('the unread strip spans the list, reads the count at open and sits above the first unread',
+        (tester) async {
+      var extra = false;
       final adapter = FakeAdapter()
-        ..on('GET', '/api/chats/c1', FakeResponse(200, {
-          ...page([]),
-          'messages': [
-            msg(1, readAt: DateTime.utc(2026, 10, 30, 11)),
-            msg(2, mine: true),
-            msg(3),
-            msg(4),
-          ],
-        }));
+        ..handlers['GET /api/chats/c1'] = (r) => FakeResponse(200, {
+              ...page([]),
+              'messages': [
+                msg(1, readAt: DateTime.utc(2026, 10, 30, 11)),
+                msg(2, mine: true),
+                msg(3),
+                msg(4),
+                if (extra && r.queryParameters.containsKey('after')) msg(5),
+              ],
+            });
+      await openRoom(tester, adapter, MemoryChatCache(), pollInterval: const Duration(seconds: 4));
+      await tester.pumpAndSettle();
+      final strip = find.byKey(const Key('chat-unread-divider'));
+      expect(strip, findsOneWidget);
+      expect(find.text(unreadStripLabel(2)), findsOneWidget);
+      expect(tester.getSize(strip).width, tester.getSize(find.byType(ListView)).width);
+      final y = tester.getCenter(strip).dy;
+      expect(y, lessThan(tester.getCenter(find.text('رسالة 3')).dy));
+      expect(y, greaterThan(tester.getCenter(find.text('رسالة 2')).dy));
+      extra = true;
+      await tester.pump(const Duration(seconds: 4));
+      await tester.pumpAndSettle();
+      expect(find.text('رسالة 5'), findsOneWidget);
+      expect(find.text(unreadStripLabel(2)), findsOneWidget, reason: 'fixed at open');
+    });
+
+    testWidgets('the safety note reads «محادثة خاصة · لا تشارك الأرقام أو الحسابات» (feminine for her: the test member), in safetyChip',
+        (tester) async {
+      final adapter = FakeAdapter()..on('GET', '/api/chats/c1', FakeResponse(200, page([1, 2])));
       await openRoom(tester, adapter, MemoryChatCache());
       await tester.pumpAndSettle();
-      expect(find.text('رسائل جديدة'), findsOneWidget);
-      final divider = tester.getCenter(find.text('رسائل جديدة')).dy;
-      expect(divider, lessThan(tester.getCenter(find.text('رسالة 3')).dy));
-      expect(divider, greaterThan(tester.getCenter(find.text('رسالة 2')).dy));
+      final chip = find.byKey(const Key('chat-safety'));
+      expect(chip, findsOneWidget);
+      expect(find.descendant(of: chip, matching: find.text('محادثة خاصة · لا تشاركي الأرقام أو الحسابات')), findsOneWidget);
+      final fill = tester.widget<Material>(find.ancestor(of: chip, matching: find.byType(Material)).first);
+      expect(fill.color, AppColors.safetyChip);
+      await tester.tap(chip);
+      await tester.pumpAndSettle();
+      expect(find.byType(AlertDialog), findsOneWidget);
+    });
+
+    testWidgets('the floating day hides 1 s after scrolling stops', (tester) async {
+      final adapter = FakeAdapter()..on('GET', '/api/chats/c1', FakeResponse(200, page(List.generate(30, (i) => i + 1))));
+      await openRoom(tester, adapter, MemoryChatCache());
+      await tester.pumpAndSettle();
+      final gesture = await tester.startGesture(tester.getCenter(find.byType(ListView)));
+      await gesture.moveBy(const Offset(0, 300));
+      await tester.pump(const Duration(milliseconds: 300));
+      await gesture.up();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 900));
+      expect(find.byKey(const Key('chat-sticky-day')), findsOneWidget);
+      await tester.pump(const Duration(milliseconds: 200));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.byKey(const Key('chat-sticky-day')), findsNothing);
     });
 
     testWidgets('one bar: the family step shows while the chat is far from its end', (tester) async {

@@ -59,6 +59,28 @@ void main() {
       expect(saved.messages.length, 42);
     });
 
+    testWidgets('scrolled up, a poll brings 2 partner messages: the jump button counts 2', (tester) async {
+      var extra = false;
+      final adapter = FakeAdapter()
+        ..handlers['GET /api/chats/c1'] = (r) => FakeResponse(200, {
+              ...page([]),
+              'messages': [
+                for (var n = 1; n <= 30; n++) msg(n, readAt: chatT0),
+                if (extra && r.queryParameters.containsKey('after')) ...[msg(31), msg(32)],
+              ],
+            });
+      await openRoom(tester, adapter, MemoryChatCache(), pollInterval: const Duration(seconds: 4));
+      await tester.pumpAndSettle();
+      await tester.drag(find.byType(ListView), const Offset(0, 900));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('chat-newest')), findsOneWidget);
+      expect(find.byKey(const Key('chat-newest-count')), findsNothing);
+      extra = true;
+      await tester.pump(const Duration(seconds: 4));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.descendant(of: find.byKey(const Key('chat-newest-count')), matching: find.text('2')), findsOneWidget);
+    });
+
     testWidgets('more than a page arrived meanwhile: starts again from the newest page', (tester) async {
       final cache = MemoryChatCache();
       await cache.write('u1', 'c1', cached(List.generate(10, (i) => i + 1)));

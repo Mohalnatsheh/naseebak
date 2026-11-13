@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { DEFAULT_OFFER_TITLE, offerOpenAt, parseOfferDate, parseOfferPercent, type ActiveOffer, type OfferSettings } from "@/lib/payments/offer";
 
 const DEFAULTS: Record<string, string> = {
   registration_open: "true",
@@ -24,6 +25,11 @@ const DEFAULTS: Record<string, string> = {
   chat_delete_enabled: "false",
   // Jordan charged in JOD instead of USD for new purchases (2026-11-11). Open checkouts and Pro subscriptions keep theirs
   jod_charging: "false",
+  // Sale offer (2026-11-13): +percent% credits on purchases and the first Pro payment inside the window. 0 = off
+  offer_bonus_percent: "0",
+  offer_starts_at: "",
+  offer_ends_at: "",
+  offer_title: "",
   engagement_polls_enabled: "false",
   poll_round_days: "3",
   poll_reward_credits: "1",
@@ -104,6 +110,30 @@ export async function jodChargingFor(country: string | null | undefined): Promis
 }
 
 /** Pro membership sales switch (Admin → Settings). Default off. Never gates existing subscriptions */
+/** Sale offer (lib/payments/offer): percent 0 = off. Admin → Settings */
+export async function getOfferSettings(): Promise<OfferSettings> {
+  const [percent, startsAt, endsAt, title] = await Promise.all([
+    getSetting("offer_bonus_percent"),
+    getSetting("offer_starts_at"),
+    getSetting("offer_ends_at"),
+    getSetting("offer_title"),
+  ]);
+  return {
+    percent: parseOfferPercent(percent),
+    startsAt: parseOfferDate(startsAt),
+    endsAt: parseOfferDate(endsAt),
+    title: title.trim() || DEFAULT_OFFER_TITLE,
+  };
+}
+
+/** The offer open now for a member whose country is selling (`purchasesAvailable`), else null */
+export async function activeOfferFor(selling: boolean, now: Date = new Date()): Promise<ActiveOffer | null> {
+  if (!selling) return null;
+  const s = await getOfferSettings();
+  if (!offerOpenAt(s, now)) return null;
+  return { percent: s.percent, title: s.title, endsAt: s.endsAt!.toISOString() };
+}
+
 export async function getProEnabled(): Promise<boolean> {
   return (await getSetting("pro_enabled")) === "true";
 }

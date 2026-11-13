@@ -593,6 +593,8 @@ model Payment {
   /// A paid Pro invoice that did not make Pro live (2026-11-10, QA WEB-PAY-05): "duplicate" (a second subscription while
   /// one was live) or "ended" (a renewal after Pro ended). Admin → Payments marks it for a refund decision
   proNotLive        String?
+  /// Extra credits from a sale offer (e.g. White Friday, 2026-11-13), fixed at checkout; a refund takes them back
+  bonusCredits      Int?
 
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt

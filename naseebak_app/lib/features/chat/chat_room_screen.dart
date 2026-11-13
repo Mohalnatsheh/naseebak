@@ -3005,23 +3005,32 @@ class _UnreadDivider extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(top: 10, bottom: 4),
-      child: SizedBox(
-        height: 32,
-        child: LayoutBuilder(
-          builder: (context, c) => OverflowBox(
-            minWidth: c.maxWidth + 16,
-            maxWidth: c.maxWidth + 16,
-            child: Container(
-              key: const Key('chat-unread-divider'),
-              alignment: Alignment.center,
-              color: AppColors.chatChip,
-              child: Text(
-                unreadStripLabel(count),
-                style: AppText.label.copyWith(color: AppColors.navy),
+      // At least 32 high, growing with large system text (a fixed height clipped the label). The fill reaches 8 px past
+      // each side, to the list's edges.
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          PositionedDirectional(
+            start: -8,
+            end: -8,
+            top: 0,
+            bottom: 0,
+            child: const ColoredBox(key: Key('chat-unread-divider'), color: AppColors.chatChip),
+          ),
+          ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 32, minWidth: double.infinity),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Center(
+                child: Text(
+                  unreadStripLabel(count),
+                  textAlign: TextAlign.center,
+                  style: AppText.label.copyWith(color: AppColors.navy),
+                ),
               ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }

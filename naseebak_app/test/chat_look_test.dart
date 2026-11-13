@@ -262,6 +262,29 @@ void main() {
       expect(find.text(unreadStripLabel(2)), findsOneWidget, reason: 'fixed at open');
     });
 
+    testWidgets('at large system text (2.0) the unread strip grows with its label and still spans the list',
+        (tester) async {
+      tester.platformDispatcher.textScaleFactorTestValue = 2.0;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      final adapter = FakeAdapter()
+        ..handlers['GET /api/chats/c1'] = (r) => FakeResponse(200, {
+              ...page([]),
+              'messages': [msg(1, readAt: DateTime.utc(2026, 10, 30, 11)), msg(2, mine: true), msg(3), msg(4)],
+            });
+      await openRoom(tester, adapter, MemoryChatCache());
+      await tester.pumpAndSettle();
+      final strip = find.byKey(const Key('chat-unread-divider'));
+      final label = find.text(unreadStripLabel(2));
+      expect(label, findsOneWidget);
+      final stripRect = tester.getRect(strip);
+      final labelRect = tester.getRect(label);
+      expect(stripRect.height, greaterThan(32));
+      expect(stripRect.top, lessThanOrEqualTo(labelRect.top));
+      expect(stripRect.bottom, greaterThanOrEqualTo(labelRect.bottom));
+      expect(stripRect.width, tester.getSize(find.byType(ListView)).width);
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('the safety note reads «محادثة خاصة · لا تشارك الأرقام أو الحسابات» (feminine for her: the test member), in safetyChip',
         (tester) async {
       final adapter = FakeAdapter()..on('GET', '/api/chats/c1', FakeResponse(200, page([1, 2])));

@@ -144,6 +144,28 @@ needed a release.
   (`core/storage/picker_files.dart`); a refused microphone offers
   «الإعدادات» (`openAppSettings` on the `naseebak/system` channel). The splash plays in full on the first launch only
   (0.6 s after). A paused account can open `/pro` (renewal shown on the paused page); `/pro` sends test accounts home.
+- **WhatsApp-style chat (built 2026-11-14 on `feature/app-whatsapp-chat`, NOT released; no switch, so it needs a new app
+  version and old apps keep their chat; spec `../docs/superpowers/specs/2026-11-13-whatsapp-style-chat-design.md`).** It
+  replaces what the «Modern chat» notes below say about look, menu, composer and the chats tabs; the status bar, family
+  steps, report, hold-to-record, reactions data, typing, photos and voice stay as they are:
+  - **Sides and tokens:** my bubbles on the END side in pale navy (`AppColors.bubbleMine`, ink text, quote
+    `bubbleMineQuote`), theirs white on the start side. Same names as the website: `chatSelect`, `chatChip`,
+    `safetyChip` (text stays `goldText`). Ticks: ✓ sent and unread, navy ✓✓ read. The reaction pill shows who reacted.
+  - **Header (`wa_chat_header.dart`):** avatar, name, status line, one ⋮ menu in the order match page, extend, clear,
+    report, end. Safety chip, unread strip, fading date chip and a round jump button in the room.
+  - **Selection (`wa_selection.dart`):** long-press selects one message, with a top action bar and floating reactions
+    ❤️ 👍 😊 🤲; a tap on another bubble moves the selection, Android back clears it first. Reply, copy, report and (Pro,
+    as before) delete live in the bar. The swipe to reply goes inward, toward the centre.
+  - **Composer (`wa_composer.dart`):** a white pill with the emoji button, the field and ONE paperclip whose sheet holds
+    «المعرض» and «الكاميرا» (no separate camera button; the simulator has no camera, so it shows a snack); a round navy mic
+    that turns into send. The emoji panel (`emoji_data.dart`, the website's hand-picked set, no package) takes the
+    keyboard's place and height; back closes it first. A hold released during the microphone prompt says how to record
+    once allowed (U3, `micAllowedHint`). Media buttons follow `mediaButtonsMode` and `appPaymentsProvider` as before.
+  - **Chats list:** chips «الكل» / «غير مقروءة» (with the count of chats) / «المنتهية» replace the «النشطة» / «المنتهية»
+    tabs (`chatsForChip`); a failed background reload keeps the list (B21) and a failed pull shows a snack.
+  - **Audit fixes inside it:** B1, a chat marks messages read only while it is the top route and again on return
+    (`appRouteObserver`, so the match page over it never gives ✓✓); B2, a text failing after the member left the chat is
+    saved as failed (`ChatCache.addFailed`, never overwriting another failed text).
 - **Modern chat (1.1.0, `features/chat/`, design `../docs/superpowers/specs/2026-11-10-modern-chat-design.md`):**
   - **Look:** WhatsApp-style bubbles painted by one `BubblePainter` (no per-bubble clip or shadow): mine navy, theirs
     white (`AppColors.chatMine` / `chatTheirs`), a tail only on the first of a run, 2 px inside a run and 8 px between
@@ -167,7 +189,7 @@ needed a release.
   - **Reply:** swipe a bubble towards the end side or menu «رد»; the strip shows author and snippet with ✕; `replyToId`
     goes with text, photo and voice and survives retry and «تعديل الرسالة». A tapped quote scrolls to the original and
     tints it. A swipe the system cancels never replies.
-  - **Menu (long-press a sent message):** reactions ❤️ 👍 😊 🤲 and «رد» while the chat is open, «نسخ» for text,
+  - **Menu (1.1.0; since the WhatsApp-style chat it is the selection bar above):** reactions ❤️ 👍 😊 🤲 and «رد» while the chat is open, «نسخ» for text,
     «إبلاغ عن الرسالة» for the partner's messages: the sheet quotes the message and `POST /api/chats/{id}/end` sends
     `report.messageId` (the details stay the member's own). Delete (Pro, switch `chat_delete_enabled`, on in production since 2026-11-11; chat `deleteEnabled`): «حذف لديّ» / «حذف لدى الجميع» (own messages, open chat) and «مسح المحادثة» (for me / for everyone) in the chat menu; shown only when the member is Pro or can buy (`appPaymentsProvider`), else none. Opening a chat does a one-time deletions poll for cached messages older than the first page. The report sheet offers «إبلاغ فقط» (`end: false`,
     the chat stays open) or «إبلاغ وإنهاء المحادثة» (says it blocks and closes the match); a closed chat offers

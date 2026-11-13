@@ -16,6 +16,7 @@ One look for the website and the app (QA round 2 design pass, November 2026). Th
 | `chat-select` | WhatsApp-style chat: selected row wash (primary at 14%) |
 | `chat-chip` | WhatsApp-style chat: date chip and unread strip (card at 92%) |
 | `safety-chip` | WhatsApp-style chat: the safety note, pale gold; its text stays `accent-ink` |
+| App names (`AppColors`, `core/theme/app_theme.dart`; not released yet) | `bubbleMine` `0xFFDFE9F4`, `bubbleMineQuote` `0xFFCDDBE9`, `chatSelect` `0x2422476A`, `chatChip` `0xEBFFFFFF`, `safetyChip` `0xFFF9EDD9`; the same five tokens as the rows above (the app has no switch) |
 | `ink`, `muted-ink` | Body text and secondary text on light backgrounds |
 | `emerald-`/`green-`, `amber-`, `destructive` | Success, pending or warning, error only |
 

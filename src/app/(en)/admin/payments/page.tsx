@@ -29,6 +29,8 @@ interface PaymentRow {
   failureReason?: string | null;
   /** Credits a refund takes back (a Pro payment: the credits granted from it) */
   credits: number;
+  /** Extra credits from a sale offer, fixed at checkout */
+  bonusCredits?: number | null;
   /** A refund of this Pro payment ends the membership now */
   endsPro?: boolean;
   /** A Pro renewal (not the membership's first payment) */
@@ -308,6 +310,11 @@ function PaymentsView() {
                       </td>
                       <td className="p-3 text-sm">
                         {planLabel(payment.planName, { renewal: payment.renewal })}
+                        {!!payment.bonusCredits && (
+                          <Badge variant="outline" className="ms-1" title="Sale offer bonus, fixed at checkout">
+                            +{payment.bonusCredits} offer
+                          </Badge>
+                        )}
                         {payment.proNotLive && payment.status === "COMPLETED" && (
                           <Badge variant="outline" className="ms-1 border-amber-300 bg-amber-50 text-amber-800" title={payment.proNotLive === "duplicate" ? "A second subscription paid while one was live: never made Pro live" : "A renewal paid after Pro ended: Pro did not come back"}>
                             Refund decision

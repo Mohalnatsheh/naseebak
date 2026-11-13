@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { NewCycleSettingsCard } from "@/components/admin/new-cycle-settings-card";
+import { OfferSettingsCard } from "@/components/admin/offer-settings-card";
 import { DailyJobsCard } from "@/components/admin/daily-jobs-card";
 import { MobileAppCard } from "@/components/admin/mobile-app-card";
 import { SettingsConfirmDialog } from "@/components/admin/settings-confirm-dialog";
@@ -647,6 +648,10 @@ export default function AdminSettingsPage() {
         hint="Switches for family and chat requests, chat, simultaneous suggestions and credit on «مهتم»"
       >
         <NewCycleSettingsCard />
+      </SettingsSection>
+
+      <SettingsSection id="offer" title="Sale offer" hint="Extra credits on purchases and the first Pro payment for a set period (e.g. White Friday)">
+        <OfferSettingsCard />
       </SettingsSection>
 
       <SettingsConfirmDialog

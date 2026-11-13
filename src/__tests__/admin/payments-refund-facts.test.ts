@@ -41,4 +41,15 @@ describe("Admin → Payments refund facts (QA WEB-PAY-02, 09)", () => {
     expect(byId.k1).toMatchObject({ credits: 10, endsPro: false, renewal: false });
     expect(byId.p2.proSubscriptionId).toBeUndefined();
   });
+
+  it("a package bought during a sale offer: a refund takes back the package and its bonus", async () => {
+    db.payment.findMany
+      .mockResolvedValueOnce([{ ...base, id: "k2", planName: "launch_10", proSubscriptionId: null, bonusCredits: 5 }])
+      .mockResolvedValueOnce([]);
+    db.proCreditGrant.groupBy.mockResolvedValue([]);
+    db.proSubscription.findMany.mockResolvedValue([]);
+    const data = await (await GET(new Request("http://x/api/admin/payments"))).json();
+    expect(data.payments[0]).toMatchObject({ credits: 15, bonusCredits: 5 });
+    expect(db.payment.findMany.mock.calls[0][0].select).toMatchObject({ bonusCredits: true });
+  });
 });

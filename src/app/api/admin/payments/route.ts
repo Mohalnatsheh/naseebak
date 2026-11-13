@@ -40,6 +40,7 @@ export async function GET(request: Request) {
         select: {
           id: true,
           planName: true,
+          bonusCredits: true,
           amount: true,
           currency: true,
           chargeCurrency: true,
@@ -95,7 +96,8 @@ export async function GET(request: Request) {
         ...p,
         /** What a refund takes back: the package's credits (also for packages no longer sold); a Pro payment, the credits
          *  granted from it and not taken back yet (yearly: every monthly grant of that year, QA WEB-PAY-02) */
-        credits: planFromName(p.planName) ? (pro.credits.get(p.id) ?? 0) : (findAnyPackage(p.planName)?.credits ?? 0),
+        //  A package bought during a sale offer also gives back its bonus (Payment.bonusCredits)
+        credits: planFromName(p.planName) ? (pro.credits.get(p.id) ?? 0) : (findAnyPackage(p.planName)?.credits ?? 0) + (p.bonusCredits ?? 0),
         /** A refund of this payment ends Pro now: it paid the live membership's current period */
         endsPro: pro.endsPro.has(p.id),
         /** Not the membership's first payment */

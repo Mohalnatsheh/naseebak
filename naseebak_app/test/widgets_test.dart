@@ -268,7 +268,8 @@ void main() {
     expect(tester.getCenter(find.text('السلام عليكم')).dx, lessThan(width / 2));
     expect(tester.getCenter(find.text('وعليكم السلام')).dx, greaterThan(width / 2));
     expect(find.text('لا يمكن مشاركة أرقام الهواتف'), findsOneWidget);
-    expect(find.text('تعديل الرسالة'), findsOneWidget);
+    expect(find.byKey(const Key('chat-refusal')), findsOneWidget);
+    expect(find.byKey(const Key('chat-failed-info')), findsOneWidget);
   });
 
   group('credits screen', () {

@@ -415,10 +415,50 @@ void main() {
       expect(find.byKey(const Key('chat-reactions-m001')), findsOneWidget);
       await tester.tap(find.byKey(const Key('chat-reactions-m001')));
       await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('who-remove')));
+      await tester.pumpAndSettle();
       final after = r.adapter.to('POST', '/api/chats/c1/messages/m001/reaction');
       expect(after, hasLength(2));
       expect((after.last.data as Map)['emoji'], isNull);
       expect(find.byKey(const Key('chat-reactions-m001')), findsNothing);
+    });
+
+    testWidgets('the reaction pill opens who reacted; «إزالة تفاعلي» removes mine; theirs alone has no remove',
+        (tester) async {
+      final r = ChatTestRoom(messages: [
+        {
+          ...msg(1),
+          'reactions': [
+            {'emoji': '😊', 'mine': false},
+          ],
+        },
+        msg(2),
+      ]);
+      await r.open(tester);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('chat-reactions-m001')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('who-reacted')), findsOneWidget);
+      expect(find.descendant(of: find.byKey(const Key('who-reacted')), matching: find.text('عمر')), findsOneWidget);
+      expect(find.byKey(const Key('who-remove')), findsNothing);
+      await tester.tapAt(const Offset(10, 10));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('who-reacted')), findsNothing);
+      expect(r.adapter.to('POST', '/api/chats/c1/messages/m001/reaction'), isEmpty);
+
+      // Mine too: «أنت» comes first, and removing sends `{emoji: null}`
+      await tester.longPress(find.text('رسالة 1'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('menu-react-❤️')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('chat-reactions-m001')));
+      await tester.pumpAndSettle();
+      expect(find.descendant(of: find.byKey(const Key('who-reacted')), matching: find.text('أنت')), findsOneWidget);
+      await tester.tap(find.byKey(const Key('who-remove')));
+      await tester.pumpAndSettle();
+      final calls = r.adapter.to('POST', '/api/chats/c1/messages/m001/reaction');
+      expect(calls.last.data, {'emoji': null});
+      expect(find.byKey(const Key('who-reacted')), findsNothing);
     });
 
     testWidgets('a refused reaction goes back with the server\'s message', (tester) async {

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:in_app_review/in_app_review.dart';
 import 'package:naseebak_app/app/providers.dart';
 import 'package:naseebak_app/core/analytics/analytics.dart';
@@ -19,6 +20,33 @@ import 'package:naseebak_app/features/chat/chat_room_screen.dart';
 
 import 'helpers/chat_room_helpers.dart';
 import 'helpers/fake_api.dart';
+
+/// The room inside a router with a match page, signed in as u1
+Future<void> _openRouted(WidgetTester tester, FakeAdapter adapter) async {
+  adapter
+    ..on('GET', '/api/mobile/me', FakeResponse(200, {'user': meJson()}))
+    ..on('POST', '/api/chats/c1/read', const FakeResponse(200, {'ok': true}))
+    ..on('GET', '/api/chats/ably-token', const FakeResponse(404, {'error': 'غير متاح'}));
+  final overrides = await testOverrides(adapter, store: MemoryTokenStore('t1'));
+  final container = ProviderContainer(overrides: [...overrides, chatCacheProvider.overrideWithValue(MemoryChatCache())]);
+  addTearDown(container.dispose);
+  container.read(authControllerProvider);
+  await tester.pumpWidget(const SizedBox());
+  for (var i = 0; i < 50 && !container.read(authControllerProvider).isSignedIn; i++) {
+    await tester.pump(const Duration(milliseconds: 10));
+  }
+  final router = GoRouter(
+    initialLocation: '/chats/c1',
+    routes: [
+      GoRoute(
+        path: '/chats/c1',
+        builder: (_, _) => const ChatRoomScreen(chatId: 'c1', pollInterval: Duration(hours: 1)),
+      ),
+      GoRoute(path: '/matches/:id', builder: (_, _) => const Scaffold(body: Text('match-page'))),
+    ],
+  );
+  await tester.pumpWidget(UncontrolledProviderScope(container: container, child: rtlRouterApp(router)));
+}
 
 void main() {
   group('chat cache', () {
@@ -372,7 +400,7 @@ void main() {
       await tester.enterText(find.byKey(const Key('chat-input')), 'رقمي 0790000000');
       await tester.tap(find.byKey(const Key('chat-send')));
       await tester.pumpAndSettle();
-      expect(find.text('تعديل الرسالة'), findsOneWidget);
+      expect(find.byKey(const Key('chat-refusal')), findsOneWidget);
       later = true;
       await tester.pump(const Duration(seconds: 4));
       await tester.pumpAndSettle();
@@ -382,11 +410,89 @@ void main() {
       expect(replyY, greaterThan(refusedY));
 
       // «حذف»: the refused message leaves the phone (screen and device copy)
+      await openFailed(tester);
       await tester.tap(find.byKey(const Key('chat-failed-delete')));
       await tester.pumpAndSettle();
       expect(find.text('رقمي 0790000000'), findsNothing);
       final saved = (await cache.read('u1', 'c1'))!;
       expect(saved.messages.any((m) => m.state == SendState.failed), isFalse);
+    });
+
+    testWidgets('a failed text: ⓘ beside it; «إعادة المحاولة» resends with the same nonce; «حذف» removes it',
+        (tester) async {
+      final adapter = FakeAdapter()
+        ..on('POST', '/api/chats/c1/messages', const FakeResponse.network())
+        ..on('GET', '/api/chats/c1', FakeResponse(200, page([1])));
+      await openRoom(tester, adapter, MemoryChatCache());
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byKey(const Key('chat-input')), 'اختبار');
+      await tester.tap(find.byKey(const Key('chat-send')));
+      await tester.pumpAndSettle();
+      final info = find.byKey(const Key('chat-failed-info'));
+      expect(info, findsOneWidget);
+      expect(find.text('إعادة الإرسال'), findsNothing, reason: 'the actions live in the ⓘ sheet');
+      // On the bubble's inward side: before it, in reading order (to the right of my bubble at the end side)
+      expect(tester.getCenter(info).dx, greaterThan(tester.getCenter(find.text('اختبار')).dx));
+      expect(tester.getSize(info).height, greaterThanOrEqualTo(44));
+      await openFailed(tester);
+      expect(find.text('إعادة المحاولة'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('failed-retry')));
+      await tester.pumpAndSettle();
+      final posts = adapter.to('POST', '/api/chats/c1/messages');
+      expect(posts, hasLength(2));
+      expect((posts[1].data as Map)['clientNonce'], (posts[0].data as Map)['clientNonce']);
+      await openFailed(tester);
+      await tester.tap(find.byKey(const Key('chat-failed-delete')));
+      await tester.pumpAndSettle();
+      expect(find.text('اختبار'), findsNothing);
+      expect(info, findsNothing);
+    });
+
+    testWidgets(
+        'a filtered text: the gold note with the server message; «تعديل الرسالة» puts it back in the box; «تعارف عائلي» opens the match page when the offer is open',
+        (tester) async {
+      final adapter = FakeAdapter()
+        ..on('POST', '/api/chats/c1/messages', const FakeResponse(422, {'error': 'لا يمكن إرسال أرقام', 'code': 'FILTERED'}))
+        ..on('GET', '/api/chats/c1', FakeResponse(200, {...page([1]), 'bothWrote': true}))
+        ..on('GET', '/api/matches/x1/intro', const FakeResponse(200, {
+          'flags': {'introRequests': true, 'chat': true},
+          'family': {'status': 'none'},
+          'chat': {'status': 'open'},
+        }));
+      await _openRouted(tester, adapter);
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byKey(const Key('chat-input')), 'رقمي 0790000000');
+      await tester.tap(find.byKey(const Key('chat-send')));
+      await tester.pumpAndSettle();
+      final note = find.byKey(const Key('chat-refusal'));
+      expect(find.descendant(of: note, matching: find.text('لا يمكن إرسال أرقام')), findsOneWidget);
+      expect(find.descendant(of: note, matching: find.byIcon(Icons.shield_outlined)), findsOneWidget);
+      // The offer is open: the note carries the family button, which opens the match page
+      await tester.tap(find.byKey(const Key('chat-refusal-family')));
+      await tester.pumpAndSettle();
+      expect(find.text('match-page'), findsOneWidget);
+      // Back in the chat, «تعديل الرسالة» puts the text in the box and sends nothing
+      Navigator.of(tester.element(find.text('match-page'))).pop();
+      await tester.pumpAndSettle();
+      await openFailed(tester);
+      await tester.tap(find.byKey(const Key('failed-retry')));
+      await tester.pumpAndSettle();
+      expect(tester.widget<TextField>(find.byKey(const Key('chat-input'))).controller!.text, 'رقمي 0790000000');
+      expect(adapter.to('POST', '/api/chats/c1/messages'), hasLength(1), reason: 'editing sends nothing');
+
+    });
+
+    testWidgets('a filtered text without an open family offer shows the note alone', (tester) async {
+      final adapter = FakeAdapter()
+        ..on('POST', '/api/chats/c1/messages', const FakeResponse(422, {'error': 'لا يمكن إرسال أرقام', 'code': 'FILTERED'}))
+        ..on('GET', '/api/chats/c1', FakeResponse(200, page([1])));
+      await openRoom(tester, adapter, MemoryChatCache());
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byKey(const Key('chat-input')), 'رقمي 0790000000');
+      await tester.tap(find.byKey(const Key('chat-send')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('chat-refusal')), findsOneWidget);
+      expect(find.byKey(const Key('chat-refusal-family')), findsNothing);
     });
 
     testWidgets('a text that failed offline is still there (with its retry) after leaving and coming back',
@@ -400,7 +506,7 @@ void main() {
       await tester.enterText(find.byKey(const Key('chat-input')), 'اختبار');
       await tester.tap(find.byKey(const Key('chat-send')));
       await tester.pumpAndSettle();
-      expect(find.text('إعادة الإرسال'), findsOneWidget);
+      expect(find.byKey(const Key('chat-failed-info')), findsOneWidget);
       await tester.pumpWidget(UncontrolledProviderScope(container: container, child: const SizedBox()));
       await tester.pumpWidget(UncontrolledProviderScope(
         container: container,
@@ -408,7 +514,7 @@ void main() {
       ));
       await tester.pumpAndSettle();
       expect(find.text('اختبار'), findsOneWidget);
-      expect(find.text('إعادة الإرسال'), findsOneWidget);
+      expect(find.byKey(const Key('chat-failed-info')), findsOneWidget);
     });
 
     /// Types «نص مهم», sends it on a held request (answered offline) and leaves the room before the answer
@@ -449,7 +555,7 @@ void main() {
       ));
       await tester.pumpAndSettle();
       expect(find.text('نص مهم'), findsOneWidget);
-      expect(find.text('إعادة الإرسال'), findsOneWidget);
+      expect(find.byKey(const Key('chat-failed-info')), findsOneWidget);
     });
 
     testWidgets('a failed text reopened from the device is not taken for an earlier identical one (B10)',
@@ -480,7 +586,7 @@ void main() {
       await openRoom(tester, adapter, cache);
       await tester.pumpAndSettle();
       expect(find.text('نص'), findsNWidgets(2));
-      expect(find.text('إعادة الإرسال'), findsOneWidget);
+      expect(find.byKey(const Key('chat-failed-info')), findsOneWidget);
       final saved = (await cache.read('u1', 'c1'))!;
       expect(saved.messages.where((m) => m.state == SendState.failed).single.nonce, 'n1');
     });

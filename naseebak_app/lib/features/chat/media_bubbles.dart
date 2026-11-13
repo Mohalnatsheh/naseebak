@@ -4,9 +4,11 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/localization/digits.dart';
 import '../../core/network/authed_media.dart';
 import '../../core/privacy/screen_privacy.dart';
 import '../../core/theme/app_theme.dart';
+import 'chat_format.dart';
 import 'chat_models.dart';
 import 'voice_playback.dart';
 import 'voice_played_store.dart';
@@ -156,7 +158,11 @@ class _PhotoBubbleState extends ConsumerState<PhotoBubble> {
     }
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => PhotoViewer(photos: photos, initialIndex: index),
+        builder: (_) => PhotoViewer(
+          photos: photos,
+          initialIndex: index,
+          partnerName: ChatPhotoGallery.partnerNameOf(context),
+        ),
       ),
     );
   }
@@ -164,7 +170,13 @@ class _PhotoBubbleState extends ConsumerState<PhotoBubble> {
 
 /// The chat's photos for the full-screen viewer, read when a photo is tapped (the chat room puts it above its list)
 class ChatPhotoGallery extends InheritedWidget {
-  const ChatPhotoGallery({super.key, required this.photos, required super.child});
+  const ChatPhotoGallery({super.key, required this.photos, this.partnerName = '', required super.child});
+
+  /// The viewer's title for the partner's photos
+  final String partnerName;
+
+  static String partnerNameOf(BuildContext context) =>
+      context.getInheritedWidgetOfExactType<ChatPhotoGallery>()?.partnerName ?? '';
 
   /// The chat's messages, oldest first (only the photos are kept)
   final List<ChatMessage> Function() photos;
@@ -179,8 +191,9 @@ class ChatPhotoGallery extends InheritedWidget {
 /// The chat's photos full screen: black, pinch (or double-tap) to zoom, swipe between them in the chat's order, ✕ at
 /// the end side. No download or share. Private like the chat itself.
 class PhotoViewer extends StatefulWidget {
-  const PhotoViewer({super.key, required this.photos, this.initialIndex = 0});
+  const PhotoViewer({super.key, required this.photos, this.initialIndex = 0, this.partnerName = ''});
   final List<ChatMessage> photos;
+  final String partnerName;
   final int initialIndex;
 
   /// A photo the viewer can show: one with a server copy or my local file
@@ -210,6 +223,23 @@ class _PhotoViewerState extends State<PhotoViewer> {
     super.dispose();
   }
 
+  /// Who sent the photo on show and when: «أنت» or the partner's name, then the day and the time
+  Widget _title() {
+    final m = widget.photos[_index];
+    final name = m.mine ? 'أنت' : (widget.partnerName.isEmpty ? 'الطرف الآخر' : widget.partnerName);
+    return Column(
+      key: const Key('photo-viewer-title'),
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(name, style: AppText.body.copyWith(color: Colors.white)),
+        Text(
+          '${chatDayLabel(m.createdAt)}، ${formatTime(m.createdAt)}',
+          style: AppText.caption.copyWith(color: Colors.white70),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final n = widget.photos.length;
@@ -221,15 +251,17 @@ class _PhotoViewerState extends State<PhotoViewer> {
         // ✕ at the end side (left in Arabic), like every dialog of the app
         automaticallyImplyLeading: false,
         centerTitle: true,
-        title: n > 1
-            ? Text(
+        title: _title(),
+        actions: [
+          if (n > 1)
+            Center(
+              child: Text(
                 '${_index + 1} / $n',
                 key: const Key('photo-viewer-count'),
                 textDirection: TextDirection.ltr,
-                style: AppText.body.copyWith(color: Colors.white),
-              )
-            : null,
-        actions: [
+                style: AppText.caption.copyWith(color: Colors.white),
+              ),
+            ),
           IconButton(
             key: const Key('photo-viewer-close'),
             icon: const Icon(Icons.close_rounded),

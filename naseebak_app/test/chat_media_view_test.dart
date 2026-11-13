@@ -5,7 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:naseebak_app/app/providers.dart';
+import 'package:naseebak_app/core/localization/digits.dart';
 import 'package:naseebak_app/core/network/authed_media.dart';
+import 'package:naseebak_app/features/chat/chat_format.dart';
 import 'package:naseebak_app/core/storage/token_store.dart';
 import 'package:naseebak_app/features/chat/chat_bubble.dart';
 import 'package:naseebak_app/features/chat/chat_models.dart';
@@ -172,6 +174,40 @@ void main() {
     await tester.tap(find.byType(PhotoBubble));
     await tester.pumpAndSettle();
     expect(find.byType(InteractiveViewer), findsOneWidget);
+  });
+
+  testWidgets('the photo viewer names the sender and the day', (tester) async {
+    final h = _Harness()..image = (_, _) => const _PendingImage();
+    final theirs = _image();
+    final mine = ChatMessage(
+      id: 'm2',
+      body: '',
+      createdAt: _t0.add(const Duration(days: 1)),
+      mine: true,
+      kind: MessageKind.image,
+      media: const ChatMedia(url: '/api/chats/c1/media/m2', type: 'image/jpeg', width: 10, height: 10),
+    );
+    await _pump(
+      tester,
+      h,
+      ChatPhotoGallery(
+        photos: () => [theirs, mine],
+        partnerName: 'عمر',
+        child: ChatBubble(message: theirs, partnerName: 'عمر'),
+      ),
+    );
+    await tester.tap(find.byType(PhotoBubble));
+    await tester.pumpAndSettle();
+    final title = find.byKey(const Key('photo-viewer-title'));
+    expect(find.descendant(of: title, matching: find.text('عمر')), findsOneWidget);
+    expect(
+      find.descendant(of: title, matching: find.text('${chatDayLabel(theirs.createdAt)}، ${formatTime(theirs.createdAt)}')),
+      findsOneWidget,
+    );
+    await tester.fling(find.byKey(const Key('photo-viewer-pages')), const Offset(500, 0), 1500);
+    await tester.pumpAndSettle();
+    expect(find.descendant(of: title, matching: find.text('أنت')), findsOneWidget);
+    expect(find.descendant(of: title, matching: find.text('عمر')), findsNothing);
   });
 
   testWidgets('a VOICE bubble shows m:ss from durationSec and never its body', (tester) async {

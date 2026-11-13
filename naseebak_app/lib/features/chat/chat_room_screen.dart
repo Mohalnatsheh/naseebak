@@ -46,6 +46,7 @@ import 'reply_strip.dart';
 import 'starter_chips.dart';
 import 'typing_signal.dart';
 import 'voice_playback.dart';
+import 'wa_selection.dart';
 import 'voice_recorder.dart';
 
 /// One conversation. It opens at once from the messages kept on the device (`ChatCache`), then the newest page from
@@ -2020,6 +2021,18 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     }
   }
 
+  /// The pill under a bubble: who reacted; «إزالة تفاعلي» removes mine
+  Future<void> _showWhoReacted(ChatMessage m) async {
+    final remove = await showWhoReacted(
+      context,
+      reactions: m.reactions,
+      partnerName: _chat?.partnerName ?? '',
+      canRemove: _open && m.myReaction != null && !m.deleted,
+    );
+    if (!mounted) return;
+    if (remove) _react(m.id, null);
+  }
+
   /// A tapped quote: the original, loading older pages if needed, scrolled into view and tinted for a moment
   Future<void> _goToQuoted(String id) async {
     for (var i = 0; i < 5 && _hasMore && !_messages.any((m) => m.id == id); i++) {
@@ -2393,6 +2406,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
         // A tapped photo opens full screen with every photo of the chat (oldest first) to swipe through
         ChatPhotoGallery(
           photos: () => _messages,
+          partnerName: _chat?.partnerName ?? '',
           child: NotificationListener<ScrollNotification>(
             onNotification: (n) {
               _onScrollNotification(n);
@@ -2427,7 +2441,8 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
                   partnerName: _chat?.partnerName ?? '',
                   onQuoteTap: _goToQuoted,
                   waveSeed: _waveSeeds[m.id],
-                  onReactionTap: _open && m.myReaction != null && !m.deleted ? () => _react(m.id, null) : null,
+                  onReactionsTap: () => _showWhoReacted(m),
+                  onFamily: _open && _family == FamilyStep.offer && !(_chat?.matchHidden ?? true) ? _openMatch : null,
                   onOpenPro: m.proRequired && proPurchasable ? _openPro : null,
                   onDelete: m.state == SendState.failed ? () => _deleteFailed(m) : null,
                   onRetry: m.state == SendState.failed && !m.proRequired

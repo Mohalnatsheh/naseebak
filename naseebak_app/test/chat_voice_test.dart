@@ -488,7 +488,7 @@ void main() {
     for (var i = 0; i < 5; i++) {
       await tester.pump(const Duration(milliseconds: 50));
     }
-    expect(find.text('إعادة الإرسال'), findsOneWidget);
+    expect(find.byKey(const Key('chat-failed-info')), findsOneWidget);
     // The server did save it: the next poll brings «📷 صورة» (no nonce in the GET)
     h.serverExtra = [
       {
@@ -503,7 +503,7 @@ void main() {
     await tester.pump(const Duration(seconds: 1));
     await tester.pump();
     await tester.pump();
-    expect(find.text('إعادة الإرسال'), findsNothing);
+    expect(find.byKey(const Key('chat-failed-info')), findsNothing);
     expect(find.byType(ChatBubble), findsNWidgets(2));
     await h.leave(tester);
   });
@@ -531,7 +531,7 @@ void main() {
     await tester.pump(const Duration(seconds: 1));
     await tester.pump();
     await tester.pump();
-    expect(find.text('إعادة الإرسال'), findsOneWidget);
+    expect(find.byKey(const Key('chat-failed-info')), findsOneWidget);
     await h.leave(tester);
   });
 
@@ -608,14 +608,14 @@ void main() {
     for (var i = 0; i < 5; i++) {
       await tester.pump(const Duration(milliseconds: 50));
     }
-    expect(find.text('إعادة الإرسال'), findsOneWidget);
+    expect(find.byKey(const Key('chat-failed-info')), findsOneWidget);
     expect(find.byType(ChatBubble), findsNWidgets(3));
     // The server holds only the photo that was sent: the failed one keeps its retry
     h.serverExtra = [sentCopy!];
     await tester.pump(const Duration(seconds: 1));
     await tester.pump();
     await tester.pump();
-    expect(find.text('إعادة الإرسال'), findsOneWidget);
+    expect(find.byKey(const Key('chat-failed-info')), findsOneWidget);
     expect(find.byType(ChatBubble), findsNWidgets(3));
     // Its own copy turns up after all: shown once
     h.serverExtra = [
@@ -632,7 +632,7 @@ void main() {
     await tester.pump(const Duration(seconds: 1));
     await tester.pump();
     await tester.pump();
-    expect(find.text('إعادة الإرسال'), findsNothing);
+    expect(find.byKey(const Key('chat-failed-info')), findsNothing);
     expect(find.byType(ChatBubble), findsNWidgets(3));
     await h.leave(tester);
   });
@@ -781,7 +781,7 @@ void main() {
     for (var i = 0; i < 10; i++) {
       await tester.pump(const Duration(milliseconds: 20));
     }
-    expect(find.text('إعادة الإرسال'), findsOneWidget);
+    expect(find.byKey(const Key('chat-failed-info')), findsOneWidget);
     expect(file.existsSync(), isTrue, reason: 'kept for the retry while the chat is open');
     await h.leave(tester);
     await tester.pumpAndSettle();

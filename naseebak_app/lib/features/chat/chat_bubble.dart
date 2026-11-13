@@ -27,7 +27,8 @@ class ChatBubble extends StatelessWidget {
     this.tightTop = false,
     this.partnerName = '',
     this.onQuoteTap,
-    this.onReactionTap,
+    this.onReactionsTap,
+    this.onFamily,
     this.waveSeed,
   });
   final ChatMessage message;
@@ -41,8 +42,11 @@ class ChatBubble extends StatelessWidget {
   /// A tap on the quote of a reply: scrolls to the original (its id)
   final ValueChanged<String>? onQuoteTap;
 
-  /// A tap on the reactions chip while one of them is mine: removes it (null when it can't change)
-  final VoidCallback? onReactionTap;
+  /// A tap on the reactions pill: who reacted (the room's sheet, with «إزالة تفاعلي» when one is mine)
+  final VoidCallback? onReactionsTap;
+
+  /// «تعارف عائلي» under the refusal note of a filtered message (null: the note alone)
+  final VoidCallback? onFamily;
   final VoidCallback? onRetry;
 
   /// Under a `PRO_REQUIRED` failure: opens «عضوية Pro» (null where the member can't buy: the message alone)
@@ -82,7 +86,9 @@ class ChatBubble extends StatelessWidget {
                 left: tailRight ? 0 : tailWidth,
                 right: tailRight ? tailWidth : 0,
               ),
-              child: CustomPaint(
+              child: _withFailedInfo(
+                context,
+                CustomPaint(
                 painter: BubblePainter(color: bg, border: border, tail: tail, tailRight: tailRight),
                 child: Padding(
                   padding: kind == MessageKind.image && !message.deleted
@@ -101,6 +107,7 @@ class ChatBubble extends StatelessWidget {
                             MessageKind.text => _text(context, fg),
                           },
                         ),
+                ),
                 ),
               ),
             ),
@@ -164,11 +171,12 @@ class ChatBubble extends StatelessWidget {
       child: Padding(
         padding: EdgeInsets.only(left: tailRight ? 10 : ChatBubble.tailWidth + 10, right: tailRight ? ChatBubble.tailWidth + 10 : 10),
         child: Semantics(
-          button: mine != null && onReactionTap != null,
-          label: mine != null ? 'التفاعلات $label، يمكنك إزالة تفاعلك' : 'التفاعلات $label',
+          button: onReactionsTap != null,
+          label: 'التفاعلات $label، لمعرفة من تفاعل',
+          onTap: onReactionsTap,
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
-            onTap: mine != null ? onReactionTap : null,
+            onTap: onReactionsTap,
             child: ConstrainedBox(
               // The chip is small and tucked under the bubble's corner; its tap area reaches 44 × 44 below it
               constraints: const BoxConstraints(minHeight: 44, minWidth: 44),
@@ -312,41 +320,121 @@ class ChatBubble extends StatelessWidget {
         ],
       );
 
-  Widget _failedActions() => Padding(
-        padding: const EdgeInsets.only(bottom: 4),
+  /// The red ⓘ beside a failed bubble, on its inward side (before it in reading order for mine): «إعادة المحاولة» (or
+  /// «تعديل الرسالة» for a refused text) and «حذف» are in its sheet
+  Widget _withFailedInfo(BuildContext context, Widget bubble) {
+    if (message.state != SendState.failed || (onRetry == null && onDelete == null)) return bubble;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        IconButton(
+          key: const Key('chat-failed-info'),
+          tooltip: 'لم تُرسل',
+          onPressed: () => _openFailedSheet(context),
+          icon: const Icon(Icons.info_outline_rounded, color: AppColors.danger),
+        ),
+        Flexible(child: bubble),
+      ],
+    );
+  }
+
+  void _openFailedSheet(BuildContext context) {
+    final retry = message.proRequired ? null : onRetry;
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheet) => SafeArea(
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            if (message.error != null)
-              Text(message.error!, style: AppText.caption.copyWith(color: AppColors.danger)),
-            Wrap(
-              spacing: 4,
+            if (retry != null)
+              ListTile(
+                key: const Key('failed-retry'),
+                leading: Icon(message.filtered ? Icons.edit_outlined : Icons.refresh_rounded),
+                title: Text(message.filtered ? 'تعديل الرسالة' : 'إعادة المحاولة'),
+                onTap: () {
+                  Navigator.of(sheet).pop();
+                  retry();
+                },
+              ),
+            if (onDelete != null)
+              ListTile(
+                key: const Key('chat-failed-delete'),
+                leading: const Icon(Icons.delete_outline_rounded, color: AppColors.danger),
+                title: Text('حذف', style: AppText.body.copyWith(color: AppColors.danger)),
+                onTap: () {
+                  Navigator.of(sheet).pop();
+                  onDelete!();
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _failedActions() {
+    final error = message.error;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (error != null && message.filtered && !message.proRequired)
+            _refusalNote(error)
+          else if (error != null)
+            Text(error, style: AppText.caption.copyWith(color: AppColors.danger)),
+          if (message.proRequired && onOpenPro != null)
+            TextButton.icon(
+              key: const Key('chat-failed-pro'),
+              onPressed: onOpenPro,
+              icon: const Icon(Icons.workspace_premium_rounded, size: 18),
+              label: const Text('عضوية Pro'),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// The filter's refusal: a gold note with the server's words and, while the family offer is open, the way round it
+  Widget _refusalNote(String text) => Padding(
+        padding: const EdgeInsets.only(top: 4),
+        child: DecoratedBox(
+          key: const Key('chat-refusal'),
+          decoration: BoxDecoration(color: AppColors.safetyChip, borderRadius: BorderRadius.circular(AppRadius.md)),
+          child: Padding(
+            padding: const EdgeInsetsDirectional.fromSTEB(10, 8, 10, 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                if (message.proRequired) ...[
-                  if (onOpenPro != null)
-                    TextButton.icon(
-                      key: const Key('chat-failed-pro'),
-                      onPressed: onOpenPro,
-                      icon: const Icon(Icons.workspace_premium_rounded, size: 18),
-                      label: const Text('عضوية Pro'),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Padding(
+                      padding: EdgeInsets.only(top: 2),
+                      child: Icon(Icons.shield_outlined, size: 16, color: AppColors.goldText),
                     ),
-                ] else if (onRetry != null)
-                  TextButton.icon(
-                    onPressed: onRetry,
-                    icon: Icon(message.filtered ? Icons.edit_outlined : Icons.refresh_rounded, size: 18),
-                    label: Text(message.filtered ? 'تعديل الرسالة' : 'إعادة الإرسال'),
-                  ),
-                if (onDelete != null)
-                  TextButton.icon(
-                    key: const Key('chat-failed-delete'),
-                    onPressed: onDelete,
-                    style: TextButton.styleFrom(foregroundColor: AppColors.muted),
-                    icon: const Icon(Icons.delete_outline_rounded, size: 18),
-                    label: const Text('حذف'),
+                    const SizedBox(width: 6),
+                    Flexible(child: Text(text, style: AppText.caption.copyWith(color: AppColors.goldText, height: 1.4))),
+                  ],
+                ),
+                if (onFamily != null)
+                  TextButton(
+                    key: const Key('chat-refusal-family'),
+                    onPressed: onFamily,
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppColors.goldText,
+                      minimumSize: const Size(44, 44),
+                      padding: EdgeInsets.zero,
+                    ),
+                    child: const Text('تعارف عائلي'),
                   ),
               ],
             ),
-          ],
+          ),
         ),
       );
 }

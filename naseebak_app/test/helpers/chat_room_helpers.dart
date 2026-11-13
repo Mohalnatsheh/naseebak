@@ -63,3 +63,9 @@ Future<ProviderContainer> openRoom(WidgetTester tester, FakeAdapter adapter, Mem
   ));
   return container;
 }
+
+/// Opens the sheet of the failed message's red ⓘ («إعادة المحاولة» / «تعديل الرسالة» / «حذف»)
+Future<void> openFailed(WidgetTester tester) async {
+  await tester.tap(find.byKey(const Key('chat-failed-info')));
+  await tester.pumpAndSettle();
+}

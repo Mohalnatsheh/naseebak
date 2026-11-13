@@ -16,6 +16,7 @@ import 'package:naseebak_app/features/chat/chat_media_picker.dart';
 import 'package:naseebak_app/features/chat/chat_room_screen.dart';
 import 'package:naseebak_app/features/chat/media_bubbles.dart';
 
+import 'helpers/chat_room_helpers.dart' show openFailed;
 import 'helpers/fake_api.dart';
 
 /// A 1×1 PNG (the bubble shows the local file while it sends)
@@ -266,15 +267,16 @@ void main() {
     await h.open(tester);
     await pickAndSendPhoto(tester);
     await tester.pumpAndSettle();
-    expect(find.text('إعادة الإرسال'), findsOneWidget);
+    expect(find.byKey(const Key('chat-failed-info')), findsOneWidget);
     h.adapter.handlers['POST /api/chats/c1/media'] = ok;
-    await tester.tap(find.text('إعادة الإرسال'));
+    await openFailed(tester);
+    await tester.tap(find.byKey(const Key('failed-retry')));
     await tester.pumpAndSettle();
     expect(h.uploads, hasLength(2));
     String nonceOf(RequestOptions r) => Map.fromEntries((r.data as FormData).fields)['clientNonce']!;
     expect(nonceOf(h.uploads[1]), nonceOf(h.uploads[0]));
     expect(h.picks, 1); // the retry reuses the picked file
-    expect(find.text('إعادة الإرسال'), findsNothing);
+    expect(find.byKey(const Key('chat-failed-info')), findsNothing);
   });
 
   testWidgets('PRO_REQUIRED: the bubble fails with the server message and the Pro state reloads', (tester) async {
@@ -294,8 +296,12 @@ void main() {
     expect(h.adapter.to('GET', '/api/me/counts').length, greaterThan(countReads));
     // The buttons follow: greyed with the «Pro» tag
     expect(_proTag, findsOneWidget);
-    // Resending can't work: no «إعادة الإرسال», a link to «عضوية Pro» instead
-    expect(find.text('إعادة الإرسال'), findsNothing);
+    // Resending can't work: no «إعادة المحاولة» in the ⓘ sheet, a link to «عضوية Pro» instead
+    await openFailed(tester);
+    expect(find.byKey(const Key('failed-retry')), findsNothing);
+    expect(find.byKey(const Key('chat-failed-delete')), findsOneWidget);
+    await tester.tapAt(const Offset(10, 10));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('chat-failed-pro')));
     await tester.pumpAndSettle();
     expect(find.text('pro-screen'), findsOneWidget);
@@ -311,7 +317,10 @@ void main() {
     await pickAndSendPhoto(tester);
     await tester.pumpAndSettle();
     expect(find.text('إرسال الصور متاح لأعضاء Pro'), findsOneWidget);
-    expect(find.text('إعادة الإرسال'), findsNothing);
+    await openFailed(tester);
+    expect(find.byKey(const Key('failed-retry')), findsNothing);
+    await tester.tapAt(const Offset(10, 10));
+    await tester.pumpAndSettle();
     expect(find.byKey(const Key('chat-failed-pro')), findsNothing);
   });
 
@@ -337,12 +346,13 @@ void main() {
     await h.open(tester);
     await pickAndSendPhoto(tester);
     await tester.pumpAndSettle();
-    expect(find.text('إعادة الإرسال'), findsOneWidget);
+    expect(find.byKey(const Key('chat-failed-info')), findsOneWidget);
     h.photo.deleteSync();
-    await tester.tap(find.text('إعادة الإرسال'));
+    await openFailed(tester);
+    await tester.tap(find.byKey(const Key('failed-retry')));
     await tester.pumpAndSettle();
     expect(h.uploads, hasLength(1));
-    expect(find.text('إعادة الإرسال'), findsNothing);
+    expect(find.byKey(const Key('chat-failed-info')), findsNothing);
     expect(find.text(mediaFileGoneText), findsOneWidget);
   });
 

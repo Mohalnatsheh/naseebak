@@ -1,5 +1,6 @@
-import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent, within } from "@testing-library/react";
+import { describe, it, afterEach, expect, vi } from "vitest";
+import { useState, StrictMode } from "react";
+import { cleanup, render, screen, fireEvent, within, act } from "@testing-library/react";
 
 vi.mock("@/contexts/dashboard-context", () => ({
   useDashboardData: () => ({ profile: { gender: "MALE" }, country: "JO" }),
@@ -27,6 +28,8 @@ const item = {
 } as unknown as FeedItem;
 
 describe("ProfileSheet", () => {
+  afterEach(async () => { cleanup(); await new Promise((r) => setTimeout(r, 20)); });
+
   it("shows the whole profile in one scroll with nothing collapsed", () => {
     render(<ProfileSheet item={item} onClose={() => {}} footer={<div>FOOT</div>} />);
     const dialog = screen.getByRole("dialog");
@@ -76,5 +79,61 @@ describe("ProfileSheet", () => {
     render(<ProfileSheet item={null} onClose={() => {}} footer={<div>FOOT</div>} />);
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(screen.queryByText("FOOT")).toBeNull();
+  });
+
+  function Host({ items }: { items: FeedItem[] }) {
+    const [i, setI] = useState<number | null>(null);
+    return (
+      <>
+        <button onClick={() => setI(0)}>OPEN</button>
+        <button onClick={() => setI(1)}>OPEN2</button>
+        <ProfileSheet item={i === null ? null : items[i]} onClose={() => setI(null)} footer={null} />
+      </>
+    );
+  }
+  const item2 = { ...item, id: "s2" } as FeedItem;
+  const tick = () => act(async () => { await new Promise((r) => setTimeout(r, 30)); });
+
+  it("stays open under StrictMode with a single #profile entry", async () => {
+    window.history.replaceState(null, "", "/");
+    const push = vi.spyOn(window.history, "pushState");
+    render(<StrictMode><Host items={[item, item2]} /></StrictMode>);
+    fireEvent.click(screen.getByText("OPEN"));
+    await tick();
+    expect(screen.queryByRole("dialog")).not.toBeNull();
+    expect(window.location.hash).toBe("#profile");
+    expect(push).toHaveBeenCalledTimes(1);
+    push.mockRestore();
+  });
+
+  it("removes the entry once on ✕, and switching items adds none", async () => {
+    window.history.replaceState(null, "", "/");
+    const back = vi.spyOn(window.history, "back");
+    const push = vi.spyOn(window.history, "pushState");
+    render(<Host items={[item, item2]} />);
+    fireEvent.click(screen.getByText("OPEN"));
+    await tick();
+    expect(push).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByText("OPEN2")); // behind the overlay in a browser; fine in jsdom
+    await tick();
+    expect(push).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: "إغلاق" }));
+    await tick();
+    expect(back).toHaveBeenCalledTimes(1);
+    expect(window.location.hash).toBe("");
+    expect(screen.queryByRole("dialog")).toBeNull();
+    back.mockRestore();
+    push.mockRestore();
+  });
+
+  it("gives the focus back to what opened it", async () => {
+    render(<Host items={[item, item2]} />);
+    const opener = screen.getByText("OPEN");
+    opener.focus();
+    fireEvent.click(opener);
+    await tick();
+    fireEvent.click(screen.getByRole("button", { name: "إغلاق" }));
+    await tick();
+    expect(document.activeElement).toBe(opener);
   });
 });

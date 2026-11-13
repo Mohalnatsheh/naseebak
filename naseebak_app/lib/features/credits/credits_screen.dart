@@ -315,7 +315,7 @@ class _CreditsScreenState extends ConsumerState<CreditsScreen> with WidgetsBindi
     final flags = ref.watch(countsProvider).valueOrNull?.flags;
     // Pro lives on its own screen (`/pro`); here only a link row, and only where payments show
     final pro = payments ? ref.watch(proStateProvider).valueOrNull : null;
-    // «آخر الحركات»: the newest payments, hidden while loading, empty or failed (the bar's «السجل» stands in then)
+    // «آخر الحركات»: the newest payments, hidden while loading, empty or failed; «السجل» stays in the bar either way
     final recent = payments
         ? (ref.watch(paymentHistoryProvider).valueOrNull?.items ?? const <PaymentRecord>[]).take(3).toList()
         : const <PaymentRecord>[];
@@ -325,7 +325,7 @@ class _CreditsScreenState extends ConsumerState<CreditsScreen> with WidgetsBindi
         title: const Text('الرصيد'),
         actions: [
           // Payment history only where buying is shown (hidden for test accounts / the app payments switch)
-          if (payments && recent.isEmpty)
+          if (payments)
             TextButton(onPressed: () => context.push('/credits/history'), child: const Text('السجل')),
         ],
       ),
@@ -383,14 +383,7 @@ class _CreditsScreenState extends ConsumerState<CreditsScreen> with WidgetsBindi
               ]),
             ],
             if (recent.isNotEmpty) ...[
-              _GroupHeader(
-                'آخر الحركات',
-                trailing: TextButton(
-                  key: const Key('recent-history'),
-                  onPressed: () => context.push('/credits/history'),
-                  child: const Text('السجل'),
-                ),
-              ),
+              const _GroupHeader('آخر الحركات'),
               GroupedSection(rows: [for (final r in recent) _paymentRow(r)]),
             ],
           ],
@@ -478,7 +471,7 @@ class _CreditsScreenState extends ConsumerState<CreditsScreen> with WidgetsBindi
       trailing: enabled
           ? Semantics(
               button: true,
-              label: 'شراء $title بسعر $price',
+              label: pkg.bonusCredits > 0 ? 'شراء $title بسعر $price، +${pkg.bonusCredits} هدية' : 'شراء $title بسعر $price',
               excludeSemantics: true,
               child: FilledButton(
                 key: Key('buy-${pkg.id}'),
@@ -600,9 +593,8 @@ class _OfferBanner extends StatelessWidget {
 
 /// A muted heading over a [GroupedSection], with an optional action at the end
 class _GroupHeader extends StatelessWidget {
-  const _GroupHeader(this.text, {this.trailing});
+  const _GroupHeader(this.text);
   final String text;
-  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -613,7 +605,6 @@ class _GroupHeader extends StatelessWidget {
         child: Row(
           children: [
             Expanded(child: Text(text, style: AppText.labelRegular.copyWith(color: AppColors.muted))),
-            ?trailing,
           ],
         ),
       ),

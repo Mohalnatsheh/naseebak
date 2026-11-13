@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/auth/auth_controller.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/common.dart';
+import '../../shared/widgets/grouped_section.dart';
 import '../auth/logout_button.dart';
 import '../country_selection/country_providers.dart';
 import '../pro/pro_repository.dart';
@@ -21,52 +22,57 @@ class SettingsListScreen extends ConsumerWidget {
     final details = me == null ? null : ref.watch(countryDetailsProvider(me.country.code)).valueOrNull;
     // The Pro state only where payments show (never a test or review account); it decides the pause/delete Pro line
     final pro = ref.watch(appPaymentsProvider) ? ref.watch(proStateProvider).valueOrNull : null;
-    Widget tile(IconData icon, String title, VoidCallback onTap, {Color? color, String? subtitle}) => ListTile(
-          minVerticalPadding: 12,
-          leading: Icon(icon, color: color ?? AppColors.navy),
-          title: Text(title, style: TextStyle(color: color, fontWeight: FontWeight.w600)),
-          subtitle: subtitle == null ? null : Text(subtitle),
-          trailing: const Icon(Icons.chevron_right, color: AppColors.muted),
-          onTap: onTap,
-        );
     return Scaffold(
       appBar: AppBar(title: const Text('الإعدادات')),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(AppSpace.lg),
         children: [
-          Card(
-            child: Column(children: [
-              tile(Icons.notifications_none_rounded, 'إعدادات الإشعارات', () => context.push('/settings/notifications')),
-              const Divider(),
-              tile(Icons.block_rounded, 'المحظورون', () => context.push('/settings/blocks')),
-              const Divider(),
-              tile(Icons.family_restroom_rounded, 'بيانات وليّ الأمر', () => context.push('/profile/guardian')),
-              const Divider(),
-              tile(Icons.edit_note_rounded, 'تعديل ملفي', () => context.push('/profile/edit'),
-                  subtitle: 'كل بياناتك في مكان واحد'),
-            ]),
-          ),
-          const SizedBox(height: 16),
-          Card(
-            child: Column(children: [
-              tile(Icons.description_outlined, 'الشروط والأحكام', () => openExternal(context, details?.links.terms)),
-              const Divider(),
-              tile(Icons.privacy_tip_outlined, 'سياسة الخصوصية', () => openExternal(context, details?.links.privacy)),
-              const Divider(),
-              tile(Icons.help_outline_rounded, 'الأسئلة الشائعة', () => openExternal(context, details?.links.faq)),
-            ]),
-          ),
-          const SizedBox(height: 16),
-          Card(
-            child: Column(children: [
-              tile(Icons.pause_circle_outline_rounded, 'إيقاف الحساب مؤقتاً', () => pauseAccount(context, ref, pro),
-                  color: AppColors.warning),
-              const Divider(),
-              tile(Icons.delete_outline_rounded, 'حذف الحساب', () => deleteAccount(context, ref, pro),
-                  color: AppColors.danger),
-            ]),
-          ),
-          const SizedBox(height: 16),
+          GroupedSection(rows: [
+            GroupedRow(
+                icon: Icons.notifications_none_rounded,
+                title: 'إعدادات الإشعارات',
+                onTap: () => context.push('/settings/notifications')),
+            GroupedRow(icon: Icons.block_rounded, title: 'المحظورون', onTap: () => context.push('/settings/blocks')),
+            GroupedRow(
+                icon: Icons.family_restroom_rounded,
+                title: 'بيانات وليّ الأمر',
+                onTap: () => context.push('/profile/guardian')),
+            GroupedRow(
+              icon: Icons.edit_note_rounded,
+              title: 'تعديل ملفي',
+              subtitle: Text('كل بياناتك في مكان واحد', style: AppText.caption.copyWith(color: AppColors.muted)),
+              onTap: () => context.push('/profile/edit'),
+            ),
+          ]),
+          const SizedBox(height: AppSpace.xl),
+          GroupedSection(rows: [
+            GroupedRow(
+                icon: Icons.description_outlined,
+                title: 'الشروط والأحكام',
+                onTap: () => openExternal(context, details?.links.terms)),
+            GroupedRow(
+                icon: Icons.privacy_tip_outlined,
+                title: 'سياسة الخصوصية',
+                onTap: () => openExternal(context, details?.links.privacy)),
+            GroupedRow(
+                icon: Icons.help_outline_rounded,
+                title: 'الأسئلة الشائعة',
+                onTap: () => openExternal(context, details?.links.faq)),
+          ]),
+          const SizedBox(height: AppSpace.xl),
+          GroupedSection(rows: [
+            GroupedRow(
+                icon: Icons.pause_circle_outline_rounded,
+                title: 'إيقاف الحساب مؤقتاً',
+                color: AppColors.warning,
+                onTap: () => pauseAccount(context, ref, pro)),
+            GroupedRow(
+                icon: Icons.delete_outline_rounded,
+                title: 'حذف الحساب',
+                color: AppColors.danger,
+                onTap: () => deleteAccount(context, ref, pro)),
+          ]),
+          const SizedBox(height: AppSpace.xl),
           const LogoutButton(key: Key('logout'), confirm: true, icon: Icons.logout_rounded),
         ],
       ),

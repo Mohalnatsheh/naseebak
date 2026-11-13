@@ -12,6 +12,7 @@ Future<ProviderContainer> _signedIn(
   bool pro = false,
   bool payments = true,
   bool withProfile = true,
+  int percentage = 80,
 }) async {
   final adapter = FakeAdapter()
     ..on('GET', '/api/mobile/me', FakeResponse(200, {'user': {...meJson(credits: 7), 'appPayments': payments}}))
@@ -32,7 +33,7 @@ Future<ProviderContainer> _signedIn(
             'firstName': 'سارة',
             'profile': {'dateOfBirth': born.toIso8601String()},
           },
-          'completeness': {'percentage': 80, 'sections': []},
+          'completeness': {'percentage': percentage, 'sections': []},
         }));
   }
   final container = ProviderContainer(overrides: await testOverrides(adapter, store: MemoryTokenStore('t1')));
@@ -76,6 +77,13 @@ void main() {
     await _pump(tester, c);
     expect(find.text('سارة أحمد'), findsOneWidget);
     expect(find.text('الملف الشخصي'), findsOneWidget);
+  });
+
+  testWidgets('zero completeness (older or partial server): name alone, no «مكتمل 0%»', (tester) async {
+    final c = await _signedIn(tester, percentage: 0);
+    await _pump(tester, c);
+    expect(find.text('الملف الشخصي'), findsOneWidget);
+    expect(find.textContaining('مكتمل'), findsNothing);
   });
 
   testWidgets('groups in order with values; Pro badge and plan for a Pro member', (tester) async {

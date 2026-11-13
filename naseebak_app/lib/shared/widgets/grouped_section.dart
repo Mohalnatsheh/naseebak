@@ -16,6 +16,7 @@ class GroupedRow {
     this.subtitle,
     this.tags = const [],
     this.trailing,
+    this.color,
   });
 
   /// The navy tile at the start; none when null
@@ -37,6 +38,9 @@ class GroupedRow {
 
   /// Replaces [value] and the chevron
   final Widget? trailing;
+
+  /// Tints the icon tile and the title (a warning or destructive row); the navy tile and ink title when null
+  final Color? color;
 }
 
 /// A white rounded group of rows with hairline dividers (the mockup's iOS-style grouped list).
@@ -70,7 +74,7 @@ class _Row extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final title = Text(row.title, style: AppText.body.copyWith(color: AppColors.ink));
+    final title = Text(row.title, style: AppText.body.copyWith(color: row.color ?? AppColors.ink));
     final content = ConstrainedBox(
       constraints: const BoxConstraints(minHeight: 52),
       child: Padding(
@@ -81,7 +85,7 @@ class _Row extends StatelessWidget {
               Container(
                 width: 32,
                 height: 32,
-                decoration: BoxDecoration(color: AppColors.navy, borderRadius: BorderRadius.circular(AppRadius.sm)),
+                decoration: BoxDecoration(color: row.color ?? AppColors.navy, borderRadius: BorderRadius.circular(AppRadius.sm)),
                 child: Icon(row.icon, size: 20, color: Colors.white),
               ),
               const SizedBox(width: AppSpace.md),
@@ -115,7 +119,7 @@ class _Row extends StatelessWidget {
               ],
               if (row.onTap != null) ...[
                 const SizedBox(width: AppSpace.xs),
-                const Icon(Icons.chevron_left_rounded, color: AppColors.muted),
+                const Icon(Icons.chevron_right_rounded, color: AppColors.muted),
               ],
             ],
           ],

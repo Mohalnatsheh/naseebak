@@ -785,7 +785,14 @@ class GuardianCard extends StatelessWidget {
     Widget action(String label, IconData icon, Uri url, {required bool filled}) {
       final child = Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(icon, size: 18), const SizedBox(width: 6), Text(label)]);
       final style = (filled ? FilledButton.styleFrom : OutlinedButton.styleFrom)(minimumSize: const Size.fromHeight(48));
-      void tap() => open(url).catchError((_) => false);
+      Future<void> tap() async {
+        final messenger = ScaffoldMessenger.of(context);
+        var ok = false;
+        try {
+          ok = await open(url);
+        } catch (_) {}
+        if (!ok) messenger.showSnackBar(const SnackBar(content: Text('تعذّر فتح التطبيق')));
+      }
       return Expanded(
         child: filled
             ? FilledButton(key: Key('guardian-$label'), style: style, onPressed: tap, child: child)

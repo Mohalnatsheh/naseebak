@@ -46,4 +46,25 @@ void main() {
     await tester.tap(find.byKey(const Key('guardian-واتساب')));
     expect(opened.map((u) => u.toString()), ['tel:+962791234567', 'https://wa.me/962791234567']);
   });
+
+  for (final fails in ['returns false', 'throws']) {
+    testWidgets('a link that cannot open shows «تعذّر فتح التطبيق» ($fails)', (tester) async {
+      await tester.pumpWidget(MaterialApp(
+        home: Directionality(
+          textDirection: TextDirection.rtl,
+          child: Scaffold(
+            body: GuardianCard(
+              contact: const GuardianContact(name: 'محمود', relationship: 'father', phone: '0791234567'),
+              dialCode: '962',
+              openLink: (u) async => fails == 'throws' ? throw Exception('no app') : false,
+            ),
+          ),
+        ),
+      ));
+      await tester.tap(find.byKey(const Key('guardian-واتساب')));
+      await tester.pump();
+      await tester.pump();
+      expect(find.text('تعذّر فتح التطبيق'), findsOneWidget);
+    });
+  }
 }

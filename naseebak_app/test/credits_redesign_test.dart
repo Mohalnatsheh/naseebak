@@ -199,8 +199,9 @@ void main() {
     expect(find.text('شراء دفعة 3'), findsOneWidget);
     expect(find.text('شراء دفعة 4'), findsNothing);
     expect(find.text('3 د.أ'), findsWidgets);
-    final link = find.byKey(const Key('recent-history'));
-    await tester.ensureVisible(link);
+    // «السجل» sits in the bar, there from the first frame and stable once the payments load
+    final link = find.widgetWithText(TextButton, 'السجل');
+    expect(link, findsOneWidget);
     await tester.tap(link);
     await tester.pumpAndSettle();
     expect(find.text('history-screen'), findsOneWidget);
@@ -226,6 +227,13 @@ void main() {
     expect(find.textContaining('Pro'), findsNothing);
     expect(adapter.to('GET', '/api/payments/plans'), isEmpty);
     expect(adapter.to('GET', '/api/payments/history'), isEmpty);
+  });
+
+  testWidgets('the buy button announces the gift', (tester) async {
+    await pumpCredits(tester, offer: true);
+    final handle = tester.ensureSemantics();
+    expect(find.bySemanticsLabel(RegExp(r'^شراء .*، \+5 هدية$')), findsOneWidget);
+    handle.dispose();
   });
 
   testWidgets('a narrow phone with large text: no overflow, 44 px buy buttons', (tester) async {

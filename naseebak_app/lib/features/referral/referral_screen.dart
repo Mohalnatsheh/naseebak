@@ -75,13 +75,13 @@ class ReferralScreen extends ConsumerWidget {
     final info = ref.watch(referralProvider);
     final female = ref.watch(authControllerProvider).me?.isFemale ?? false;
     return Scaffold(
-      appBar: AppBar(title: const Text('دعوة الأصدقاء')),
+      appBar: AppBar(title: const Text('ادعُ صديقاً')),
       body: info.when(
         loading: () => const SkeletonList(count: 2, itemHeight: 120),
         error: (e, _) => ErrorView(error: e, onRetry: () => ref.invalidate(referralProvider)),
         data: (r) {
           final link = r.link(siteUrl);
-          final text = 'أدعوك للتسجيل في نصيبك، منصة الزواج التقليدي. استخدم رمز الدعوة ${r.code} عند التسجيل: $link';
+          final text = 'أدعوك للتسجيل في نصيبك، منصة الزواج التقليدي. يمكنك استخدام رمز الدعوة ${r.code} عند التسجيل: $link';
           final friends = r.friends.where((f) => f.firstName.isNotEmpty).take(referralRewardLimit).toList();
           final done = r.completed > referralRewardLimit ? referralRewardLimit : r.completed;
           return ListView(

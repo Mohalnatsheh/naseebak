@@ -76,6 +76,7 @@ void main() {
           },
         ],
       });
+      expect(find.descendant(of: find.byType(AppBar), matching: find.text('ادعُ صديقاً')), findsOneWidget);
       expect(find.byKey(const Key('referral-code')), findsOneWidget);
       expect(find.text('نسخ'), findsOneWidget);
       expect(find.text('مشاركة الدعوة'), findsOneWidget);

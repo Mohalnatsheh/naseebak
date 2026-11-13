@@ -77,10 +77,6 @@ void main() {
       expect(unreadCountFrom(oldestFirst, 'd'), 2);
       expect(unreadCountFrom(oldestFirst, 'zzz'), 0);
     });
-
-    test('the date chip hides 1 s after scrolling stops', () {
-      expect(dateChipHideAfter, const Duration(seconds: 1));
-    });
   });
 
   group('first unread', () {

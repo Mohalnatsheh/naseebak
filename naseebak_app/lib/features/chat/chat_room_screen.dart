@@ -2795,25 +2795,23 @@ class _DayChip extends StatelessWidget {
   }
 }
 
-/// The chat's one pill: a day, «رسائل جديدة» ([accent]), the floating day while scrolling
+/// The chat's one pill: a day, the floating day while scrolling
 class ChatPill extends StatelessWidget {
-  const ChatPill({super.key, required this.label, this.fade = 1, this.accent = false});
+  const ChatPill({super.key, required this.label, this.fade = 1});
   final String label;
   final double fade;
-  final bool accent;
 
   @override
   Widget build(BuildContext context) {
-    final ink = accent ? AppColors.navy : AppColors.muted;
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: accent ? AppColors.navy.withValues(alpha: 0.08 * fade) : AppColors.chatChip.withValues(alpha: AppColors.chatChip.a * fade),
+        color: AppColors.chatChip.withValues(alpha: AppColors.chatChip.a * fade),
         borderRadius: BorderRadius.circular(AppRadius.full),
-        border: Border.all(color: (accent ? AppColors.navy.withValues(alpha: 0.25) : AppColors.line).withValues(alpha: fade)),
+        border: Border.all(color: AppColors.line.withValues(alpha: fade)),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
-        child: Text(label, style: AppText.caption.copyWith(color: ink.withValues(alpha: fade), fontWeight: FontWeight.w700)),
+        child: Text(label, style: AppText.caption.copyWith(color: AppColors.muted.withValues(alpha: fade), fontWeight: FontWeight.w700)),
       ),
     );
   }

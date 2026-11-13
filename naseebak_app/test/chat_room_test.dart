@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:in_app_review/in_app_review.dart';
@@ -75,6 +76,8 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('chat-newest')), findsOneWidget);
       expect(find.byKey(const Key('chat-newest-count')), findsNothing);
+      final sem = tester.getSemantics(find.byKey(const Key('chat-newest')));
+      expect(sem.getSemanticsData().hasAction(SemanticsAction.tap), isTrue);
       extra = true;
       await tester.pump(const Duration(seconds: 4));
       await tester.pump(const Duration(milliseconds: 300));

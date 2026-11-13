@@ -20,6 +20,7 @@ class NewestButton extends StatelessWidget {
       button: true,
       label: label,
       excludeSemantics: true,
+      onTap: onPressed,
       child: SizedBox(
         width: 48,
         height: 52,

@@ -251,7 +251,7 @@ void main() {
     });
   });
 
-  testWidgets('chat bubbles: mine on the right in Arabic, theirs on the left', (tester) async {
+  testWidgets('chat bubbles: mine on the end side (left in Arabic), theirs on the start side (right)', (tester) async {
     final now = DateTime(2026, 10, 29, 14, 5);
     await tester.pumpWidget(rtlApp(Scaffold(
       body: Column(children: [
@@ -265,8 +265,8 @@ void main() {
       ]),
     )));
     final width = tester.getSize(find.byType(Scaffold)).width;
-    expect(tester.getCenter(find.text('السلام عليكم')).dx, greaterThan(width / 2));
-    expect(tester.getCenter(find.text('وعليكم السلام')).dx, lessThan(width / 2));
+    expect(tester.getCenter(find.text('السلام عليكم')).dx, lessThan(width / 2));
+    expect(tester.getCenter(find.text('وعليكم السلام')).dx, greaterThan(width / 2));
     expect(find.text('لا يمكن مشاركة أرقام الهواتف'), findsOneWidget);
     expect(find.text('تعديل الرسالة'), findsOneWidget);
   });

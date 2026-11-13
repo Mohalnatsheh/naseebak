@@ -8,7 +8,10 @@ vi.mock("@/lib/activity-days", () => ({ recordActivityDay: vi.fn() }));
 vi.mock("@/lib/auth", () => ({ requireUser: vi.fn(async () => ({ session: { user: { id: "u1" } } })) }));
 vi.mock("@/lib/settings", () => ({
   getCycleFlags: vi.fn(async () => ({ introRequests: sw.introRequests, chat: false, mutualSuggestions: false })),
-  getReligionEnabled: vi.fn(async () => sw.religion === "true"),
+  getReligionEnabled: vi.fn(async () => {
+    if (sw.religion === "throw") throw new Error("settings down");
+    return sw.religion === "true";
+  }),
 }));
 vi.mock("@/lib/chat/service", () => ({ chatHousekeepingForUser: async () => {} }));
 vi.mock("@/lib/matches/state", () => ({
@@ -45,5 +48,12 @@ describe("GET /api/me/counts: religionEnabled", () => {
       sw.religion = "false";
       expect((await (await GET(new Request("http://x/api/me/counts"))).json()).religionEnabled).toBe(false);
     }
+  });
+
+  it("answers 200 with religionEnabled false when the switch read fails", async () => {
+    sw.religion = "throw";
+    const res = await GET(new Request("http://x/api/me/counts"));
+    expect(res.status).toBe(200);
+    expect((await res.json()).religionEnabled).toBe(false);
   });
 });

@@ -236,7 +236,11 @@ export async function getSuggestionFeed(
 ): Promise<{ items: FeedItem[]; page: number; totalPages: number; total: number }> {
   await expireMutualSuggestions(userId);
   const now = new Date();
-  const [flags, religionOn] = await Promise.all([getCycleFlags(), getReligionEnabled()]);
+  // «الديانة» on cards only: a count never builds cards, and a failed read shows no religion (switch off)
+  const [flags, religionOn] = await Promise.all([
+    getCycleFlags(),
+    opts.countOnly ? Promise.resolve(false) : getReligionEnabled().catch(() => false),
+  ]);
   const order = suggestionOrder(flags);
   const groupDays: GroupDays = flags.activeFirstFeed ? ACTIVE_FIRST_GROUP_DAYS : ACTIVITY_GROUP_DAYS;
   const otherSelect = opts.countOnly ? countSelect : personSelect;

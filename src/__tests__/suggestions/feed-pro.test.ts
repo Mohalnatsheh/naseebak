@@ -67,3 +67,18 @@ describe("feed Pro badge", () => {
     expect(items.some((i) => i.isPro)).toBe(false);
   });
 });
+
+describe("feed «الديانة» switch read", () => {
+  it("a failed read still returns the cards, with no religion (switch off)", async () => {
+    settings.getReligionEnabled.mockRejectedValueOnce(new Error("settings down"));
+    const { items } = await feed([]);
+    expect(items).toHaveLength(3);
+    expect(items.every((i) => i.candidate?.religion == null)).toBe(true);
+  });
+
+  it("a count-only call never reads the switch", async () => {
+    db.suggestion.findMany.mockReset().mockResolvedValueOnce(rows()).mockResolvedValue([]);
+    await getSuggestionFeed("me", "new", 1, 1, { countOnly: true });
+    expect(settings.getReligionEnabled).not.toHaveBeenCalled();
+  });
+});

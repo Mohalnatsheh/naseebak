@@ -11,79 +11,81 @@ import '../../core/localization/digits.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/brand_kit.dart';
 import '../../shared/widgets/common.dart';
-import '../auth/logout_button.dart';
-import '../country_selection/country_providers.dart';
+import '../../shared/widgets/grouped_section.dart';
 import '../home/counts.dart';
+import '../pro/pro_badge.dart';
 import '../pro/pro_repository.dart';
-import '../pro/pro_section.dart' show proActiveText;
+import '../profile/profile_repository.dart';
+import '../pro/pro_section.dart' show proPlanLabels;
 
 /// The pause dialog's Pro line (a renewing subscription)
 String pauseProLine(DateTime? end) =>
     'اشتراك Pro لن يتجدد بعد الإيقاف${end == null ? '' : '، ويبقى فعّالاً حتى ${formatDate(end)}'}، دون استرداد.';
 
-/// «حسابي»: profile, credits, notification settings, safety, legal links and account actions.
+/// «إيقاف الحساب مؤقتاً»: confirm, pause, keep the Pro note (shared by «الإعدادات»)
+Future<void> pauseAccount(BuildContext context, WidgetRef ref, MyProState? pro) async {
+  // A Pro renewal stops with the pause (the server ends it with the period, no refund)
+  final renewing = pro != null && pro.isPro && !pro.cancelAtPeriodEnd;
+  final ok = await confirmDialog(
+    context,
+    title: 'إيقاف الحساب مؤقتاً',
+    body: 'لن يظهر ملفك لأحد ولن تصلك اقتراحات، وتُنهى المحادثات المفتوحة. يمكنك إعادة التفعيل في أي وقت.'
+        '${renewing ? '\n\n${pauseProLine(pro.renewsAt)}' : ''}',
+    confirmLabel: 'إيقاف',
+  );
+  if (!ok || !context.mounted) return;
+  // Taken before the request: once `me` says paused the router replaces this screen, and the Pro state must
+  // still reload (QA A-M01 / A2-H1: the paused page said «ما زال يتجدد» from the stale value)
+  final container = ProviderScope.containerOf(context, listen: false);
+  final memberId = ref.read(authControllerProvider).me?.id;
+  try {
+    final j = await container.read(apiClientProvider).post('/api/profile/deactivate', body: {'action': 'pause'});
+    if (memberId != null && pro != null && pro.isPro && pauseStoppedRenewal(j, wasRenewing: renewing)) {
+      await container.read(proPauseNoteProvider).mark(memberId, periodEnd: pro.renewsAt);
+    }
+    container
+      ..invalidate(proStateProvider)
+      ..invalidate(countsProvider);
+    await container.read(authControllerProvider.notifier).refreshMe();
+  } catch (e) {
+    if (context.mounted) showSnack(context, ApiException.messageOf(e));
+  }
+}
+
+/// «حذف الحساب»: the dialog, then the request (shared by «الإعدادات»)
+Future<void> deleteAccount(BuildContext context, WidgetRef ref, MyProState? pro) async {
+  final renewing = pro != null && pro.isPro && !pro.cancelAtPeriodEnd;
+  // null = cancelled; '' = no reason given (optional, like the website)
+  final reason = await showDialog<String>(
+    context: context,
+    builder: (_) => DeleteAccountDialog(proRenewing: renewing, proRenewsAt: pro?.renewsAt),
+  );
+  if (reason == null || !context.mounted) return;
+  final container = ProviderScope.containerOf(context, listen: false);
+  final memberId = ref.read(authControllerProvider).me?.id;
+  try {
+    final j = await container
+        .read(apiClientProvider)
+        .post('/api/profile/delete', body: {if (reason.isNotEmpty) 'reason': reason});
+    if (context.mounted) showSnack(context, asStringOr(j['message'], 'تم استلام طلب الحذف'));
+    if (memberId != null && renewing && pauseStoppedRenewal(j, wasRenewing: renewing)) {
+      await container.read(proPauseNoteProvider).mark(memberId, periodEnd: pro.renewsAt);
+    }
+    container.invalidate(proStateProvider);
+    // The account is paused at once: the router shows the paused page with the deletion date
+    await container.read(authControllerProvider.notifier).refreshMe();
+  } catch (e) {
+    if (context.mounted) showSnack(context, ApiException.messageOf(e));
+  }
+}
+
+/// «حسابي»: profile, credits, Pro, invite and support; everything else moved to «الإعدادات» (`SettingsListScreen`).
 class AccountScreen extends ConsumerWidget {
   const AccountScreen({super.key});
-
-  Future<void> _pause(BuildContext context, WidgetRef ref, MyProState? pro) async {
-    // A Pro renewal stops with the pause (the server ends it with the period, no refund)
-    final renewing = pro != null && pro.isPro && !pro.cancelAtPeriodEnd;
-    final ok = await confirmDialog(
-      context,
-      title: 'إيقاف الحساب مؤقتاً',
-      body: 'لن يظهر ملفك لأحد ولن تصلك اقتراحات، وتُنهى المحادثات المفتوحة. يمكنك إعادة التفعيل في أي وقت.'
-          '${renewing ? '\n\n${pauseProLine(pro.renewsAt)}' : ''}',
-      confirmLabel: 'إيقاف',
-    );
-    if (!ok || !context.mounted) return;
-    // Taken before the request: once `me` says paused the router replaces this screen, and the Pro state must
-    // still reload (QA A-M01 / A2-H1: the paused page said «ما زال يتجدد» from the stale value)
-    final container = ProviderScope.containerOf(context, listen: false);
-    final memberId = ref.read(authControllerProvider).me?.id;
-    try {
-      final j = await container.read(apiClientProvider).post('/api/profile/deactivate', body: {'action': 'pause'});
-      if (memberId != null && pro != null && pro.isPro && pauseStoppedRenewal(j, wasRenewing: renewing)) {
-        await container.read(proPauseNoteProvider).mark(memberId, periodEnd: pro.renewsAt);
-      }
-      container
-        ..invalidate(proStateProvider)
-        ..invalidate(countsProvider);
-      await container.read(authControllerProvider.notifier).refreshMe();
-    } catch (e) {
-      if (context.mounted) showSnack(context, ApiException.messageOf(e));
-    }
-  }
-
-  Future<void> _delete(BuildContext context, WidgetRef ref, MyProState? pro) async {
-    final renewing = pro != null && pro.isPro && !pro.cancelAtPeriodEnd;
-    // null = cancelled; '' = no reason given (optional, like the website)
-    final reason = await showDialog<String>(
-      context: context,
-      builder: (_) => DeleteAccountDialog(proRenewing: renewing, proRenewsAt: pro?.renewsAt),
-    );
-    if (reason == null || !context.mounted) return;
-    final container = ProviderScope.containerOf(context, listen: false);
-    final memberId = ref.read(authControllerProvider).me?.id;
-    try {
-      final j = await container
-          .read(apiClientProvider)
-          .post('/api/profile/delete', body: {if (reason.isNotEmpty) 'reason': reason});
-      if (context.mounted) showSnack(context, asStringOr(j['message'], 'تم استلام طلب الحذف'));
-      if (memberId != null && renewing && pauseStoppedRenewal(j, wasRenewing: renewing)) {
-        await container.read(proPauseNoteProvider).mark(memberId, periodEnd: pro.renewsAt);
-      }
-      container.invalidate(proStateProvider);
-      // The account is paused at once: the router shows the paused page with the deletion date
-      await container.read(authControllerProvider.notifier).refreshMe();
-    } catch (e) {
-      if (context.mounted) showSnack(context, ApiException.messageOf(e));
-    }
-  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final me = ref.watch(authControllerProvider).me;
-    final details = me == null ? null : ref.watch(countryDetailsProvider(me.country.code)).valueOrNull;
     // «عضوية Pro» only where payments show (never a test or review account, even a Pro one) and Pro can be bought or
     // is held; `/api/pro` isn't even read otherwise
     final payments = ref.watch(appPaymentsProvider);
@@ -98,79 +100,102 @@ class AccountScreen extends ConsumerWidget {
         ? showPlans(pro, payments)
         : payments && remembered != null && (remembered.canBuy || remembered.isPro);
     final proActive = pro?.isPro ?? remembered?.isPro ?? false;
-    Widget tile(IconData icon, String title, VoidCallback onTap, {Color? color, String? subtitle}) => ListTile(
-          minVerticalPadding: 12,
-          leading: Icon(icon, color: color ?? AppColors.navy),
-          title: Text(title, style: TextStyle(color: color, fontWeight: FontWeight.w600)),
-          subtitle: subtitle == null ? null : Text(subtitle),
-          trailing: const Icon(Icons.chevron_right, color: AppColors.muted),
-          onTap: onTap,
-        );
+    final profile = ref.watch(myProfileProvider).valueOrNull;
+    final isPro = proActive || (ref.watch(countsProvider).valueOrNull?.isPro ?? false);
+    final planLabel = proActive ? proPlanLabels[pro?.plan] : null;
+    final name = me == null ? '' : '${me.firstName} ${me.lastName}'.trim();
+    final age = _ageOf(profile?.field('dateOfBirth'));
+    final headline = age == null ? name : '$name، $age';
+    final completeness = profile?.completeness;
     return Scaffold(
       appBar: AppBar(title: const Text('حسابي')),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(AppSpace.lg),
         children: [
-          Card(
-            child: Column(children: [
-              tile(Icons.person_outline_rounded, 'ملفي الشخصي', () => context.push('/profile'),
-                  subtitle: me == null ? null : '${me.firstName} ${me.lastName}'),
-              const Divider(),
-              tile(Icons.account_balance_wallet_outlined, payments ? 'الرصيد والباقات' : 'الرصيد',
-                  () => context.push('/credits'),
-                  subtitle: me == null ? null : 'رصيدك: ${me.credits}'),
-              if (showPro) ...[
-                const Divider(),
-                KeyedSubtree(
-                  key: const Key('menu-pro'),
-                  child: tile(Icons.workspace_premium_rounded, 'عضوية Pro', () => context.push('/pro'),
-                      subtitle: proActive ? proActiveText : null),
+          Material(
+            key: const Key('account-profile-card'),
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(AppRadius.md),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: () => context.push('/profile'),
+              child: Padding(
+                padding: const EdgeInsets.all(AppSpace.lg),
+                child: Row(
+                  children: [
+                    // Always the member's own initial: a photo is never fetched here
+                    MemberAvatar(name: me?.firstName ?? '', size: 56),
+                    const SizedBox(width: AppSpace.md),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          NameWithBadge(
+                            isPro: isPro,
+                            child: Text(headline, style: AppText.headline.copyWith(color: AppColors.ink)),
+                          ),
+                          Text(
+                            completeness == null || completeness == 0 ? 'الملف الشخصي' : 'الملف الشخصي · مكتمل $completeness%',
+                            style: AppText.labelRegular.copyWith(color: AppColors.muted),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(Icons.chevron_right_rounded, color: AppColors.muted),
+                  ],
                 ),
-              ],
-              const Divider(),
-              tile(Icons.edit_note_rounded, 'تعديل ملفي', () => context.push('/profile/edit'), subtitle: 'كل بياناتك في مكان واحد'),
-              const Divider(),
-              tile(Icons.family_restroom_rounded, 'بيانات وليّ الأمر', () => context.push('/profile/guardian')),
-              const Divider(),
-              tile(Icons.card_giftcard_rounded, 'دعوة الأصدقاء', () => context.push('/referral')),
-            ]),
+              ),
+            ),
           ),
-          const SizedBox(height: 16),
-          Card(
-            child: Column(children: [
-              tile(Icons.notifications_none_rounded, 'إعدادات الإشعارات', () => context.push('/settings/notifications')),
-              const Divider(),
-              tile(Icons.block_rounded, 'المحظورون', () => context.push('/settings/blocks')),
-            ]),
-          ),
-          const SizedBox(height: 16),
-          Card(
-            child: Column(children: [
-              tile(Icons.description_outlined, 'الشروط والأحكام', () => openExternal(context, details?.links.terms)),
-              const Divider(),
-              tile(Icons.privacy_tip_outlined, 'سياسة الخصوصية', () => openExternal(context, details?.links.privacy)),
-              const Divider(),
-              tile(Icons.help_outline_rounded, 'الأسئلة الشائعة', () => openExternal(context, details?.links.faq)),
-              const Divider(),
-              tile(Icons.support_agent_rounded, 'الدعم الفني', () => context.push('/support')),
-            ]),
-          ),
-          const SizedBox(height: 16),
-          Card(
-            child: Column(children: [
-              tile(Icons.pause_circle_outline_rounded, 'إيقاف الحساب مؤقتاً', () => _pause(context, ref, pro), color: AppColors.warning),
-              const Divider(),
-              tile(Icons.delete_outline_rounded, 'حذف الحساب', () => _delete(context, ref, pro), color: AppColors.danger),
-            ]),
-          ),
-          const SizedBox(height: 16),
-          const LogoutButton(key: Key('logout'), confirm: true, icon: Icons.logout_rounded),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpace.xl),
+          GroupedSection(rows: [
+            GroupedRow(
+              icon: Icons.account_balance_wallet_outlined,
+              title: 'الرصيد',
+              value: me == null ? null : '${me.credits}',
+              onTap: () => context.push('/credits'),
+            ),
+            if (showPro)
+              GroupedRow(
+                rowKey: const Key('menu-pro'),
+                icon: Icons.workspace_premium_rounded,
+                title: 'عضوية Pro',
+                value: planLabel,
+                onTap: () => context.push('/pro'),
+              ),
+          ]),
+          const SizedBox(height: AppSpace.xl),
+          GroupedSection(rows: [
+            GroupedRow(icon: Icons.tune_rounded, title: 'ما أبحث عنه', onTap: () => context.push('/profile/preferences')),
+            GroupedRow(
+              icon: Icons.photo_library_outlined,
+              title: 'صوري',
+              value: 'مخفية حتى التوافق',
+              onTap: () => context.push('/profile/photos'),
+            ),
+            GroupedRow(icon: Icons.card_giftcard_rounded, title: 'ادعُ صديقاً', onTap: () => context.push('/referral')),
+          ]),
+          const SizedBox(height: AppSpace.xl),
+          GroupedSection(rows: [
+            GroupedRow(icon: Icons.settings_outlined, title: 'الإعدادات', onTap: () => context.push('/settings')),
+            GroupedRow(icon: Icons.support_agent_rounded, title: 'المساعدة والدعم', onTap: () => context.push('/support')),
+          ]),
+          const SizedBox(height: AppSpace.md),
           Center(child: Text('تغيير الدولة متاح قبل تسجيل الدخول فقط.', style: AppText.caption.copyWith(color: AppColors.muted))),
         ],
       ),
     );
   }
+}
+
+/// Whole years since [dob] (an ISO string from `/api/profile`); null when unknown or out of range
+int? _ageOf(Object? dob) {
+  final d = dob is String ? DateTime.tryParse(dob) : null;
+  if (d == null) return null;
+  final now = DateTime.now();
+  var age = now.year - d.year;
+  if (now.month < d.month || (now.month == d.month && now.day < d.day)) age--;
+  return age >= 18 && age < 100 ? age : null;
 }
 
 /// «حذف الحساب»: what happens, and an optional reason (`POST /api/profile/delete` `{ reason }`, like the website).

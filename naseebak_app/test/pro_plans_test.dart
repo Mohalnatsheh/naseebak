@@ -512,7 +512,6 @@ void main() {
         ..canBuy = false;
       await _pumpCredits(tester, pro);
       expect(find.byKey(const Key('pro-link')), findsOneWidget);
-      expect(find.text('مزايا Pro فعّالة في حسابك.'), findsOneWidget);
     });
 
     testWidgets('no card for a member who can\'t buy', (tester) async {
@@ -552,7 +551,7 @@ void main() {
       await pumpMenu(tester, pro);
       final entry = find.byKey(const Key('menu-pro'));
       expect(entry, findsOneWidget);
-      expect(tester.getTopLeft(entry).dy, greaterThan(tester.getTopLeft(find.text('الرصيد والباقات')).dy));
+      expect(tester.getTopLeft(entry).dy, greaterThan(tester.getTopLeft(find.text('الرصيد')).dy));
       await tester.tap(entry);
       await tester.pumpAndSettle();
       expect(find.text('pro-screen'), findsOneWidget);
@@ -601,12 +600,11 @@ void main() {
       await tester.pump();
       await tester.pump();
       expect(find.byKey(const Key('menu-pro')), findsOneWidget);
-      expect(find.text('مزايا Pro فعّالة في حسابك.'), findsOneWidget);
-      final top = tester.getTopLeft(find.text('تعديل ملفي')).dy;
+      final top = tester.getTopLeft(find.text('ادعُ صديقاً')).dy;
       gate.complete();
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('menu-pro')), findsOneWidget);
-      expect(tester.getTopLeft(find.text('تعديل ملفي')).dy, top);
+      expect(tester.getTopLeft(find.text('ادعُ صديقاً')).dy, top);
     });
 
     testWidgets('a remembered «no row» stays out while loading; the live answer still wins', (tester) async {

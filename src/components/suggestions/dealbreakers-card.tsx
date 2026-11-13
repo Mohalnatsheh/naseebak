@@ -5,6 +5,7 @@ import Link from "next/link";
 import { SlidersHorizontal, Loader2, Check, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { DEALBREAKER_KEYS, DEALBREAKER_LABELS } from "@/lib/matching/score";
 import { dealbreakerSummary } from "@/lib/matching/dealbreaker-summary";
@@ -37,7 +38,15 @@ const HASH = "#dealbreakers";
  * «تعديل» opening a bottom sheet with one switch per condition (the preferences that must be met before
  * anyone is suggested). Same API as before (GET/PUT /api/profile/dealbreakers); private to the member.
  */
-export function DealbreakersCard({ onSaved }: { /** The conditions were saved: the server is closing and refilling cards, so the list should reload */ onSaved?: () => void } = {}) {
+export function DealbreakersCard({
+  onSaved,
+  asDialog = false,
+}: {
+  /** The conditions were saved: the server is closing and refilling cards, so the list should reload */
+  onSaved?: () => void;
+  /** Switch dashboard_redesign: the editor is a centred window (Dialog) instead of a bottom sheet; same content and saving */
+  asDialog?: boolean;
+} = {}) {
   const { profile, country } = useDashboardData();
   const gender: string | undefined = profile?.gender;
   // The «المذهب» condition exists for Lebanese members only
@@ -128,6 +137,83 @@ export function DealbreakersCard({ onSaved }: { /** The conditions were saved: t
     setSaving(false);
   }
 
+  const editorTitle = (
+    <>
+      <SlidersHorizontal className="h-5 w-5 text-primary" aria-hidden /> شروطي الأساسية
+    </>
+  );
+  const editorHint = g(
+    "لن نقترح عليك أي شخص لا يحقّق الشرط المفعّل. كثرة الشروط تقلّل الاقتراحات. شروطك خاصة ولا يراها أحد.",
+    "لن نقترح عليكِ أي شخص لا يحقّق الشرط المفعّل. كثرة الشروط تقلّل الاقتراحات. شروطكِ خاصة ولا يراها أحد."
+  );
+  const editorBody = (
+    <div className={cn("space-y-2", !asDialog && "px-5")}>
+      {loadFailed ? (
+        <div role="alert" className="flex flex-wrap items-center gap-2 rounded-xl bg-destructive/5 p-3 text-sm text-destructive">
+          تعذّر تحميل شروطك.
+          <Button type="button" variant="outline" className="h-11" onClick={() => { setLoadFailed(false); setReloadKey((k) => k + 1); }}>
+            إعادة المحاولة
+          </Button>
+        </div>
+      ) : !prefs ? (
+        <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" aria-hidden /></div>
+      ) : available.length === 0 ? (
+        <div className="rounded-xl bg-muted/40 p-4 text-sm text-muted-foreground">
+          {g(
+            "أضف تفضيلاتك في ملفك الشخصي أولاً لتتمكن من تحديد شروطك الأساسية.",
+            "أضيفي تفضيلاتكِ في ملفكِ الشخصي أولاً لتتمكني من تحديد شروطكِ الأساسية."
+          )}{" "}
+          <Link href="/dashboard/profile/edit?step=3" className="font-semibold text-primary underline-offset-4 hover:underline">
+            تفضيلاتي
+          </Link>
+        </div>
+      ) : (
+        available.map(({ key, summary }) => (
+          <label key={key} className="flex min-h-14 cursor-pointer items-center justify-between gap-3 rounded-2xl border border-border/60 bg-card px-4 py-3">
+            <span className="min-w-0">
+              <span className="block text-sm font-bold text-foreground">{DEALBREAKER_LABELS[key]}</span>
+              <span className="block truncate text-xs text-muted-foreground">{summary}</span>
+            </span>
+            <Switch
+              checked={selected.has(key)}
+              onCheckedChange={(v) => {
+                setJustSaved(false);
+                setSelected((prev) => {
+                  const next = new Set(prev);
+                  if (v) next.add(key);
+                  else next.delete(key);
+                  return next;
+                });
+              }}
+              aria-label={`${DEALBREAKER_LABELS[key]} شرط أساسي`}
+            />
+          </label>
+        ))
+      )}
+      {available.length > 0 && (
+        <p className="pt-1 text-xs text-muted-foreground">
+          {g("القيم من تفضيلاتك.", "القيم من تفضيلاتكِ.")}{" "}
+          <Link href="/dashboard/profile/edit?step=3" className="font-semibold text-primary underline-offset-4 hover:underline">
+            تعديل تفضيلاتي
+          </Link>
+        </p>
+      )}
+    </div>
+  );
+  const editorFooter = available.length > 0 && (
+    <>
+      {justSaved && (
+        <p role="status" className="flex items-center gap-1 text-sm text-emerald-700">
+          <Check className="h-4 w-4" aria-hidden /> تم الحفظ. تُطبَّق على الاقتراحات القادمة.
+        </p>
+      )}
+      {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+      <Button onClick={save} disabled={saving} className="h-12 w-full rounded-xl text-base font-bold">
+        {saving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : "حفظ الشروط"}
+      </Button>
+    </>
+  );
+
   return (
     <div id="dealbreakers" className="scroll-mt-24">
       {/* The filter bar */}
@@ -168,89 +254,30 @@ export function DealbreakersCard({ onSaved }: { /** The conditions were saved: t
         </div>
       </div>
 
-      {/* The editor */}
-      <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent side="bottom" className="max-h-[85vh] overflow-y-auto rounded-t-3xl px-0 pb-[env(safe-area-inset-bottom)]">
-          <SheetHeader className="px-5 text-start">
-            <SheetTitle className="flex items-center gap-2 text-lg">
-              <SlidersHorizontal className="h-5 w-5 text-primary" aria-hidden /> شروطي الأساسية
-            </SheetTitle>
-            <SheetDescription className="leading-relaxed">
-              {g(
-                "لن نقترح عليك أي شخص لا يحقّق الشرط المفعّل. كثرة الشروط تقلّل الاقتراحات. شروطك خاصة ولا يراها أحد.",
-                "لن نقترح عليكِ أي شخص لا يحقّق الشرط المفعّل. كثرة الشروط تقلّل الاقتراحات. شروطكِ خاصة ولا يراها أحد."
-              )}
-            </SheetDescription>
-          </SheetHeader>
-
-          <div className="space-y-2 px-5">
-            {loadFailed ? (
-              <div role="alert" className="flex flex-wrap items-center gap-2 rounded-xl bg-destructive/5 p-3 text-sm text-destructive">
-                تعذّر تحميل شروطك.
-                <Button type="button" variant="outline" className="h-11" onClick={() => { setLoadFailed(false); setReloadKey((k) => k + 1); }}>
-                  إعادة المحاولة
-                </Button>
-              </div>
-            ) : !prefs ? (
-              <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" aria-hidden /></div>
-            ) : available.length === 0 ? (
-              <div className="rounded-xl bg-muted/40 p-4 text-sm text-muted-foreground">
-                {g(
-                  "أضف تفضيلاتك في ملفك الشخصي أولاً لتتمكن من تحديد شروطك الأساسية.",
-                  "أضيفي تفضيلاتكِ في ملفكِ الشخصي أولاً لتتمكني من تحديد شروطكِ الأساسية."
-                )}{" "}
-                <Link href="/dashboard/profile/edit?step=3" className="font-semibold text-primary underline-offset-4 hover:underline">
-                  تفضيلاتي
-                </Link>
-              </div>
-            ) : (
-              available.map(({ key, summary }) => (
-                <label key={key} className="flex min-h-14 cursor-pointer items-center justify-between gap-3 rounded-2xl border border-border/60 bg-card px-4 py-3">
-                  <span className="min-w-0">
-                    <span className="block text-sm font-bold text-foreground">{DEALBREAKER_LABELS[key]}</span>
-                    <span className="block truncate text-xs text-muted-foreground">{summary}</span>
-                  </span>
-                  <Switch
-                    checked={selected.has(key)}
-                    onCheckedChange={(v) => {
-                      setJustSaved(false);
-                      setSelected((prev) => {
-                        const next = new Set(prev);
-                        if (v) next.add(key);
-                        else next.delete(key);
-                        return next;
-                      });
-                    }}
-                    aria-label={`${DEALBREAKER_LABELS[key]} شرط أساسي`}
-                  />
-                </label>
-              ))
-            )}
-            {available.length > 0 && (
-              <p className="pt-1 text-xs text-muted-foreground">
-                {g("القيم من تفضيلاتك.", "القيم من تفضيلاتكِ.")}{" "}
-                <Link href="/dashboard/profile/edit?step=3" className="font-semibold text-primary underline-offset-4 hover:underline">
-                  تعديل تفضيلاتي
-                </Link>
-              </p>
-            )}
-          </div>
-
-          {available.length > 0 && (
-            <SheetFooter className="gap-2 px-5">
-              {justSaved && (
-                <p role="status" className="flex items-center gap-1 text-sm text-emerald-700">
-                  <Check className="h-4 w-4" aria-hidden /> تم الحفظ. تُطبَّق على الاقتراحات القادمة.
-                </p>
-              )}
-              {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-              <Button onClick={save} disabled={saving} className="h-12 w-full rounded-xl text-base font-bold">
-                {saving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : "حفظ الشروط"}
-              </Button>
-            </SheetFooter>
-          )}
-        </SheetContent>
-      </Sheet>
+      {/* The editor: a window with the switch on, the bottom sheet as before with it off */}
+      {asDialog ? (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+          <DialogContent dir="rtl" className="max-h-[85dvh] overflow-y-auto">
+            <DialogHeader className="text-start">
+              <DialogTitle className="flex items-center gap-2 text-lg">{editorTitle}</DialogTitle>
+              <DialogDescription className="leading-relaxed">{editorHint}</DialogDescription>
+            </DialogHeader>
+            {editorBody}
+            {editorFooter && <DialogFooter className="gap-2 sm:flex-col">{editorFooter}</DialogFooter>}
+          </DialogContent>
+        </Dialog>
+      ) : (
+        <Sheet open={open} onOpenChange={onOpenChange}>
+          <SheetContent side="bottom" className="max-h-[85vh] overflow-y-auto rounded-t-3xl px-0 pb-[env(safe-area-inset-bottom)]">
+            <SheetHeader className="px-5 text-start">
+              <SheetTitle className="flex items-center gap-2 text-lg">{editorTitle}</SheetTitle>
+              <SheetDescription className="leading-relaxed">{editorHint}</SheetDescription>
+            </SheetHeader>
+            {editorBody}
+            {editorFooter && <SheetFooter className="gap-2 px-5">{editorFooter}</SheetFooter>}
+          </SheetContent>
+        </Sheet>
+      )}
     </div>
   );
 }

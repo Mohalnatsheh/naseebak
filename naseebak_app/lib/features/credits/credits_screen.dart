@@ -14,6 +14,7 @@ import '../../core/network/api_exception.dart';
 import '../../core/network/json.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/common.dart';
+import '../../shared/widgets/grouped_section.dart';
 import '../home/counts.dart';
 import '../pro/pro_repository.dart';
 import '../pro/pro_section.dart';
@@ -308,103 +309,201 @@ class _CreditsScreenState extends ConsumerState<CreditsScreen> with WidgetsBindi
   @override
   Widget build(BuildContext context) {
     final payments = ref.watch(appPaymentsProvider);
-    // Payments hidden in the app: balance and history only (no packages, no pointer to buying elsewhere)
+    // Payments hidden in the app: balance and the credit rule only (no packages, sale, history or Pro)
     final plans = payments ? ref.watch(plansProvider) : null;
     final me = ref.watch(authControllerProvider).me;
-    // Pro lives on its own screen (`/pro`); here only a link card, and only where payments show
+    final flags = ref.watch(countsProvider).valueOrNull?.flags;
+    // Pro lives on its own screen (`/pro`); here only a link row, and only where payments show
     final pro = payments ? ref.watch(proStateProvider).valueOrNull : null;
+    // «آخر الحركات»: the newest payments, hidden while loading, empty or failed; «السجل» stays in the bar either way
+    final recent = payments
+        ? (ref.watch(paymentHistoryProvider).valueOrNull?.items ?? const <PaymentRecord>[]).take(3).toList()
+        : const <PaymentRecord>[];
+    final creditOnInterest = flags?.creditOnInterest ?? false;
     return Scaffold(
       appBar: AppBar(
         title: const Text('الرصيد'),
         actions: [
           // Payment history only where buying is shown (hidden for test accounts / the app payments switch)
-          if (payments) TextButton(onPressed: () => context.push('/credits/history'), child: const Text('السجل')),
+          if (payments)
+            TextButton(onPressed: () => context.push('/credits/history'), child: const Text('السجل')),
         ],
       ),
       body: RefreshIndicator(
         onRefresh: () async {
           ref.invalidate(plansProvider);
-          if (payments) ref.invalidate(proStateProvider);
+          if (payments) {
+            ref.invalidate(proStateProvider);
+            ref.invalidate(paymentHistoryProvider);
+          }
           await ref.read(authControllerProvider.notifier).refreshMe();
         },
         child: ListView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(AppSpace.lg, AppSpace.sm, AppSpace.lg, AppSpace.xxl),
           children: [
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(color: AppColors.navy, borderRadius: BorderRadius.circular(20)),
-              child: Row(
-                children: [
-                  const Icon(Icons.account_balance_wallet_outlined, color: AppColors.goldLight, size: 32),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('رصيدك الحالي', style: AppText.labelRegular.copyWith(color: Colors.white70)),
-                        Text(
-                          '${me?.credits ?? 0}',
-                          key: const Key('balance'),
-                          style: AppText.display.copyWith(color: Colors.white, fontWeight: FontWeight.w800),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-            Text(creditRuleLine(ref.watch(countsProvider).valueOrNull?.flags), style: AppText.labelRegular.copyWith(color: AppColors.muted)),
+            _BalanceHero(credits: me?.credits ?? 0, interestCostsOne: creditOnInterest),
             if (_pendingId != null && !_dialogOpen) ...[
-              const SizedBox(height: 12),
+              const SizedBox(height: AppSpace.md),
               _PendingPaymentCard(offerCancel: _offerCancel, cancelling: _cancelling, onCancel: _cancel),
             ],
-            if (pro != null && showPlans(pro, payments)) ...[
-              const SizedBox(height: 16),
-              ProLinkCard(isPro: pro.isPro),
-            ],
-            if (plans != null) ...[
-            const SizedBox(height: 16),
-            const SectionTitle('الباقات'),
-            plans.when(
-              loading: () => const Column(children: [
-                SkeletonBox(height: 84),
-                SizedBox(height: 10),
-                SkeletonBox(height: 84),
-              ]),
-              error: (e, _) => SizedBox(
-                height: 260,
-                child: ErrorView(error: e, onRetry: () => ref.invalidate(plansProvider)),
+            if (plans != null)
+              plans.when(
+                loading: () => const Padding(
+                  padding: EdgeInsets.only(top: AppSpace.xl),
+                  child: Column(children: [
+                    SkeletonBox(height: 60),
+                    SizedBox(height: AppSpace.sm),
+                    SkeletonBox(height: 60),
+                  ]),
+                ),
+                error: (e, _) => SizedBox(
+                  height: 260,
+                  child: ErrorView(error: e, onRetry: () => ref.invalidate(plansProvider)),
+                ),
+                data: (p) => _buyingSection(p, creditOnInterest: creditOnInterest),
               ),
-              data: (p) => Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (!p.purchasesEnabled) ...[
-                    const InfoBanner(
-                      key: Key('purchases-disabled'),
-                      text: 'شراء الرصيد غير متاح في دولتك حالياً. سنُعلمك عند توفره.',
-                      tone: BannerTone.warning,
-                    ),
-                    const SizedBox(height: 12),
-                  ],
-                  if (p.packages.isEmpty)
-                    const InfoBanner(text: 'لا توجد باقات متاحة حالياً.')
-                  else
-                    for (final pkg in p.packages) ...[
-                      _PackageTile(
-                        pkg: pkg,
-                        enabled: p.purchasesEnabled,
-                        busy: _buying == pkg.id,
-                        onBuy: _buying == null ? () => _buy(pkg) : null,
-                      ),
-                      const SizedBox(height: 10),
-                    ],
-                ],
-              ),
+            const SizedBox(height: AppSpace.md),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpace.lg),
+              child: Text(creditRuleLine(flags), style: AppText.caption.copyWith(color: AppColors.muted)),
             ),
+            if (pro != null && showPlans(pro, payments)) ...[
+              const SizedBox(height: AppSpace.xl),
+              GroupedSection(rows: [
+                GroupedRow(
+                  rowKey: const Key('pro-link'),
+                  icon: Icons.workspace_premium_rounded,
+                  title: 'عضوية Pro',
+                  subtitle: Text(
+                    pro.isPro ? proActiveText : 'إرسال الصور والرسائل الصوتية في المحادثة، وأولوية في الاقتراحات',
+                    style: AppText.caption.copyWith(color: AppColors.muted),
+                  ),
+                  onTap: () => context.push('/pro'),
+                ),
+              ]),
+            ],
+            if (recent.isNotEmpty) ...[
+              const _GroupHeader('آخر الحركات'),
+              GroupedSection(rows: [for (final r in recent) _paymentRow(r)]),
             ],
           ],
         ),
+      ),
+    );
+  }
+
+  /// The sale banner, «شراء رصيد» and the payment note
+  Widget _buyingSection(Plans p, {required bool creditOnInterest}) {
+    final offer = p.purchasesEnabled ? p.offer : null;
+    final lowest = lowestRatePackageId(p.packages);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (offer != null) ...[
+          const SizedBox(height: AppSpace.xl),
+          _OfferBanner(offer: offer),
+        ],
+        const _GroupHeader('شراء رصيد'),
+        if (!p.purchasesEnabled) ...[
+          const InfoBanner(
+            key: Key('purchases-disabled'),
+            text: 'شراء الرصيد غير متاح في دولتك حالياً. سنُعلمك عند توفره.',
+            tone: BannerTone.warning,
+          ),
+          const SizedBox(height: AppSpace.md),
+        ],
+        if (p.packages.isEmpty)
+          const InfoBanner(text: 'لا توجد باقات متاحة حالياً.')
+        else ...[
+          GroupedSection(rows: [
+            for (final pkg in p.packages)
+              _packageRow(pkg, enabled: p.purchasesEnabled, lowest: pkg.id == lowest),
+          ]),
+          if (p.purchasesEnabled) ...[
+            const SizedBox(height: AppSpace.sm),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpace.lg),
+              child: Text(
+                creditOnInterest
+                    ? 'الدفع بالبطاقة عبر Stripe. يُعاد الرصيد إن لم يصل ردّ وانتهى الاقتراح.'
+                    : 'الدفع بالبطاقة عبر Stripe.',
+                style: AppText.caption.copyWith(color: AppColors.muted),
+              ),
+            ),
+          ],
+        ],
+      ],
+    );
+  }
+
+  GroupedRow _packageRow(CreditPackage pkg, {required bool enabled, required bool lowest}) {
+    final price = '${formatAmount(pkg.price)} ${pkg.currencySymbol}';
+    // The server puts the gift in `name` for older apps; here it is its own tag
+    final title = pkg.bonusCredits > 0 && pkg.credits > 0 ? creditsCount(pkg.credits) : pkg.name;
+    final was = pkg.wasPrice != null && pkg.wasPrice! > pkg.price;
+    final charge = pkg.chargeLabel != null && !pkg.chargeLabel!.contains(pkg.currencySymbol);
+    final busy = _buying == pkg.id;
+    return GroupedRow(
+      rowKey: Key('package-${pkg.id}'),
+      title: title,
+      tags: [
+        if (pkg.popular) const Pill(text: 'الأكثر طلباً', color: AppColors.gold),
+        if (lowest) const Pill(text: 'أقل سعر للرصيد'),
+        if (pkg.bonusCredits > 0)
+          Pill(text: '+${pkg.bonusCredits} هدية', color: AppColors.gold, icon: Icons.card_giftcard_rounded),
+      ],
+      subtitle: !was && !charge && enabled
+          ? null
+          : Wrap(
+              spacing: AppSpace.sm,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                // Not for sale here: the price still shows, with no button
+                if (!enabled) Text(price, style: AppText.label.copyWith(color: AppColors.navy)),
+                if (was)
+                  Text(
+                    '${formatAmount(pkg.wasPrice!)} ${pkg.currencySymbol}',
+                    style: AppText.caption.copyWith(color: AppColors.muted, decoration: TextDecoration.lineThrough),
+                  ),
+                if (charge) Text('يُحصَّل ${ltrIsolate(pkg.chargeLabel!)}', style: AppText.caption.copyWith(color: AppColors.muted)),
+              ],
+            ),
+      trailing: enabled
+          ? Semantics(
+              button: true,
+              label: pkg.bonusCredits > 0 ? 'شراء $title بسعر $price، +${pkg.bonusCredits} هدية' : 'شراء $title بسعر $price',
+              excludeSemantics: true,
+              child: FilledButton(
+                key: Key('buy-${pkg.id}'),
+                onPressed: busy || _buying != null ? null : () => _buy(pkg),
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.navy.withValues(alpha: 0.1),
+                  foregroundColor: AppColors.navy,
+                  minimumSize: const Size(74, 44),
+                  padding: const EdgeInsets.symmetric(horizontal: AppSpace.lg),
+                  shape: const StadiumBorder(),
+                  textStyle: AppText.label.copyWith(fontWeight: FontWeight.w700),
+                ),
+                child: busy
+                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                    : Text(price),
+              ),
+            )
+          : const OutlinedButton(onPressed: null, child: Text('غير متاح')),
+    );
+  }
+
+  GroupedRow _paymentRow(PaymentRecord r) {
+    final (label, color) = paymentStatusLabel(r.status);
+    return GroupedRow(
+      title: r.description?.replaceFirst('[MOCK] ', '') ?? 'شراء رصيد',
+      tags: [if (r.status != 'COMPLETED') Pill(text: label, color: color)],
+      subtitle: r.createdAt == null
+          ? null
+          : Text(formatDate(r.createdAt!), style: AppText.caption.copyWith(color: AppColors.muted)),
+      trailing: Text(
+        '${formatAmount(r.amount)} ${currencyLabel(r.currency)}',
+        style: AppText.label.copyWith(color: AppColors.ink, fontWeight: FontWeight.w700),
       ),
     );
   }
@@ -413,73 +512,113 @@ class _CreditsScreenState extends ConsumerState<CreditsScreen> with WidgetsBindi
 /// Keeps a Latin amount like "4.23$" in its own order inside Arabic text.
 String ltrIsolate(String v) => '${String.fromCharCode(0x2066)}$v${String.fromCharCode(0x2069)}';
 
-class _PackageTile extends StatelessWidget {
-  const _PackageTile({required this.pkg, required this.enabled, required this.busy, required this.onBuy});
-  final CreditPackage pkg;
-  final bool enabled;
-  final bool busy;
-  final VoidCallback? onBuy;
+/// The package with the lowest price per credit («أقل سعر للرصيد»): a tie goes to a package that isn't the popular
+/// one, then to the larger. Null when there is nothing to compare (fewer than two packages, or one rate for all).
+String? lowestRatePackageId(List<CreditPackage> packages) {
+  final priced = packages.where((p) => p.credits > 0 && p.price > 0).toList();
+  if (priced.length < 2) return null;
+  double rate(CreditPackage p) => p.price / p.credits;
+  // Compared in thousandths, so 4/20 and 2/10 are one rate
+  int key(CreditPackage p) => (rate(p) * 1000).round();
+  final best = priced.map(key).reduce((a, b) => a < b ? a : b);
+  if (priced.every((p) => key(p) == best)) return null;
+  final tied = priced.where((p) => key(p) == best).toList()
+    ..sort((a, b) {
+      if (a.popular != b.popular) return a.popular ? 1 : -1;
+      return b.credits.compareTo(a.credits);
+    });
+  return tied.first.id;
+}
+
+/// The member's balance, large, with what one «مهتم» costs while that is the rule
+class _BalanceHero extends StatelessWidget {
+  const _BalanceHero({required this.credits, required this.interestCostsOne});
+  final int credits;
+  final bool interestCostsOne;
 
   @override
   Widget build(BuildContext context) {
-    final price = '${formatAmount(pkg.price)} ${pkg.currencySymbol}';
-    return Card(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(18),
-        side: BorderSide(color: pkg.popular ? AppColors.gold : AppColors.line, width: pkg.popular ? 1.6 : 1),
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppSpace.lg),
+      child: Column(
+        children: [
+          Text(
+            '$credits',
+            key: const Key('balance'),
+            style: AppText.display.copyWith(color: AppColors.navy, fontFeatures: AppText.tabular),
+          ),
+          Text(
+            interestCostsOne ? 'رصيد متاح · «مهتم» برصيد واحد' : 'رصيد متاح',
+            style: AppText.labelRegular.copyWith(color: AppColors.muted),
+          ),
+        ],
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
+    );
+  }
+}
+
+/// The sale offer (Admin → Settings → «Sale offer»): its title, the gift share and when it ends
+class _OfferBanner extends StatelessWidget {
+  const _OfferBanner({required this.offer});
+  final CreditOffer offer;
+
+  @override
+  Widget build(BuildContext context) {
+    final title = offer.title.trim().isEmpty ? 'عرض لفترة محدودة' : offer.title.trim();
+    return Container(
+      key: const Key('offer-banner'),
+      padding: const EdgeInsets.all(AppSpace.lg),
+      decoration: BoxDecoration(color: AppColors.goldSoft, borderRadius: BorderRadius.circular(AppRadius.md)),
+      child: Row(
+        children: [
+          const Icon(Icons.local_offer_outlined, color: AppColors.goldText),
+          const SizedBox(width: AppSpace.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: AppText.label.copyWith(color: AppColors.ink, fontWeight: FontWeight.w800)),
+                Text(
+                  '${offer.percent}% رصيد هدية مع كل باقة · حتى ${formatDate(offer.endsAt, withYear: false)}',
+                  style: AppText.caption.copyWith(color: AppColors.goldText),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A muted heading over a [GroupedSection], with an optional action at the end
+class _GroupHeader extends StatelessWidget {
+  const _GroupHeader(this.text);
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsetsDirectional.fromSTEB(AppSpace.lg, AppSpace.xl, AppSpace.xs, AppSpace.xs),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 44),
         child: Row(
           children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Flexible(child: Text(pkg.name, style: Theme.of(context).textTheme.titleMedium)),
-                      if (pkg.popular) ...[const SizedBox(width: 8), const Pill(text: 'الأكثر طلباً', color: AppColors.gold)],
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Wrap(
-                    spacing: 8,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      Text(price, style: AppText.body.copyWith(fontWeight: FontWeight.w800, color: AppColors.navy)),
-                      if (pkg.wasPrice != null && pkg.wasPrice! > pkg.price)
-                        Text(
-                          '${formatAmount(pkg.wasPrice!)} ${pkg.currencySymbol}',
-                          style: const TextStyle(color: AppColors.muted, decoration: TextDecoration.lineThrough),
-                        ),
-                    ],
-                  ),
-                  if (pkg.chargeLabel != null && !pkg.chargeLabel!.contains(pkg.currencySymbol))
-                    Text('يُحصَّل ${ltrIsolate(pkg.chargeLabel!)}', style: AppText.caption.copyWith(color: AppColors.muted)),
-                ],
-              ),
-            ),
-            const SizedBox(width: 10),
-            SizedBox(
-              width: 104,
-              child: enabled
-                  ? FilledButton(
-                      key: Key('buy-${pkg.id}'),
-                      onPressed: busy ? null : onBuy,
-                      child: busy
-                          ? const SizedBox(
-                              width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                          : const Text('شراء'),
-                    )
-                  : const OutlinedButton(onPressed: null, child: Text('غير متاح')),
-            ),
+            Expanded(child: Text(text, style: AppText.labelRegular.copyWith(color: AppColors.muted))),
           ],
         ),
       ),
     );
   }
 }
+
+/// A payment's state as «سجل المدفوعات» shows it
+(String, Color) paymentStatusLabel(String status) => switch (status) {
+      'COMPLETED' => ('مكتمل', AppColors.success),
+      'PENDING' => ('قيد الانتظار', AppColors.warning),
+      'REFUNDED' => ('مسترد', AppColors.navy),
+      _ => ('لم يكتمل', AppColors.danger),
+    };
 
 /// «إلغاء الدفع», shown once [offerCancel] is set (the member came back and the payment is still pending)
 class _CancelPaymentButton extends StatelessWidget {
@@ -690,12 +829,7 @@ class _PaymentHistoryScreenState extends ConsumerState<PaymentHistoryScreen> {
                               );
                       }
                       final p = items[i];
-                      final (label, color) = switch (p.status) {
-                        'COMPLETED' => ('مكتمل', AppColors.success),
-                        'PENDING' => ('قيد الانتظار', AppColors.warning),
-                        'REFUNDED' => ('مسترد', AppColors.navy),
-                        _ => ('لم يكتمل', AppColors.danger),
-                      };
+                      final (label, color) = paymentStatusLabel(p.status);
                       return ListTile(
                         minVerticalPadding: 12,
                         title: Text(p.description?.replaceFirst('[MOCK] ', '') ?? 'شراء رصيد'),

@@ -31,7 +31,9 @@ import { cn } from "@/lib/utils";
 import { useDashboardData } from "@/contexts/dashboard-context";
 import { PRO_PAGE_PATH } from "@/lib/pro/plans";
 import { matchesHref } from "@/lib/matches/links";
+import { accountSettingsHref } from "@/lib/account-settings-link";
 import { MemberAvatar } from "@/components/shared/member-avatar";
+import { SignOutDialog } from "@/components/shared/sign-out-dialog";
 import { navBadges, type BadgeTone } from "@/lib/nav-badges";
 
 /** Badge colours (design review P2-4 / DS-16): red only for "act now", navy for plain counts, gold for good news */
@@ -62,6 +64,8 @@ const mainLinks: NavLink[] = [
 /** Account pages: «حسابي» in the bottom bar is active on these */
 const ACCOUNT_PREFIXES = ["/dashboard/account", "/dashboard/profile", "/dashboard/photos", "/dashboard/personality-quiz", "/dashboard/payments", "/dashboard/pro", "/dashboard/blocks", "/dashboard/support", "/dashboard/referral", "/dashboard/install"];
 
+const ACCOUNT_SETTINGS_SECTION = accountSettingsHref(false);
+
 const accountLinks: NavLink[] = [
   { href: "/dashboard/profile", label: "الملف الشخصي", icon: User },
   { href: "/dashboard/photos", label: "صوري", icon: Camera },
@@ -72,8 +76,8 @@ const accountLinks: NavLink[] = [
   { href: "/dashboard/blocks", label: "المحظورون", icon: Ban },
   { href: "/dashboard/support", label: "الدعم والملاحظات", icon: LifeBuoy },
   { href: "/dashboard/referral", label: "ادعُ صديقاً", icon: Gift },
-  // Pause / delete live at the bottom of the profile page
-  { href: "/dashboard/profile#account-settings", label: "إعدادات الحساب", icon: Settings },
+  // Pause / delete live at the bottom of the profile page (their own page with the redesign on, below)
+  { href: ACCOUNT_SETTINGS_SECTION, label: "إعدادات الحساب", icon: Settings },
 ];
 
 function isActiveLink(href: string, pathname: string, matchesTab = false): boolean {
@@ -143,6 +147,7 @@ export function DashboardSidebar() {
   const pathname = usePathname();
   const matchesTab = useSearchParams()?.get("tab") === "matches";
   const [collapsed, setCollapsed] = useState(false);
+  const [signOutOpen, setSignOutOpen] = useState(false);
   const { profile, unreadCount, counts, loading } = useDashboardData();
 
   const userData = profile ? {
@@ -183,6 +188,8 @@ export function DashboardSidebar() {
       .map((link) => {
         if (link.href === "/dashboard/payments") return { ...link, label: creditsLabel };
         if (link.href === "/dashboard/referral" && userData?.gender === "FEMALE") return { ...link, label: "ادعي صديقة" };
+        // «إعدادات الحساب»: its own page with the redesign on
+        if (link.href === ACCOUNT_SETTINGS_SECTION) return { ...link, href: accountSettingsHref(counts.dashboardRedesign === true) };
         return link;
       })
   );
@@ -196,7 +203,12 @@ export function DashboardSidebar() {
   // A chat room is full screen on phones
   const hideBottomBar = /^\/dashboard\/chats\/[^/]+/.test(pathname);
 
+  const confirmSignOut = counts?.dashboardRedesign === true;
   const handleSignOut = () => {
+    if (confirmSignOut) {
+      setSignOutOpen(true);
+      return;
+    }
     void signOutAndUnlinkPush("/login");
   };
 
@@ -304,6 +316,7 @@ export function DashboardSidebar() {
           </div>
           {!collapsed && <span>تسجيل الخروج</span>}
         </button>
+        {confirmSignOut && <SignOutDialog open={signOutOpen} onOpenChange={setSignOutOpen} />}
       </div>
     </>
   );

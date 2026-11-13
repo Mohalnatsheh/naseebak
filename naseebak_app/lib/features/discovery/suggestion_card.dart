@@ -118,7 +118,7 @@ class SuggestionCard extends StatelessWidget {
                             Expanded(
                               child: Text('الملف كاملاً', style: AppText.label.copyWith(color: AppColors.navy)),
                             ),
-                            const Icon(Icons.chevron_left_rounded, color: AppColors.navy),
+                            const Icon(Icons.chevron_right_rounded, color: AppColors.navy),
                           ],
                         ),
                       ),

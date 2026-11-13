@@ -8,7 +8,8 @@ import 'package:naseebak_app/core/storage/token_store.dart';
 import 'package:naseebak_app/features/auth/paused_screen.dart';
 import 'package:naseebak_app/features/pro/pro_repository.dart';
 import 'package:naseebak_app/features/pro/pro_section.dart';
-import 'package:naseebak_app/features/settings/settings_screen.dart';
+import 'package:naseebak_app/features/settings/settings_list_screen.dart';
+import 'package:naseebak_app/features/settings/settings_screen.dart' show deleteProLine;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'helpers/fake_api.dart';
@@ -112,7 +113,7 @@ void main() {
     tester.view.physicalSize = const Size(420, 2400);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
-    await tester.pumpWidget(UncontrolledProviderScope(container: container, child: rtlApp(const AccountScreen())));
+    await tester.pumpWidget(UncontrolledProviderScope(container: container, child: rtlApp(const SettingsListScreen())));
     await tester.pump(const Duration(milliseconds: 200));
     final pause = find.text('إيقاف الحساب مؤقتاً');
     await tester.ensureVisible(pause);

@@ -50,15 +50,15 @@ void main() {
 
   testWidgets('payments shown: packages are offered', (tester) async {
     final adapter = await pumpCredits(tester, appPayments: true);
-    expect(find.text('الباقات'), findsOneWidget);
+    expect(find.text('شراء رصيد'), findsOneWidget);
     expect(find.text('السجل'), findsOneWidget);
     expect(adapter.to('GET', '/api/payments/plans'), isNotEmpty);
   });
 
   testWidgets('payments hidden (admin switch or a test account): balance only, no packages', (tester) async {
     final adapter = await pumpCredits(tester, appPayments: false);
-    expect(find.text('رصيدك الحالي'), findsOneWidget);
-    expect(find.text('الباقات'), findsNothing);
+    expect(find.byKey(const Key('balance')), findsOneWidget);
+    expect(find.text('شراء رصيد'), findsNothing);
     expect(find.text('السجل'), findsNothing);
     expect(adapter.to('GET', '/api/payments/plans'), isEmpty);
   });

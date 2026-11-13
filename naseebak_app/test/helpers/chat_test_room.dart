@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:naseebak_app/core/system/app_settings.dart';
 import 'package:naseebak_app/features/chat/chat_cache.dart';
 import 'package:naseebak_app/features/chat/chat_live.dart';
 import 'package:naseebak_app/features/chat/chat_media_picker.dart';
@@ -74,6 +75,12 @@ class ChatTestRoom {
   /// Camera picks (the paperclip's «الكاميرا»); [cameraFails] makes the camera throw
   int cameraPicks = 0;
   bool cameraFails = false;
+
+  /// What the camera throws instead of a photo (a refused camera's `PlatformException`)
+  Object? cameraError;
+
+  /// «الإعدادات» taps (the phone's settings opened)
+  int settingsOpened = 0;
 
   /// The member's Pro state (`/api/pro` and the counts); not Pro with [canBuy] = the greyed media buttons
   bool isPro = true;
@@ -200,11 +207,13 @@ class ChatTestRoom {
       }),
       chatCameraPickerProvider.overrideWithValue(() async {
         cameraPicks++;
+        if (cameraError != null) throw cameraError!;
         if (cameraFails) throw Exception('no camera');
         final f = picked = File('${dir.path}/camera-$cameraPicks.jpg')..writeAsBytesSync([0xFF, 0xD8, 0xFF]);
         return PickedPhoto(path: f.path, bytes: 3);
       }),
       if (live != null) chatLiveProvider.overrideWith((ref) => live!),
+      openAppSettingsProvider.overrideWithValue(() async => settingsOpened++),
     ]);
     if (withBack) {
       await tester.pump();

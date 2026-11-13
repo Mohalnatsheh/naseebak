@@ -114,8 +114,14 @@ const micBlockedText = 'الميكروفون غير مسموح لنصيبك. ي�
 /// Follows the viewer's gender, as on the website (never a masculine command for everyone)
 String micAllowedHint(bool female) => 'تم السماح بالميكروفون، ${forViewer(female, 'اضغط', 'اضغطي')} مطولاً للتسجيل';
 
-/// A camera that couldn't open (none, or refused)
+/// A camera that couldn't open (none, or an error)
 const cameraFailedText = 'تعذّر فتح الكاميرا';
+
+/// The camera refused to Naseebak (iOS `camera_access_denied`): the way to the phone's settings, as for the microphone
+const cameraBlockedText = 'الكاميرا غير مسموحة لنصيبك. يمكنك السماح بها من إعدادات الهاتف.';
+
+/// The picker's error code for a refused camera (image_picker on iOS)
+const cameraAccessDeniedCode = 'camera_access_denied';
 
 /// The emoji panel is never shorter than this (no keyboard seen yet)
 const emojiPanelMinHeight = 260.0;
@@ -1337,6 +1343,14 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     PickedPhoto? photo;
     try {
       photo = await ref.read(camera ? chatCameraPickerProvider : chatPhotoPickerProvider)();
+    } on PlatformException catch (e) {
+      if (mounted) {
+        if (camera && e.code == cameraAccessDeniedCode) {
+          _showWithSettings(cameraBlockedText);
+        } else {
+          showSnack(context, camera ? cameraFailedText : 'تعذّر اختيار الصورة');
+        }
+      }
     } catch (_) {
       if (mounted) showSnack(context, camera ? cameraFailedText : 'تعذّر اختيار الصورة');
     } finally {
@@ -1577,12 +1591,13 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     final prefs = ref.read(sharedPreferencesProvider);
     final before = prefs.getBool(micRefusedKey) ?? false;
     unawaited(prefs.setBool(micRefusedKey, true));
+    _showWithSettings(before ? micBlockedText : micRefusedText);
+  }
+
+  /// A refused permission (microphone, camera): the reason with «الإعدادات», which opens the phone's settings
+  void _showWithSettings(String text) {
     final open = ref.read(openAppSettingsProvider);
-    showSnack(
-      context,
-      before ? micBlockedText : micRefusedText,
-      action: SnackBarAction(label: 'الإعدادات', onPressed: () => open()),
-    );
+    showSnack(context, text, action: SnackBarAction(label: 'الإعدادات', onPressed: () => open()));
   }
 
   /// A recorder let go during an await (prompt, start, stop) or refused: cancel it (deleting its file) and dispose it.

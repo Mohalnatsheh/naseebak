@@ -3,9 +3,10 @@
 // the read-only bar of a closed chat.
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:naseebak_app/features/chat/emoji_data.dart';
-import 'package:naseebak_app/features/chat/chat_room_screen.dart' show emojiHandover, emojiPanelHeight;
+import 'package:naseebak_app/features/chat/chat_room_screen.dart' show cameraAccessDeniedCode, cameraBlockedText, cameraFailedText, emojiHandover, emojiPanelHeight;
 import 'package:naseebak_app/features/chat/emoji_panel.dart';
 
 import 'helpers/chat_test_room.dart';
@@ -302,6 +303,34 @@ void main() {
     expect(r.cameraPicks, 1);
     expect(find.text('تعذّر فتح الكاميرا'), findsOneWidget);
     expect(r.uploads, isEmpty);
+  });
+
+  testWidgets('a refused camera (iOS camera_access_denied) offers the phone\'s settings, like the microphone',
+      (tester) async {
+    final r = ChatTestRoom()..cameraError = PlatformException(code: cameraAccessDeniedCode);
+    await r.open(tester);
+    await tester.tap(_attach);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('attach-camera')));
+    await tester.pumpAndSettle();
+    expect(r.cameraPicks, 1);
+    expect(find.text(cameraBlockedText), findsOneWidget);
+    expect(find.text(cameraFailedText), findsNothing);
+    await tester.tap(find.text('الإعدادات'));
+    await tester.pumpAndSettle();
+    expect(r.settingsOpened, 1);
+    expect(r.uploads, isEmpty);
+  });
+
+  testWidgets('another camera error keeps «تعذّر فتح الكاميرا» with no settings action', (tester) async {
+    final r = ChatTestRoom()..cameraError = PlatformException(code: 'no_available_camera');
+    await r.open(tester);
+    await tester.tap(_attach);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('attach-camera')));
+    await tester.pumpAndSettle();
+    expect(find.text(cameraFailedText), findsOneWidget);
+    expect(find.text('الإعدادات'), findsNothing);
   });
 
   testWidgets('recording closes the emoji panel', (tester) async {

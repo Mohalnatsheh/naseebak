@@ -94,7 +94,7 @@ describe("G67: setup wizard when /api/profile fails", () => {
       if (url === "/api/profile") return fail ? json({ error: "x" }, false) : json({ user: { id: "u1", gender: "FEMALE", profile: null } });
       return json({});
     });
-    const { default: SetupPage } = await import("@/app/(ar)/dashboard/profile/setup/page");
+    const { default: SetupPage } = await import("@/app/(ar)/dashboard/profile/setup/legacy-setup-page");
     render(<SetupPage />);
     await waitFor(() => expect(screen.getByRole("alert").textContent).toContain("تعذّر تحميل ملفك"));
     expect(autoSave.enabled.every((e) => e === false)).toBe(true);

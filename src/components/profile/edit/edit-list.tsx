@@ -10,13 +10,14 @@ import { LoadError } from "@/components/shared/load-error";
 import { PageHeader } from "@/components/shared/page-header";
 import { PageLoading } from "@/components/shared/page-loading";
 import { useDashboardData } from "@/contexts/dashboard-context";
-import { EDIT_SECTIONS, editField, fieldForOldStep, rowKeyOf, type EditField, type EditShowCtx } from "@/lib/profile-edit-fields";
+import { EDIT_SECTIONS, GUARDIAN_ROW_KEY, editField, fieldForOldStep, rowKeyOf, type EditField, type EditShowCtx } from "@/lib/profile-edit-fields";
 import { rowState, type RowState } from "@/lib/profile-edit-state";
 import { isEmptyStored } from "@/lib/profile-edit-split";
 import { activeDealbreakers } from "@/lib/matching/dealbreaker-summary";
 import { dealbreakerPrefsFor } from "@/lib/profile-religion";
 import { veilChoice } from "@/lib/profile-veil";
 import { cn } from "@/lib/utils";
+import { GUARDIAN_RELATIONSHIPS, GuardianEditor } from "./guardian-editor";
 import { RowEditor, rowKeys } from "./row-editor";
 import { SaveBar } from "./save-bar";
 import { useEditSession } from "./use-edit-session";
@@ -68,13 +69,30 @@ function StateTag({ state }: { state: RowState }) {
 }
 
 /**
+ * The link a click would follow inside the app, or null: a plain left click on a same-origin `<a href>` that
+ * leaves this page (not a new tab, a download or a jump within the page).
+ */
+function inAppLink(e: MouseEvent): { anchor: HTMLAnchorElement; href: string } | null {
+  if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return null;
+  const anchor = (e.target as Element | null)?.closest?.("a[href]") as HTMLAnchorElement | null;
+  if (!anchor || anchor.hasAttribute("download")) return null;
+  if (anchor.target && anchor.target !== "_self") return null;
+  const url = new URL(anchor.href, window.location.href);
+  if (url.origin !== window.location.origin) return null;
+  if (url.pathname === window.location.pathname && url.search === window.location.search && url.hash) return null;
+  return { anchor, href: `${url.pathname}${url.search}${url.hash}` };
+}
+
+/**
  * The profile edit list (`/dashboard/profile/edit`, switch `auth_profile_redesign`): every field in grouped rows,
  * one editor per row, one «حفظ» for all. Empty fields save at once, changes to stored values go to review, partner
- * preferences (with their «شرط أساسي») save at once even while a review request is pending.
+ * preferences (with their «شرط أساسي») save at once even while a review request is pending. The guardian (website
+ * only, last section) saves on its own from its editor.
  */
 export function EditList() {
   const router = useRouter();
-  const { counts } = useDashboardData();
+  const { counts, profile: me } = useDashboardData();
+  const introMode = counts?.flags?.introRequests === true;
   const religionEnabled = counts?.religionEnabled === true;
   // «شرط أساسي» toggles only where the legacy edit page shows them (new suggestions flow)
   const showDealbreakers = counts?.flags?.mutualSuggestions === true;
@@ -82,7 +100,10 @@ export function EditList() {
   const { status, gender, country, stored, changes, shown, pendingKeys, pendingChanges, dirty, plan } = s;
   const [editing, setEditing] = useState<string | null>(null);
   const [leaveTo, setLeaveTo] = useState<string | null>(null);
+  const [guardianOpen, setGuardianOpen] = useState(false);
   const deepLinked = useRef(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const bannerRef = useRef<HTMLDivElement>(null);
 
   const ctx: EditShowCtx = useMemo(() => ({ gender, country, religionEnabled, profile: shown }), [gender, country, religionEnabled, shown]);
   const sections = useMemo(
@@ -122,6 +143,26 @@ export function EditList() {
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
   }, [dirty]);
 
+  // A link outside the page (sidebar, tab bar) with unsaved changes: ask first, as the page's own «ملفي» link does
+  useEffect(() => {
+    if (!dirty) return;
+    const onClick = (e: MouseEvent) => {
+      const link = inAppLink(e);
+      if (!link || rootRef.current?.contains(link.anchor)) return;
+      e.preventDefault();
+      setLeaveTo(link.href);
+    };
+    document.addEventListener("click", onClick, true);
+    return () => document.removeEventListener("click", onClick, true);
+  }, [dirty]);
+
+  // A save's banner sits at the top of the list: bring it into view
+  useEffect(() => {
+    if (!s.result) return;
+    bannerRef.current?.scrollIntoView?.({ behavior: "smooth", block: "center" });
+    bannerRef.current?.focus({ preventScroll: true });
+  }, [s.result]);
+
   // ?field=KEY (or the old ?step=N) opens that row's editor once the profile is loaded
   useEffect(() => {
     if (status !== "ready" || deepLinked.current) return;
@@ -129,10 +170,14 @@ export function EditList() {
     const params = new URLSearchParams(window.location.search);
     const step = Number(params.get("step"));
     const key = params.get("field") ?? (step ? fieldForOldStep(step) : null);
+    if (key === GUARDIAN_ROW_KEY) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- opens the linked editor once, after the load
+      setGuardianOpen(true);
+      return;
+    }
     const field = key ? editField(key) : undefined;
     if (!field || !visible.has(field.key)) return;
     const state = combinedState(field, stored, changes, pendingKeys);
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- opens the linked editor once, after the load
     if (state !== "pending" && state !== "locked") setEditing(field.key);
   }, [status, visible, stored, changes, pendingKeys]);
 
@@ -160,7 +205,7 @@ export function EditList() {
     .join("، ");
 
   return (
-    <div className="space-y-4 pb-8">
+    <div ref={rootRef} className="space-y-4 pb-8">
       <Link
         href={PROFILE_PATH}
         onClick={(e) => {
@@ -182,8 +227,11 @@ export function EditList() {
 
       {s.result && (
         <div
+          ref={bannerRef}
+          tabIndex={-1}
           role="status"
           className={cn(
+            "outline-none",
             "flex items-start gap-3 rounded-xl p-4 text-label font-normal leading-relaxed",
             s.result.partial ? "bg-amber-50 text-amber-800" : "bg-emerald-50 text-emerald-800",
           )}
@@ -263,6 +311,30 @@ export function EditList() {
         </section>
       ))}
 
+      {/* The guardian: never locked by a review request, saved from its own editor */}
+      <section aria-labelledby="edit-sec-guardian" className="space-y-1.5">
+        <h2 id="edit-sec-guardian" className="px-1 pt-3 text-label text-muted-ink">
+          وليّ الأمر
+        </h2>
+        <ul className="overflow-hidden rounded-card border border-border bg-card">
+          <li data-row={GUARDIAN_ROW_KEY} data-state="idle">
+            <button
+              type="button"
+              className="relative flex min-h-14 w-full items-center gap-3 px-4 py-3 text-start transition-colors hover:bg-muted/50"
+              onClick={() => setGuardianOpen(true)}
+            >
+              <span className="min-w-0 flex-1 text-body text-ink">بيانات وليّ الأمر</span>
+              <span className={cn("max-w-[45%] truncate text-label font-normal", s.guardian?.parentName ? "text-ink" : "font-semibold text-primary")}>
+                {s.guardian?.parentName
+                  ? [s.guardian.parentName, GUARDIAN_RELATIONSHIPS.find((r) => r.value === s.guardian?.relationship)?.label].filter(Boolean).join(" · ")
+                  : "إضافة"}
+              </span>
+              <ChevronLeft className="h-4 w-4 shrink-0 text-muted-ink" aria-hidden />
+            </button>
+          </li>
+        </ul>
+      </section>
+
       {dirty && <SaveBar fillCount={fillCount} reviewCount={reviewCount} saving={s.saving} onSave={(note) => void s.save(note)} onRevert={s.revert} />}
 
       {editingField && (
@@ -282,6 +354,17 @@ export function EditList() {
             }
             setEditing(null);
           }}
+        />
+      )}
+
+      {guardianOpen && (
+        <GuardianEditor
+          stored={s.guardian}
+          country={country}
+          introMode={introMode}
+          myPhone={me?.phone}
+          onSave={s.saveGuardian}
+          onClose={() => setGuardianOpen(false)}
         />
       )}
 

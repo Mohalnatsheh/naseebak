@@ -23,7 +23,6 @@ import { cn } from "@/lib/utils";
 
 type Values = Record<string, unknown>;
 
-const SINGLE = "أعزب/عزباء";
 const OTHER_JOB = "أخرى";
 const DESKTOP_QUERY = "(min-width: 768px)";
 
@@ -123,7 +122,6 @@ export interface RowEditorProps {
  * hands the row's values back to the list, which marks the row. Errors show under the control.
  */
 export function RowEditor({ field, ctx, stored, dealbreakers, showDealbreakers, onClose, onDone }: RowEditorProps) {
-  const desktop = useDesktop();
   const { gender, country } = ctx;
   const label = field.label(gender, country);
   const id = `edit-${field.key}`;
@@ -150,10 +148,7 @@ export function RowEditor({ field, ctx, stored, dealbreakers, showDealbreakers, 
       setError(issue);
       return;
     }
-    const patch = toPatch(field, draft);
-    // Single: no children (as the legacy edit page)
-    if (field.key === "maritalStatus" && patch.maritalStatus === SINGLE) patch.childrenCount = 0;
-    onDone(patch, dealbreakerKey ? ticked && !dealbreakerOff : undefined);
+    onDone(toPatch(field, draft), dealbreakerKey ? ticked && !dealbreakerOff : undefined);
   }
 
   const invalid = !!error;
@@ -332,6 +327,16 @@ export function RowEditor({ field, ctx, stored, dealbreakers, showDealbreakers, 
     </div>
   );
 
+  return (
+    <EditorShell title={label} onClose={onClose}>
+      {body}
+    </EditorShell>
+  );
+}
+
+/** The editor's frame: a dialog on `md:` and up, a bottom sheet on phones. Closing (✕, outside, Esc) calls `onClose` */
+export function EditorShell({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+  const desktop = useDesktop();
   const onOpenChange = (open: boolean) => {
     if (!open) onClose();
   };
@@ -339,8 +344,8 @@ export function RowEditor({ field, ctx, stored, dealbreakers, showDealbreakers, 
     return (
       <Dialog open onOpenChange={onOpenChange}>
         <DialogContent aria-describedby={undefined} className="max-h-[85dvh] overflow-y-auto rounded-card sm:max-w-lg">
-          <DialogTitle className="text-headline font-bold text-ink">{label}</DialogTitle>
-          {body}
+          <DialogTitle className="text-headline font-bold text-ink">{title}</DialogTitle>
+          {children}
         </DialogContent>
       </Dialog>
     );
@@ -348,8 +353,8 @@ export function RowEditor({ field, ctx, stored, dealbreakers, showDealbreakers, 
   return (
     <Sheet open onOpenChange={onOpenChange}>
       <SheetContent side="bottom" aria-describedby={undefined} className="max-h-[90dvh] overflow-y-auto rounded-t-sheet px-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))] pt-4">
-        <SheetTitle className="text-headline font-bold text-ink">{label}</SheetTitle>
-        {body}
+        <SheetTitle className="text-headline font-bold text-ink">{title}</SheetTitle>
+        {children}
       </SheetContent>
     </Sheet>
   );

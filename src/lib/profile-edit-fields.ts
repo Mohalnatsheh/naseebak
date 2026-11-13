@@ -339,15 +339,21 @@ export function editField(key: string): EditField | undefined {
 }
 
 /**
- * First field of each step of the old five-step edit wizard, for `?step=N` deep links.
- * Step 5 (the guardian) is not in the list.
+ * The guardian row of the website list (its own section «وليّ الأمر», saved on its own by `/api/profile/parent-info`,
+ * never through the save bar). Not an `EditField`: the guardian is not a profile column.
+ */
+export const GUARDIAN_ROW_KEY = "parentName";
+
+/**
+ * Where each step of the old five-step edit wizard opens, for `?step=N` deep links. Step 3 held the partner
+ * preferences (every `?step=3` link means them), step 5 the guardian.
  */
 const OLD_STEP_FIRST_FIELD: Record<number, string | null> = {
   1: "dateOfBirth",
   2: "maritalStatus",
-  3: "aboutMe",
+  3: "prefAgeMin",
   4: "tribe",
-  5: null,
+  5: GUARDIAN_ROW_KEY,
 };
 
 export function fieldForOldStep(step: number): string | null {

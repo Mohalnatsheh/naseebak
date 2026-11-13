@@ -168,9 +168,11 @@ describe("fieldForOldStep", () => {
   it("maps ?step=N to the first field of that old wizard step", () => {
     expect(fieldForOldStep(1)).toBe("dateOfBirth");
     expect(fieldForOldStep(2)).toBe("maritalStatus");
-    expect(fieldForOldStep(3)).toBe("aboutMe");
+    // Step 3 was the partner preferences: every ?step=3 link means them
+    expect(fieldForOldStep(3)).toBe("prefAgeMin");
     expect(fieldForOldStep(4)).toBe("tribe");
-    expect(fieldForOldStep(5)).toBeNull();
+    // Step 5: the guardian row
+    expect(fieldForOldStep(5)).toBe("parentName");
     expect(fieldForOldStep(9)).toBeNull();
     expect(fieldForOldStep(0)).toBeNull();
     expect(fieldForOldStep(Number.NaN)).toBeNull();

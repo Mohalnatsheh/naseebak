@@ -1,10 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useEffectEvent, useMemo, useState } from "react";
+import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useDashboardData } from "@/contexts/dashboard-context";
 import { toCountry, type CountryCode } from "@/lib/countries";
-import { editField, rowKeyOf } from "@/lib/profile-edit-fields";
+import { editField } from "@/lib/profile-edit-fields";
 import {
   DEALBREAKERS_KEY,
   dealbreakerKeysToSave,
@@ -39,6 +39,21 @@ const SAVE_API: SaveApi = {
     fetch("/api/profile/update-request", { method: "POST", ...json(message ? { changes, message } : { changes }) }),
 };
 
+/** The guardian as stored (`GET /api/profile/parent-info`); null = none yet */
+export interface StoredGuardian {
+  parentName: string;
+  parentPhone: string;
+  relationship: string;
+  address: string;
+  shareConsent: boolean;
+}
+
+/** `PUT /api/profile/parent-info` body, as the legacy edit page sends it */
+export type GuardianBody = Omit<StoredGuardian, "shareConsent"> & { shareConsent: boolean };
+
+const SINGLE = "أعزب/عزباء";
+const GUARDIAN_SAVED = "حُفظت بيانات وليّ الأمر.";
+
 const listOf = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []);
 
 /**
@@ -47,7 +62,11 @@ const listOf = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is 
  *
  * - A failed load sets `status: "failed"`: nothing is editable and nothing can be saved.
  * - `changes` may hold a value equal to the stored one (a row set back): `planSave` and `rowState` ignore it.
- * - After a save the rows that failed keep their changes; the rest reload from the server.
+ * - After a save, every change the save didn't take (failed, or made while it ran) stays; the rest reload.
+ * - Marital status «أعزب/عزباء» sets the children to 0 (as the legacy edit page); choosing another status again
+ *   puts back what the member had set for the children, or nothing.
+ * - The guardian loads with the profile (a failed load blocks the page, QA WA-05) and saves on its own
+ *   (`saveGuardian`), never through the save bar, also while a review request is pending.
  * - `showDealbreakers`: the «شرط أساسي» toggles are shown (new suggestions flow), so their changes are saved.
  */
 export function useEditSession({ religionEnabled, showDealbreakers }: { religionEnabled: boolean; showDealbreakers: boolean }) {
@@ -66,18 +85,33 @@ export function useEditSession({ religionEnabled, showDealbreakers }: { religion
   const [result, setResult] = useState<EditSaveOutcome | null>(null);
   const [withdrawing, setWithdrawing] = useState(false);
   const [withdrawError, setWithdrawError] = useState("");
+  const [guardian, setGuardian] = useState<StoredGuardian | null>(null);
+  // The children count «أعزب/عزباء» replaced: whether the member had changed it, and to what
+  const autoChildren = useRef<{ had: boolean; value: unknown } | null>(null);
+  // The ticks right now, for a save that ends after they changed
+  const ticksRef = useRef<string[]>([]);
+  useEffect(() => {
+    ticksRef.current = dealbreakers;
+  }, [dealbreakers]);
 
   const toSetup = useEffectEvent(() => router.replace("/dashboard/profile/setup"));
 
   /** Reads the stored profile and the pending request. `keep`: the dealbreaker ticks survive (their save failed) */
   const load = useCallback(async (keep?: { dealbreakers: boolean }): Promise<"setup" | void> => {
     try {
-      const [profileRes, requestsRes] = await Promise.all([sharedGet("/api/profile"), fetch("/api/profile/update-request")]);
-      // A missed pending request would let a second one through (the server answers 409): both must load
+      const [profileRes, requestsRes, parentRes] = await Promise.all([
+        sharedGet("/api/profile"),
+        fetch("/api/profile/update-request"),
+        fetch("/api/profile/parent-info"),
+      ]);
+      // A missed pending request would let a second one through (the server answers 409), and a missed guardian
+      // would show «إضافة» over a stored one: all three must load
       if (!profileRes.ok) throw new Error(`profile ${profileRes.status}`);
       if (!requestsRes.ok) throw new Error(`update requests ${requestsRes.status}`);
+      if (!parentRes.ok) throw new Error(`parent info ${parentRes.status}`);
       const profileData = await profileRes.json();
       const requestsData = await requestsRes.json();
+      const parentData = await parentRes.json();
       const user = profileData.user;
       // Setup not finished: the setup saves each answer directly (as the legacy edit page)
       if (!user?.profile?.isComplete) return "setup";
@@ -87,6 +121,18 @@ export function useEditSession({ religionEnabled, showDealbreakers }: { religion
       setCountry(toCountry(user.country));
       setStored(p);
       setPendingChanges(pending ? (pending.changes ?? {}) : null);
+      const pi = parentData?.parentInfo;
+      setGuardian(
+        pi
+          ? {
+              parentName: pi.parentName || "",
+              parentPhone: pi.parentPhone || "",
+              relationship: pi.relationship || "",
+              address: pi.address || "",
+              shareConsent: !!pi.shareConsentAt,
+            }
+          : null,
+      );
       const db = listOf(p.dealbreakers);
       setStoredDealbreakers(db);
       if (!keep?.dealbreakers) setDealbreakers(db);
@@ -108,13 +154,29 @@ export function useEditSession({ religionEnabled, showDealbreakers }: { religion
     setReloadKey((k) => k + 1);
   }, []);
 
-  const setChanges = useCallback((patch: Values) => {
-    setResult(null);
-    setChangesState((prev) => ({ ...prev, ...patch }));
-  }, []);
+  const setChanges = useCallback(
+    (patch: Values) => {
+      setResult(null);
+      const next = { ...changes, ...patch };
+      if ("maritalStatus" in patch) {
+        if (patch.maritalStatus === SINGLE) {
+          autoChildren.current ??= { had: "childrenCount" in changes, value: changes.childrenCount };
+          next.childrenCount = 0;
+        } else if (autoChildren.current) {
+          const { had, value } = autoChildren.current;
+          if (had) next.childrenCount = value;
+          else delete next.childrenCount;
+          autoChildren.current = null;
+        }
+      }
+      setChangesState(next);
+    },
+    [changes],
+  );
   const setChange = useCallback((key: string, value: unknown) => setChanges({ [key]: value }), [setChanges]);
 
   const revert = useCallback(() => {
+    autoChildren.current = null;
     setChangesState({});
     setDealbreakers(storedDealbreakers);
   }, [storedDealbreakers]);
@@ -141,20 +203,23 @@ export function useEditSession({ religionEnabled, showDealbreakers }: { religion
     async (note?: string) => {
       if (status !== "ready" || saving || !dirty) return;
       setSaving(true);
+      const sentChanges = changes;
+      const sentTicks = dealbreakers;
       try {
         const r = await runSave(plan, SAVE_API, note?.trim() || undefined);
         const labelOf = (key: string) => editField(key)?.label(gender, country) ?? key;
         setResult({ summary: saveSummary(r, labelOf), partial: r.failed.length > 0 || !!r.error });
-        // The failed rows stay marked; everything else now reads from the server
-        const failedRows = new Set(r.failed.map(rowKeyOf));
-        setChangesState((prev) => Object.fromEntries(Object.entries(prev).filter(([k]) => failedRows.has(rowKeyOf(k)))));
-        await load({ dealbreakers: r.failed.includes(DEALBREAKERS_KEY) });
+        // Only what the server took leaves `changes`: a failed change, or one made while the save ran, stays
+        const taken = new Set([...r.saved, ...r.sentForReview]);
+        setChangesState((prev) => Object.fromEntries(Object.entries(prev).filter(([k, v]) => !taken.has(k) || v !== sentChanges[k])));
+        if (taken.has("maritalStatus")) autoChildren.current = null;
+        await load({ dealbreakers: r.failed.includes(DEALBREAKERS_KEY) || ticksRef.current !== sentTicks });
         void refreshProfile();
       } finally {
         setSaving(false);
       }
     },
-    [status, saving, dirty, plan, gender, country, load, refreshProfile],
+    [status, saving, dirty, plan, changes, dealbreakers, gender, country, load, refreshProfile],
   );
 
   const withdraw = useCallback(async () => {
@@ -176,8 +241,27 @@ export function useEditSession({ religionEnabled, showDealbreakers }: { religion
     }
   }, []);
 
+  /** Saves the guardian at once (as the legacy edit page's step 5). Returns the server's refusal, or null */
+  const saveGuardian = useCallback(async (body: GuardianBody): Promise<string | null> => {
+    try {
+      const res = await fetch("/api/profile/parent-info", { method: "PUT", ...json(body) });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        return typeof data.error === "string" && data.error ? data.error : "تعذّر حفظ بيانات وليّ الأمر. يمكنك المحاولة مرة أخرى.";
+      }
+      setGuardian({ ...body });
+      setResult({ summary: GUARDIAN_SAVED, partial: false });
+      void refreshProfile();
+      return null;
+    } catch {
+      return "حدث خطأ في الاتصال. يمكنك المحاولة مرة أخرى.";
+    }
+  }, [refreshProfile]);
+
   return {
     status,
+    guardian,
+    saveGuardian,
     reload,
     gender,
     country,

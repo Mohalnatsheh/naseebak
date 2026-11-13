@@ -316,45 +316,51 @@ export function RowEditor({ field, ctx, stored, dealbreakers, showDealbreakers, 
           <span className="text-caption text-muted-ink">{forViewer(gender, "لن نقترح عليك من لا يحققه.", "لن نقترح عليكِ من لا يحققه.")}</span>
         </div>
       )}
-      <div className="flex gap-3 pt-2">
-        <Button type="button" className="h-12 flex-1 rounded-xl font-semibold" onClick={done}>
-          تم
-        </Button>
-        <Button type="button" variant="outline" className="h-12 w-28 rounded-xl" onClick={onClose}>
-          إلغاء
-        </Button>
-      </div>
     </div>
+  );
+  const actions = (
+    <>
+      <Button type="button" className="h-12 flex-1 rounded-xl font-semibold" onClick={done}>
+        تم
+      </Button>
+      <Button type="button" variant="outline" className="h-12 w-28 rounded-xl" onClick={onClose}>
+        إلغاء
+      </Button>
+    </>
   );
 
   return (
-    <EditorShell title={label} onClose={onClose}>
+    <EditorShell title={label} onClose={onClose} actions={actions}>
       {body}
     </EditorShell>
   );
 }
 
 /** The editor's frame: a dialog on `md:` and up, a bottom sheet on phones. Closing (✕, outside, Esc) calls `onClose` */
-export function EditorShell({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+export function EditorShell({ title, onClose, actions, children }: { title: string; onClose: () => void; actions: ReactNode; children: ReactNode }) {
   const desktop = useDesktop();
   const onOpenChange = (open: boolean) => {
     if (!open) onClose();
   };
+  // The body scrolls; the title and the actions row stay in view however tall the editor is (the guardian's is)
+  const actionsRow = <div className="flex shrink-0 gap-3 border-t border-border pt-3">{actions}</div>;
   if (desktop) {
     return (
       <Dialog open onOpenChange={onOpenChange}>
-        <DialogContent aria-describedby={undefined} className="max-h-[85dvh] overflow-y-auto rounded-card sm:max-w-lg">
-          <DialogTitle className="text-headline font-bold text-ink">{title}</DialogTitle>
-          {children}
+        <DialogContent aria-describedby={undefined} className="flex max-h-[85dvh] flex-col overflow-hidden rounded-card sm:max-w-lg">
+          <DialogTitle className="shrink-0 text-headline font-bold text-ink">{title}</DialogTitle>
+          <div className="-mx-6 min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-1">{children}</div>
+          {actionsRow}
         </DialogContent>
       </Dialog>
     );
   }
   return (
     <Sheet open onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" aria-describedby={undefined} className="max-h-[90dvh] overflow-y-auto rounded-t-sheet px-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))] pt-4">
-        <SheetTitle className="text-headline font-bold text-ink">{title}</SheetTitle>
-        {children}
+      <SheetContent side="bottom" aria-describedby={undefined} className="max-h-[90dvh] overflow-hidden rounded-t-sheet px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-4">
+        <SheetTitle className="shrink-0 text-headline font-bold text-ink">{title}</SheetTitle>
+        <div className="-mx-4 min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-1">{children}</div>
+        {actionsRow}
       </SheetContent>
     </Sheet>
   );

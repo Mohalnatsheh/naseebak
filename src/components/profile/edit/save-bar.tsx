@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { arabicCount } from "@/lib/utils";
+import { FixedBottomBar } from "@/components/profile/fixed-bottom-bar";
 
 const NOTE_MAX = 1000;
 
@@ -11,7 +12,7 @@ const NOTE_MAX = 1000;
 export const editsCount = (n: number) => arabicCount(n, { one: "تعديل واحد", two: "تعديلان", few: "تعديلات", many: "تعديلاً" });
 
 /**
- * The sticky save bar of the edit list, shown once something changed: «{n} تعديلات» with what saves at once and what
+ * The save bar of the edit list (fixed at the bottom, above the tab bar on phones: `FixedBottomBar`), shown once something changed: «{n} تعديلات» with what saves at once and what
  * goes to review, «حفظ», and «تراجع» from `md:` up. With review rows, an optional note to the review team opens
  * behind a link.
  */
@@ -33,10 +34,11 @@ export function SaveBar({
   const split = [fillCount > 0 && `${fillCount} فوراً`, reviewCount > 0 && `${reviewCount} للمراجعة`].filter(Boolean).join(" · ");
 
   return (
-    <div
+    <FixedBottomBar
       role="region"
       aria-label="شريط الحفظ"
-      className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-30 mt-6 space-y-3 border-t border-border bg-background/95 py-3 backdrop-blur md:bottom-0"
+      spacerClassName="mt-6"
+      className="space-y-3 border-t border-border bg-background/95 py-3 backdrop-blur"
     >
       {reviewCount > 0 && (
         <div>
@@ -73,6 +75,6 @@ export function SaveBar({
           {saving ? <Loader2 className="h-4 w-4 animate-spin" aria-label="جارٍ الحفظ" /> : "حفظ"}
         </Button>
       </div>
-    </div>
+    </FixedBottomBar>
   );
 }

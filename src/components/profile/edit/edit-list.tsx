@@ -16,6 +16,7 @@ import { isEmptyStored } from "@/lib/profile-edit-split";
 import { activeDealbreakers } from "@/lib/matching/dealbreaker-summary";
 import { dealbreakerPrefsFor } from "@/lib/profile-religion";
 import { veilChoice } from "@/lib/profile-veil";
+import { forViewer } from "@/lib/gendered-copy";
 import { cn } from "@/lib/utils";
 import { GUARDIAN_RELATIONSHIPS, GuardianEditor } from "./guardian-editor";
 import { RowEditor, rowKeys } from "./row-editor";
@@ -129,6 +130,10 @@ export function EditList() {
         ? linkedField.key
         : null;
   const editing = opened === undefined ? linkedOpen : opened;
+  // Once the deep link has been read, drop it from the address so a reload doesn't open the editor again
+  useEffect(() => {
+    if (linkedKey) router.replace(window.location.pathname, { scroll: false });
+  }, [linkedKey, router]);
   const setEditing = setOpened;
   const activeShown = activeDealbreakers(s.dealbreakers, dealbreakerPrefsFor(shown.religion as string | null | undefined, shown), gender);
 
@@ -372,7 +377,9 @@ export function EditList() {
       <Dialog open={leaveTo !== null} onOpenChange={(open) => !open && setLeaveTo(null)}>
         <DialogContent className="rounded-card sm:max-w-md">
           <DialogTitle className="text-headline font-bold text-ink">تجاهل التعديلات؟</DialogTitle>
-          <DialogDescription className="text-body text-muted-ink">لم تُحفظ تعديلاتك بعد. إذا خرجت الآن فلن تُحفظ.</DialogDescription>
+          <DialogDescription className="text-body text-muted-ink">
+            {forViewer(gender, "لم تُحفظ تعديلاتك بعد. إذا خرجت الآن فلن تُحفظ.", "لم تُحفظ تعديلاتكِ بعد. إذا خرجتِ الآن فلن تُحفظ.")}
+          </DialogDescription>
           <div className="flex gap-3 pt-2">
             <Button
               type="button"

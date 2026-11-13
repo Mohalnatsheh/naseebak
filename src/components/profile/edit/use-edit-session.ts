@@ -54,6 +54,7 @@ export type GuardianBody = Omit<StoredGuardian, "shareConsent"> & { shareConsent
 
 const SINGLE = "أعزب/عزباء";
 const GUARDIAN_SAVED = "حُفظت بيانات وليّ الأمر.";
+const WITHDRAWN = "سُحب طلب التعديل.";
 
 const listOf = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []);
 
@@ -233,11 +234,14 @@ export function useEditSession({ religionEnabled, showDealbreakers }: { religion
   const withdraw = useCallback(async () => {
     setWithdrawing(true);
     setWithdrawError("");
+    // The last save's banner no longer describes the page
+    setResult(null);
     try {
       const res = await fetch("/api/profile/update-request/withdraw", { method: "POST" });
       // 404: already reviewed or withdrawn; either way nothing is pending any more
       if (res.ok || res.status === 404) {
         setPendingChanges(null);
+        setResult({ summary: WITHDRAWN, partial: false });
       } else {
         const data = await res.json().catch(() => ({}));
         setWithdrawError(typeof data.error === "string" && data.error ? data.error : "تعذّر سحب الطلب. يمكنك المحاولة مرة أخرى.");

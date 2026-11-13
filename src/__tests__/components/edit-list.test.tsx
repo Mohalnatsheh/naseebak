@@ -223,6 +223,21 @@ describe("EditList (auth_profile_redesign)", () => {
     await waitFor(() => expect(screen.queryByText(/طلبك قيد المراجعة/)).toBeNull());
     expect(calls()).toEqual(["POST /api/profile/update-request/withdraw"]);
     expect(row("religiosity").dataset.state).toBe("idle");
+    expect(screen.getByRole("status").textContent).toBe("سُحب طلب التعديل.");
+  });
+
+  it("«سحب الطلب» replaces the last save's banner with its own confirmation", async () => {
+    mockApi({ pending: { city: "إربد" } });
+    render(<EditList />);
+    await ready();
+    openRow("prefAgeMin");
+    fireEvent.change(screen.getByLabelText("من"), { target: { value: "27" } });
+    done();
+    save();
+    await waitFor(() => expect(screen.getByRole("status").textContent).toContain("حُفظ العمر المفضل."));
+    fireEvent.click(screen.getByRole("button", { name: "سحب الطلب" }));
+    await waitFor(() => expect(screen.getByRole("status").textContent).toBe("سُحب طلب التعديل."));
+    expect(screen.queryByText(/حُفظ العمر المفضل/)).toBeNull();
   });
 
   it("a preference change saves while a request is pending", async () => {
@@ -267,6 +282,8 @@ describe("EditList (auth_profile_redesign)", () => {
     // The editor is modal: the page behind it is hidden from the accessibility tree
     const { unmount } = render(<EditList />);
     await waitFor(() => expect(within(screen.getByRole("dialog")).getByRole("heading", { name: "المدينة" })).toBeTruthy());
+    // Read once: the query leaves the address so a reload doesn't reopen the editor
+    expect(router.replace).toHaveBeenCalledWith("/dashboard/profile/edit", { scroll: false });
     unmount();
     window.history.replaceState(null, "", "/dashboard/profile/edit?step=3");
     render(<EditList />);
@@ -289,8 +306,28 @@ describe("EditList (auth_profile_redesign)", () => {
     expect(fireEvent.click(screen.getByRole("link", { name: "ملفي" }))).toBe(false);
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByText("تجاهل التعديلات؟")).toBeTruthy();
+    expect(within(dialog).getByText("لم تُحفظ تعديلاتك بعد. إذا خرجت الآن فلن تُحفظ.")).toBeTruthy();
     fireEvent.click(within(dialog).getByRole("button", { name: "تجاهل" }));
     expect(router.push).toHaveBeenCalledWith("/dashboard/profile");
+  });
+
+  it("«تجاهل التعديلات؟» speaks to a woman in the feminine", async () => {
+    mockApi({ gender: "FEMALE" });
+    render(<EditList />);
+    await ready();
+    openRow("fieldOfStudy");
+    fireEvent.change(within(screen.getByRole("dialog")).getByRole("textbox"), { target: { value: "طب" } });
+    done();
+    fireEvent.click(screen.getByRole("link", { name: "ملفي" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText("لم تُحفظ تعديلاتكِ بعد. إذا خرجتِ الآن فلن تُحفظ.")).toBeTruthy();
+  });
+
+  it("without a deep link the address is left alone", async () => {
+    mockApi();
+    render(<EditList />);
+    await ready();
+    expect(router.replace).not.toHaveBeenCalled();
   });
 
   it("load failure shows LoadError and no save bar", async () => {

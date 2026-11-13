@@ -120,7 +120,13 @@ export function RegisterCard({
       <p className="mt-1 mb-5 text-body text-muted-ink">خطوة أخيرة لإنشاء حسابك. يظهر اسمك الأول فقط للطرف الآخر.</p>
 
       <p className="mb-1.5 px-1 text-label font-normal text-muted-ink">الاسم بالعربية</p>
-      <div className="overflow-hidden rounded-xl bg-card focus-within:ring-2 focus-within:ring-primary/30">
+      {/* One card for both names: either name's error marks the card, as the other fields mark theirs */}
+      <div
+        className={cn(
+          "overflow-hidden rounded-xl border bg-card focus-within:ring-2 focus-within:ring-primary/30",
+          errors.firstName || errors.lastName ? "border-destructive" : "border-transparent",
+        )}
+      >
         <div className={cn(rowClass, "border-b border-border")}>
           <label htmlFor="register-firstName" className="shrink-0 text-body text-ink">
             الاسم الأول

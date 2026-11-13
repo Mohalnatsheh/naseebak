@@ -31,6 +31,7 @@ vi.mock("@/lib/settings", () => ({
 vi.mock("@/app/(ar)/dashboard/profile/setup/legacy-setup-page", () => ({ default: () => <div data-testid="legacy-setup" /> }));
 
 import { ShortSetup } from "@/components/profile/setup/short-setup";
+import { SetupDone } from "@/components/profile/setup/setup-done";
 import { editField } from "@/lib/profile-edit-fields";
 
 type Profile = Record<string, unknown>;
@@ -312,5 +313,11 @@ describe("/dashboard/profile/setup follows auth_profile_redesign", () => {
     render(await SetupPage());
     expect(screen.queryByTestId("legacy-setup")).toBeNull();
     await waitFor(() => expect(screen.getByText("1. عنك")).toBeTruthy());
+  });
+
+  it("«ملفك جاهز» speaks to a woman in the feminine", () => {
+    render(<SetupDone gender="FEMALE" />);
+    expect(screen.getByText("أكملي ملفكِ متى شئتِ · يزيد فرصكِ")).toBeTruthy();
+    expect(screen.queryByText("أكمل ملفك متى شئت · يزيد فرصك")).toBeNull();
   });
 });

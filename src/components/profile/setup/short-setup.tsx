@@ -20,6 +20,7 @@ import { missingSetupSteps } from "@/lib/profile-completeness";
 import { PREF_RELIGION_SAME, sectAsked } from "@/lib/profile-religion";
 import { activeDealbreakers, type DealbreakerPrefs } from "@/lib/matching/dealbreaker-summary";
 import { forViewer } from "@/lib/gendered-copy";
+import { FixedBottomBar } from "@/components/profile/fixed-bottom-bar";
 import { dateOfBirthError, parentInfoSchemaFor, PREF_AGE_MAX } from "@/lib/validations/profile";
 import { normalizePhone } from "@/lib/phone";
 import { toLatinDigits } from "@/lib/digits";
@@ -665,8 +666,12 @@ export function ShortSetup({ guardianStep }: { guardianStep: boolean }) {
         </div>
       )}
 
-      {/* Sticky above the tab bar on phones, so «التالي» never scrolls away */}
-      <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-30 mt-8 flex items-center gap-3 border-t border-border bg-background/95 py-3 backdrop-blur md:static md:border-0 md:bg-transparent md:backdrop-blur-none">
+      {/* Fixed above the tab bar on phones, so «التالي» never scrolls away; in the page's flow from md (no tab bar) */}
+      <FixedBottomBar
+        staticFromMd
+        spacerClassName="mt-8"
+        className="flex items-center gap-3 border-t border-border bg-background/95 py-3 backdrop-blur md:mt-8 md:border-0 md:bg-transparent md:backdrop-blur-none"
+      >
         {step > 1 && (
           <Button
             type="button"
@@ -699,7 +704,7 @@ export function ShortSetup({ guardianStep }: { guardianStep: boolean }) {
             التالي
           </Button>
         )}
-      </div>
+      </FixedBottomBar>
     </div>
   );
 }

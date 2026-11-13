@@ -90,7 +90,20 @@ export function GuardianEditor({
   }
 
   return (
-    <EditorShell title="وليّ الأمر" onClose={onClose}>
+    <EditorShell
+      title="وليّ الأمر"
+      onClose={onClose}
+      actions={
+        <>
+          <Button type="button" className="h-12 flex-1 rounded-xl font-semibold" onClick={() => void save()} disabled={saving}>
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" aria-label="جارٍ الحفظ" /> : "حفظ"}
+          </Button>
+          <Button type="button" variant="outline" className="h-12 w-28 rounded-xl" onClick={onClose} disabled={saving}>
+            إلغاء
+          </Button>
+        </>
+      }
+    >
       <div className="space-y-4">
         <p className="flex items-start gap-2 rounded-xl bg-primary/5 px-3 py-2.5 text-label font-normal leading-relaxed text-primary">
           <Shield className="mt-1 h-4 w-4 shrink-0" aria-hidden />
@@ -166,14 +179,6 @@ export function GuardianEditor({
             {serverError}
           </p>
         )}
-        <div className="flex gap-3 pt-2">
-          <Button type="button" className="h-12 flex-1 rounded-xl font-semibold" onClick={() => void save()} disabled={saving}>
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" aria-label="جارٍ الحفظ" /> : "حفظ"}
-          </Button>
-          <Button type="button" variant="outline" className="h-12 w-28 rounded-xl" onClick={onClose} disabled={saving}>
-            إلغاء
-          </Button>
-        </div>
       </div>
     </EditorShell>
   );

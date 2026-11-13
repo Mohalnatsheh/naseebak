@@ -271,7 +271,12 @@ describe("AuthFlow register card", () => {
     expect(last.getAttribute("aria-invalid")).toBe("true");
     expect(document.getElementById(last.getAttribute("aria-describedby") ?? "")?.textContent).toBe("اسم العائلة مطلوب");
     expect(screen.getByLabelText("الاسم الأول").getAttribute("aria-invalid")).toBeNull();
+    // The grouped name card is marked as the other fields are
+    const card = last.parentElement?.parentElement as HTMLElement;
+    expect(card.className).toContain("border-destructive");
     expect(f.bodiesFor("/api/auth/register")).toEqual([]);
+    fireEvent.change(last, { target: { value: "خالد" } });
+    expect(card.className).not.toContain("border-destructive");
   });
 
   it("a number that turns out registered signs in and says so", async () => {

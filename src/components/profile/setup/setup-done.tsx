@@ -29,7 +29,9 @@ export function SetupDone({ gender }: { gender: string }) {
         <Link href="/dashboard/suggestions">عرض الاقتراحات</Link>
       </Button>
 
-      <h2 className="mt-8 mb-1.5 px-1 text-label font-normal text-muted-ink">أكمل ملفك متى شئت · يزيد فرصك</h2>
+      <h2 className="mt-8 mb-1.5 px-1 text-label font-normal text-muted-ink">
+        {forViewer(gender, "أكمل ملفك متى شئت · يزيد فرصك", "أكملي ملفكِ متى شئتِ · يزيد فرصكِ")}
+      </h2>
       <ul className="overflow-hidden rounded-xl bg-card">
         {LATER.map((row, i) => (
           <li key={row.href} className={i > 0 ? "border-t border-border" : undefined}>

@@ -13,8 +13,11 @@ vi.mock("@/lib/auth", () => ({
 }));
 vi.mock("@/lib/suggestions/refresh", () => ({ refreshOpenSuggestionsInBackground: vi.fn() }));
 vi.mock("@/lib/referral", () => ({ maybeAwardReferral: vi.fn(async () => undefined) }));
-const flags = vi.hoisted(() => ({ introRequests: false }));
-vi.mock("@/lib/settings", () => ({ getCycleFlags: vi.fn(async () => flags) }));
+const flags = vi.hoisted(() => ({ introRequests: false, religion: false }));
+vi.mock("@/lib/settings", () => ({
+  getCycleFlags: vi.fn(async () => flags),
+  getReligionEnabled: vi.fn(async () => flags.religion),
+}));
 
 import { PUT } from "@/app/api/profile/route";
 
@@ -64,6 +67,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   member.country = "JO";
   flags.introRequests = false;
+  flags.religion = false;
   db.parentInfo.findUnique.mockResolvedValue({ id: "g1" });
   db.profile.upsert.mockResolvedValue({ id: "p1" });
 });
@@ -253,5 +257,63 @@ describe("PUT /api/profile: «المذهب» (Lebanon only)", () => {
     db.profile.findUnique.mockResolvedValue(null);
     expect((await put({ ...payload, sect: "درزي" })).status).toBe(400);
     expect((await put({ ...payload, prefSect: ["أفضّل عدم الذكر"] })).status).toBe(400);
+  });
+});
+
+describe("PUT /api/profile: «الديانة»", () => {
+  it("drops religion and prefReligion while the switch is off", async () => {
+    db.profile.findUnique.mockResolvedValue(null);
+    expect((await put({ ...payload, religion: "مسيحي", prefReligion: "لا مانع" })).status).toBe(200);
+    const { create, update } = db.profile.upsert.mock.calls[0][0];
+    for (const write of [create, update]) {
+      expect("religion" in write).toBe(false);
+      expect("prefReligion" in write).toBe(false);
+    }
+    // Not a Christian as far as the write knows: the Muslim answers stay
+    expect(update).toMatchObject({ beard: true, hijab: false });
+  });
+
+  it("saves religion and prefReligion while the switch is on", async () => {
+    flags.religion = true;
+    db.profile.findUnique.mockResolvedValue(null);
+    expect((await put({ ...payload, religion: "مسلم", prefReligion: "لا مانع" })).status).toBe(200);
+    const { create, update } = db.profile.upsert.mock.calls[0][0];
+    expect(create).toMatchObject({ religion: "مسلم", prefReligion: "لا مانع" });
+    expect(update).toMatchObject({ religion: "مسلم", prefReligion: "لا مانع" });
+  });
+
+  it("a new Christian member's setup clears the Muslim-only answers", async () => {
+    flags.religion = true;
+    db.profile.findUnique.mockResolvedValue({ ...storedProfile, isComplete: false, hijab: true, dealbreakers: ["age", "hijab"] });
+    const res = await put({ ...payload, hijab: undefined, religion: "مسيحي", beard: true, prefHijab: "نعم" });
+    expect(res.status).toBe(200);
+    const { create, update } = db.profile.upsert.mock.calls[0][0];
+    const cleared = {
+      religion: "مسيحي", hijab: null, niqab: null, beard: null, prefHijab: null, prefSect: [], dealbreakers: ["age"],
+    };
+    expect(update).toMatchObject(cleared);
+    expect(create).toMatchObject(cleared);
+  });
+
+  it("an old app's hijab answer for a stored Christian is not stored", async () => {
+    db.profile.findUnique.mockResolvedValue({ ...storedProfile, religion: "مسيحي", hijab: null, beard: null });
+    const res = await put({ ...payload, hijab: true, dealbreakers: ["age", "hijab"] });
+    expect(res.status).toBe(200);
+    const { update } = db.profile.upsert.mock.calls[0][0];
+    expect(update.hijab).toBeUndefined();
+    expect(update.beard).toBeUndefined();
+    expect(update.dealbreakers).toEqual(["age"]);
+  });
+
+  it("a finished member with a null religion cannot switch to مسيحي directly", async () => {
+    flags.religion = true;
+    db.profile.findUnique.mockResolvedValue({ ...storedProfile, religion: null });
+    const res = await put({ ...payload, religion: "مسيحي" });
+    expect(res.status).toBe(409);
+    const data = await res.json();
+    expect(data.code).toBe("PROFILE_EDIT_NEEDS_REVIEW");
+    expect(data.fields).toContain("religion");
+    expect(db.profile.upsert).not.toHaveBeenCalled();
+    expect((await put({ ...payload, religion: "مسلم" })).status).toBe(200);
   });
 });

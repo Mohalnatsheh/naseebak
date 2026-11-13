@@ -16,7 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { enumLabel } from "@/lib/admin/enum-labels";
 import { countryConfig, toCountry } from "@/lib/countries";
-import { sectApplies } from "@/lib/profile-sect";
+import { sectAsked } from "@/lib/profile-religion";
 import { CountryFlag } from "@/components/shared/country-flag";
 import { MemberProCard } from "@/components/admin/member-pro-card";
 import { MemberDevicesCard } from "@/components/admin/member-devices-card";
@@ -767,7 +767,9 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
                 <InfoRow label="Marital Status" value={String(p.maritalStatus || "—")} />
                 <InfoRow label="Height / Weight" value={`${p.height || "—"} cm / ${p.weight || "—"} kg`} />
                 <InfoRow label="Religiosity" value={String(p.religiosity || "—")} />
-                {sectApplies(user.country) && <InfoRow label="Sect" value={String(p.sect || "—")} />}
+                <InfoRow label="Religion" value={String(p.religion || "مسلم (not set)")} />
+                <InfoRow label="Partner religion" value={String(p.prefReligion || "نفس ديانتي (not set)")} />
+                {sectAsked(user.country, p.religion as string | null) && <InfoRow label="Sect" value={String(p.sect || "—")} />}
                 <InfoRow label="Smoking" value={String(p.smokingStatus || "—")} />
                 {user.gender === "FEMALE" && <InfoRow label="Hijab" value={p.niqab === true ? "Niqab" : p.hijab === true ? "Yes" : p.hijab === false ? "No" : "—"} />}
                 {user.gender === "MALE" && <InfoRow label="Beard" value={p.beard === true ? "Yes" : p.beard === false ? "No" : "—"} />}

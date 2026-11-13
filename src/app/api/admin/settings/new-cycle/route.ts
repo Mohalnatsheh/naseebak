@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 import { closeLegacyInFlight } from "@/lib/suggestions/mutual";
 
 async function state() {
-  const [flags, chatRaw, mutualRaw, creditRaw, activeFirstRaw, saRelaxedRaw, lbRelaxedRaw, freeReplyRaw, paywallRaw, proRaw, chatDeleteRaw, redesignRaw, chatWaRaw, jodRaw, migration] = await Promise.all([
+  const [flags, chatRaw, mutualRaw, creditRaw, activeFirstRaw, saRelaxedRaw, lbRelaxedRaw, freeReplyRaw, paywallRaw, proRaw, chatDeleteRaw, redesignRaw, chatWaRaw, jodRaw, religionRaw, migration] = await Promise.all([
     getCycleFlags(),
     getSetting("chat_enabled"),
     getSetting("new_suggestions_flow"),
@@ -21,6 +21,7 @@ async function state() {
     getSetting("dashboard_redesign"),
     getSetting("chat_whatsapp_layout"),
     getSetting("jod_charging"),
+    getSetting("religion_enabled"),
     db.systemSetting.findUnique({ where: { key: "migration_new_cycle_v1" } }),
   ]);
   return {
@@ -38,6 +39,7 @@ async function state() {
     dashboardRedesign: redesignRaw === "true",
     chatWhatsappLayout: chatWaRaw === "true",
     jodCharging: jodRaw === "true",
+    religionEnabled: religionRaw === "true",
     creditsMigratedAt: migration?.value ?? null,
   };
 }
@@ -73,6 +75,8 @@ const schema = z.object({
   chatWhatsappLayout: z.boolean().optional(),
   /** New Jordanian purchases charged in JOD instead of USD; open checkouts and existing Pro subscriptions keep theirs */
   jodCharging: z.boolean().optional(),
+  /** The «الديانة» question; off hides it and drops it from writes, stored values stay */
+  religionEnabled: z.boolean().optional(),
 });
 
 export async function PATCH(request: Request) {
@@ -130,6 +134,10 @@ export async function PATCH(request: Request) {
     if (parsed.data.jodCharging !== undefined) {
       await setSetting("jod_charging", String(parsed.data.jodCharging));
       console.log(`[admin settings] jod_charging=${parsed.data.jodCharging} by ${result.session.user.id}`);
+    }
+    if (parsed.data.religionEnabled !== undefined) {
+      await setSetting("religion_enabled", String(parsed.data.religionEnabled));
+      console.log(`[admin settings] religion_enabled=${parsed.data.religionEnabled} by ${result.session.user.id}`);
     }
     // Credit on interest depends on both: turning either off turns it off too, so switching
     // them back on later never silently re-enables it

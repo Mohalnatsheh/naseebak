@@ -30,7 +30,7 @@ interface ProfileRequest {
 
 const fieldLabels: Record<string, string> = {
   city: "City", area: "Area", nationality: "Nationality", education: "Education",
-  job: "Job", maritalStatus: "Marital Status", religiosity: "Religiosity", sect: "Sect",
+  job: "Job", maritalStatus: "Marital Status", religion: "Religion", religiosity: "Religiosity", sect: "Sect",
   smokingStatus: "Smoking", aboutMe: "About Me", partnerExpectations: "Partner Expectations",
   hobbies: "Hobbies", familyValues: "Family Values", tribe: "Tribe",
   familyOriginArea: "Family Origin", housingType: "Housing", monthlyExpenses: "Monthly Expenses",
@@ -39,7 +39,7 @@ const fieldLabels: Record<string, string> = {
   hijab: "Hijab", niqab: "Niqab", beard: "Beard", drivingLicense: "Driving License",
   prefCity: "Pref City", prefEducation: "Pref Education", prefMaritalStatus: "Pref Marital Status",
   prefAgeMin: "Pref Age Min", prefAgeMax: "Pref Age Max",
-  prefReligiosity: "Pref Religiosity", prefSect: "Pref Sect", prefSmokingStatus: "Pref Smoking",
+  prefReligion: "Pref Religion", prefReligiosity: "Pref Religiosity", prefSect: "Pref Sect", prefSmokingStatus: "Pref Smoking",
   willingToRelocate: "Willing to Relocate", skinColor: "Skin Color", incomeRange: "Income",
   childrenCount: "Children", dateOfBirth: "Date of Birth", fieldOfStudy: "Field of Study",
   interests: "Interests", lifestyle: "Lifestyle", wantsPhoto: "Wants Photo",
@@ -51,7 +51,7 @@ type StatusFilter = "PENDING" | "APPROVED" | "REJECTED";
 const STATUS_LABELS: Record<StatusFilter, string> = { PENDING: "Pending", APPROVED: "Approved", REJECTED: "Rejected" };
 
 /** Fields stored with a gendered option value (the member's own, or the partner they want) */
-const OWN_OPTIONS: OptionField[] = ["job", "maritalStatus", "religiosity", "sect", "smokingStatus", "cookingAbility", "lifestyle"];
+const OWN_OPTIONS: OptionField[] = ["job", "maritalStatus", "religion", "religiosity", "sect", "smokingStatus", "cookingAbility", "lifestyle"];
 const PARTNER_OPTIONS: Record<string, OptionField> = {
   prefMaritalStatus: "maritalStatus",
   prefReligiosity: "religiosity",

@@ -1,6 +1,6 @@
 /** The facts on a suggestion card (db-free: client components import it). Same wording as `CandidateDetails`. */
 import type { CountryCode } from "@/lib/countries";
-import { describeOption, tribeLabel } from "@/lib/profile-options";
+import { describeOption, religionFact, tribeLabel } from "@/lib/profile-options";
 import { veilLabel } from "@/lib/profile-veil";
 import type { FeedCandidate } from "@/lib/suggestions/feed-types";
 
@@ -13,13 +13,20 @@ export interface CardFact {
 /**
  * Up to eight facts in a fixed order: job, education, religiosity, veil (a woman) or beard (a man), height,
  * marital status, smoking, then «المذهب» (Lebanon, when shown) or the country's tribe word. Empty ones are left out.
+ * «الديانة» leads, as a ninth, only when it differs from the viewer's (`religionFact`; null while the switch is off).
  */
-export function cardFacts(c: FeedCandidate, partnerGender: "MALE" | "FEMALE", country: CountryCode): CardFact[] {
+export function cardFacts(
+  c: FeedCandidate,
+  partnerGender: "MALE" | "FEMALE",
+  country: CountryCode,
+  viewerReligion?: string | null,
+): CardFact[] {
   const facts: CardFact[] = [];
   const add = (key: string, label: string, value: string | null | undefined) => {
     if (value) facts.push({ key, label, value });
   };
 
+  add("religion", "الديانة", religionFact(c.religion, viewerReligion, partnerGender));
   add("job", "العمل", c.job && describeOption("job", c.job, partnerGender));
   add("education", "التعليم", c.education);
   add("religiosity", "الالتزام", c.religiosity && describeOption("religiosity", c.religiosity, partnerGender));

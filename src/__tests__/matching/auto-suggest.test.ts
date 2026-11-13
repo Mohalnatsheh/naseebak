@@ -264,6 +264,18 @@ describe("autoSuggestForUser in per-request credits mode", () => {
   });
 });
 
+describe("«الديانة» in both flows", () => {
+  it.each([true, false])("never suggests a Christian to a member who kept their own religion (shared suggestions %s)", async (mutualSuggestions) => {
+    flags.getCycleFlags.mockResolvedValue({ introRequests: true, chat: false, mutualSuggestions });
+    db.user.findUnique.mockResolvedValue(person("rel1", "MALE", { ...fullProfile("MALE"), religion: "مسلم", prefReligion: "نفس ديانتي" }));
+    db.user.findMany.mockResolvedValue([
+      person("rel2", "FEMALE", { ...fullProfile("FEMALE"), religion: "مسيحي", prefReligion: "لا مانع" }),
+    ]);
+    expect(await autoSuggestForUser("rel1")).toBe(0);
+    expect(db.suggestion.createMany).not.toHaveBeenCalled();
+  });
+});
+
 describe("autoSuggestForUser — simultaneous flow", () => {
   beforeEach(() => {
     flags.getCycleFlags.mockResolvedValue({ introRequests: true, chat: false, mutualSuggestions: true });

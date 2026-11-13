@@ -10,6 +10,7 @@ import { DEALBREAKER_KEYS, DEALBREAKER_LABELS } from "@/lib/matching/score";
 import { dealbreakerSummary } from "@/lib/matching/dealbreaker-summary";
 import { useDashboardData } from "@/contexts/dashboard-context";
 import { sectApplies } from "@/lib/profile-sect";
+import { MUSLIM_ONLY_DEALBREAKERS, isChristian, type ReligionProfile } from "@/lib/profile-religion";
 import { cn } from "@/lib/utils";
 
 interface Prefs {
@@ -41,6 +42,9 @@ export function DealbreakersCard({ onSaved }: { /** The conditions were saved: t
   const gender: string | undefined = profile?.gender;
   // The «المذهب» condition exists for Lebanese members only
   const sectOn = sectApplies(country);
+  // A Christian has no hijab, beard or «المذهب» condition
+  const christian = isChristian(profile?.profile as ReligionProfile | null | undefined);
+  const muslimOnly: readonly string[] = MUSLIM_ONLY_DEALBREAKERS;
   const [open, setOpen] = useState(false);
   const [prefs, setPrefs] = useState<Prefs | null>(null);
   /** What is saved on the server (the chips) */
@@ -83,6 +87,7 @@ export function DealbreakersCard({ onSaved }: { /** The conditions were saved: t
 
   const available = prefs
     ? DEALBREAKER_KEYS.filter((k) => k !== "sect" || sectOn)
+        .filter((k) => !christian || !muslimOnly.includes(k))
         .map((k) => ({ key: k, summary: dealbreakerSummary(k, prefs, gender) }))
         .filter((x) => x.summary)
     : [];

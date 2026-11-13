@@ -22,6 +22,7 @@ vi.mock("@/lib/settings", () => ({
   getSetting: async () => "",
   getMaintenanceState: async () => ({ enabled: false, message: "" }),
   getCycleFlags: async () => ({ introRequests: true, chat: true, mutualSuggestions: true, creditOnInterest: true }),
+  getReligionEnabled: async () => false,
   jodChargingFor: async () => false,
   activeOfferFor: async () => null,
 }));

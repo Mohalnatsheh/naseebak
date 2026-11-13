@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getCycleFlags } from "@/lib/settings";
+import { getCycleFlags, getReligionEnabled } from "@/lib/settings";
 import { isCountryCode } from "@/lib/countries";
 import { getCountrySettings, publicCountryDetail } from "@/lib/countries/settings";
 import { countryPageDefaults } from "@/lib/countries/content";
@@ -16,9 +16,11 @@ export async function GET(_request: Request, { params }: { params: Promise<{ cod
     const settings = await getCountrySettings(code);
     if (!settings.active) return NextResponse.json({ error: "نصيبك غير متاح في هذه الدولة حالياً", code: "COUNTRY_INACTIVE" }, { status: 404 });
     const flags = await getCycleFlags();
+    // A failed read sends no religion lists (switch off), like the card routes
+    const religion = await getReligionEnabled().catch(() => false);
     const defaults = countryPageDefaults(code, { introRequests: flags.introRequests, chat: flags.chat, creditOnInterest: flags.creditOnInterest });
     const siteUrl = process.env.NEXT_PUBLIC_APP_URL || SITE_URL;
-    return NextResponse.json({ country: publicCountryDetail(settings, defaults, siteUrl) }, { headers: { "Cache-Control": "public, max-age=60" } });
+    return NextResponse.json({ country: publicCountryDetail(settings, defaults, siteUrl, { religion }) }, { headers: { "Cache-Control": "public, max-age=60" } });
   } catch (error) {
     console.error("[countries] detail failed:", error);
     return NextResponse.json({ error: "تعذّر تحميل إعدادات الدولة" }, { status: 500 });

@@ -4,6 +4,7 @@
  * - `fills`: fields still empty in the database → saved directly by `PUT /api/profile`
  *   (the server allows filling an empty field, see `reviewedChanges()` in profile-review.ts)
  * - `reviewed`: changes to a value already stored → admin review request
+ *   («الديانة» always: a null column reads «مسلم», so a switch to «مسيحي» is a change, never a fill)
  */
 
 /** Same rule as the server (`profile-review.ts`): null, "", or an empty list. `false`/`0` are answers. */
@@ -20,6 +21,7 @@ export function splitProfileEdit(
   const reviewed: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(changes)) {
     if (key.startsWith("pref")) prefs[key] = value;
+    else if (key === "religion") reviewed[key] = value;
     else if (isEmptyStored(stored[key]) && !isEmptyStored(value)) fills[key] = value;
     else reviewed[key] = value;
   }

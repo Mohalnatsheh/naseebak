@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { getCycleFlags, getDashboardRedesign } from "@/lib/settings";
+import { getCycleFlags, getDashboardRedesign, getReligionEnabled } from "@/lib/settings";
 import { chatHousekeepingForUser } from "@/lib/chat/service";
 import { cancelDeadPendingFor, hiddenPartnerIds, loadMatchStates, visibleConversationsWhere } from "@/lib/matches/state";
 import { touchLastActive } from "@/lib/activity";
@@ -21,6 +21,7 @@ import { interestPaywallFor } from "@/lib/payments/interest-paywall";
  * subscription), the same rule as the Pro page link card.
  * `interestPaywall`: at 0 credits «مهتم» stays tappable and opens the «انتهى رصيدك» step (switch `interest_paywall`,
  * only for a member who can buy). Old apps ignore it.
+ * `religionEnabled`: the «الديانة» switch (`religion_enabled`), on every answer.
  */
 export async function GET(request: Request) {
   try {
@@ -33,12 +34,14 @@ export async function GET(request: Request) {
 
     // One read of the member serves the balance and the Pro lookup (country, phone), so the 30 s poll costs one Pro
     // query on top of cached settings
-    const [flags, me, hidden, dashboardRedesign] = await Promise.all([
+    const [flags, me, hidden, dashboardRedesign, religionEnabled] = await Promise.all([
       getCycleFlags(),
       db.user.findUnique({ where: { id: userId }, select: { matchCredits: true, country: true, phone: true } }),
       hiddenPartnerIds(userId),
       // Home + suggestions redesign switch. A failed read keeps today's pages
       getDashboardRedesign().catch(() => false),
+      // A failed read leaves the question off, never fails the poll
+      getReligionEnabled().catch(() => false),
     ]);
     // Badge and Pro link only. A failure is logged and leaves `pro` out of the answer: the website keeps the badge it
     // showed, and older apps treat a missing `pro` as before
@@ -64,7 +67,7 @@ export async function GET(request: Request) {
     if (!flags.introRequests) {
       // Switch off: existing chats stay readable, so keep the chats link for people who have one
       const hasChats = (await db.conversation.count({ where: mine })) > 0;
-      return NextResponse.json({ flags, pendingIntros: 0, pendingIntroMatchId: null, unreadChats: 0, hasChats, guardian: null, actionableMatches: 0, pro, interestPaywall, dashboardRedesign });
+      return NextResponse.json({ flags, pendingIntros: 0, pendingIntroMatchId: null, unreadChats: 0, hasChats, guardian: null, actionableMatches: 0, pro, interestPaywall, dashboardRedesign, religionEnabled });
     }
 
     // Expire overdue chats and send "2 days left" warnings (no scheduler needed)
@@ -112,6 +115,7 @@ export async function GET(request: Request) {
       pro,
       interestPaywall,
       dashboardRedesign,
+      religionEnabled,
       // Credit on interest: the balance gates "مهتم" (dashboard next step)
       ...(flags.creditOnInterest && { credits: me?.matchCredits ?? 0 }),
       ...(tabs && { newSuggestions: tabs.fresh, likedYou: tabs.likedYou }),

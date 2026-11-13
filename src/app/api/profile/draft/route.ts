@@ -6,6 +6,10 @@ import { needsReviewBody, reviewedChanges } from "@/lib/profile-review";
 import { arabicIssueMessage } from "@/lib/validations/issue-message";
 import { applyNiqabRule } from "@/lib/profile-veil";
 import { stripSectUnlessLebanon } from "@/lib/profile-sect";
+import { getReligionEnabled } from "@/lib/settings";
+import {
+  RELIGION_CHRISTIAN, neededMuslimOnlyClears, religionOf, stripMuslimOnlyForChristian, stripReligionUnlessEnabled,
+} from "@/lib/profile-religion";
 
 export async function PATCH(request: Request) {
   try {
@@ -13,9 +17,18 @@ export async function PATCH(request: Request) {
     if ("error" in result) return result.error;
     const { session } = result;
 
-    const member = await db.user.findUnique({ where: { id: session.user.id }, select: { country: true } });
-    // «المذهب» is a Lebanese field: other countries never store it or its preference
-    const body = stripSectUnlessLebanon(member?.country, await request.json());
+    const raw = await request.json();
+    const [member, existing, religionEnabled] = await Promise.all([
+      db.user.findUnique({ where: { id: session.user.id }, select: { country: true } }),
+      db.profile.findUnique({ where: { userId: session.user.id } }),
+      getReligionEnabled(),
+    ]);
+    // «المذهب» is a Lebanese field: other countries never store it or its preference. «الديانة» is
+    // dropped while its switch is off. A Christian (this save's religion, else the stored one) never
+    // stores the Muslim-only answers.
+    const religionBody = stripReligionUnlessEnabled(religionEnabled, stripSectUnlessLebanon(member?.country, raw));
+    const effectiveReligion = (religionBody as Record<string, unknown> | null)?.religion ?? existing?.religion;
+    const body = stripMuslimOnlyForChristian(effectiveReligion as string | null | undefined, religionBody);
 
     const validation = profileDraftSchema.safeParse(body);
     if (!validation.success) {
@@ -81,16 +94,24 @@ export async function PATCH(request: Request) {
     if (data.prefSmokingStatus !== undefined) updateData.prefSmokingStatus = data.prefSmokingStatus;
     if (data.prefSect !== undefined) updateData.prefSect = data.prefSect;
     if (data.prefChildrenAcceptance !== undefined) updateData.prefChildrenAcceptance = data.prefChildrenAcceptance || null;
+    if (data.religion !== undefined) updateData.religion = data.religion;
+    if (data.prefReligion !== undefined) updateData.prefReligion = data.prefReligion;
 
     // Setup autosave only (useAutoSave in the setup wizard). Once the setup is finished, same rule
     // as PUT /api/profile: changing or clearing a stored value needs review (409); same values and
     // still-empty fields are fine. The wizard step is no longer tracked then.
-    const existing = await db.profile.findUnique({ where: { userId: session.user.id } });
     if (existing?.isComplete) {
       delete updateData.setupStep;
-      const changed = reviewedChanges(existing as unknown as Record<string, unknown>, updateData);
+      // A null religion reads «مسلم»: choosing «مسيحي» is a change for review, never an empty field filled in
+      const stored = { ...(existing as unknown as Record<string, unknown>), religion: religionOf(existing) };
+      const changed = reviewedChanges(stored, updateData);
       if (changed.length > 0) return NextResponse.json(needsReviewBody(changed), { status: 409 });
       if (Object.keys(updateData).length === 0) return NextResponse.json({ message: "تم حفظ المسودة" });
+    } else if (effectiveReligion === RELIGION_CHRISTIAN) {
+      // A Christian during the setup: clear the Muslim-only answers saved before (dealbreaker checks read them).
+      // Only what is actually set: every autosave read is a little stale, and rewriting `dealbreakers` from it
+      // could overwrite the final PUT /api/profile's list
+      Object.assign(updateData, neededMuslimOnlyClears(existing));
     }
 
     await db.profile.upsert({

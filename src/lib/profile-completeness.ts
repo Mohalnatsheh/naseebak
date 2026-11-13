@@ -2,7 +2,7 @@
  * Profile completeness calculator — field-level scoring with section weights.
  */
 import { countryConfig } from "@/lib/countries";
-import { sectApplies } from "@/lib/profile-sect";
+import { isChristian, sectAsked } from "@/lib/profile-religion";
 
 /** The `tribe` field's label in a country (same as profile-options' tribeLabel, without its option tables) */
 function tribeLabel(country: unknown): string {
@@ -34,6 +34,8 @@ interface ProfileData {
   /** «المذهب» and the partner's, counted for Lebanese members only */
   sect?: string | null;
   prefSect?: string[] | null;
+  /** «الديانة»: never counted; a Christian is not asked «المذهب» */
+  religion?: string | null;
   tribe?: string | null;
   familyOriginArea?: string | null;
   numberOfSiblings?: number | null;
@@ -118,7 +120,7 @@ export function calculateCompleteness(user: UserForCompleteness): CompletenessRe
     ["الحالة الاجتماعية", profile?.maritalStatus, "maritalStatus"],
     ["نبذة عني", profile?.aboutMe, "aboutMe"],
     // «أفضّل عدم الذكر» is an answer too
-    ...(sectApplies(user.country) ? [["المذهب", profile?.sect, "sect"] as [string, unknown, string]] : []),
+    ...(sectAsked(user.country, profile?.religion) ? [["المذهب", profile?.sect, "sect"] as [string, unknown, string]] : []),
   ];
   const basicFilled = basicFields.filter(([, val]) => hasValue(val)).length;
   const basicMissing = basicFields
@@ -142,7 +144,7 @@ export function calculateCompleteness(user: UserForCompleteness): CompletenessRe
     ["الحالة الاجتماعية المفضلة", profile?.prefMaritalStatus, "prefMaritalStatus"],
     ["مستوى التدين المفضل", profile?.prefReligiosity, "prefReligiosity"],
     ["التدخين لدى الشريك", profile?.prefSmokingStatus, "prefSmokingStatus"],
-    ...(sectApplies(user.country) ? [["المذهب لدى الشريك", profile?.prefSect, "prefSect"] as [string, unknown, string]] : []),
+    ...(sectAsked(user.country, profile?.religion) ? [["المذهب لدى الشريك", profile?.prefSect, "prefSect"] as [string, unknown, string]] : []),
   ];
   const prefFilled = prefFields.filter(([, val]) => hasValue(val)).length;
   const prefMissing = prefFields
@@ -286,7 +288,7 @@ export function missingSetupSteps(user: { profile?: Record<string, unknown> | nu
   const missing: MissingSetupStep[] = [];
   if (!["dateOfBirth", "nationality", "city", "education"].every(has)) missing.push({ step: 1, label: "المعلومات الأساسية" });
   // «المذهب» is required for Lebanese members only
-  const step2 = sectApplies(user.country) ? ["maritalStatus", "religiosity", "sect"] : ["maritalStatus", "religiosity"];
+  const step2 = sectAsked(user.country, p.religion as string | null | undefined) ? ["maritalStatus", "religiosity", "sect"] : ["maritalStatus", "religiosity"];
   if (!step2.every(has)) missing.push({ step: 2, label: "الحالة الاجتماعية والتدين" });
   if (!["prefAgeMin", "prefAgeMax"].every(has)) missing.push({ step: 3, label: "العمر المناسب للشريك" });
   return missing;
@@ -307,7 +309,7 @@ export interface EmptyFilterField {
  * Db-free: client pages import it.
  */
 export function emptyFilterFields(
-  profile: { smokingStatus?: string | null; religiosity?: string | null; hijab?: boolean | null; beard?: boolean | null; sect?: string | null } | null | undefined,
+  profile: { smokingStatus?: string | null; religiosity?: string | null; hijab?: boolean | null; beard?: boolean | null; sect?: string | null; religion?: string | null } | null | undefined,
   gender: string | null | undefined,
   /** The member's country: «المذهب» counts for Lebanese members only */
   country?: string | null,
@@ -315,11 +317,12 @@ export function emptyFilterFields(
   if (!profile) return [];
   const blank = (v: unknown) => v === null || v === undefined || v === "";
   const out: EmptyFilterField[] = [];
-  if (gender === "FEMALE" && blank(profile.hijab)) out.push({ key: "hijab", label: "الحجاب", step: 2 });
-  if (gender === "MALE" && blank(profile.beard)) out.push({ key: "beard", label: "اللحية", step: 2 });
+  const christian = isChristian(profile);
+  if (gender === "FEMALE" && !christian && blank(profile.hijab)) out.push({ key: "hijab", label: "الحجاب", step: 2 });
+  if (gender === "MALE" && !christian && blank(profile.beard)) out.push({ key: "beard", label: "اللحية", step: 2 });
   if (blank(profile.smokingStatus)) out.push({ key: "smokingStatus", label: "التدخين", step: 2 });
   if (blank(profile.religiosity)) out.push({ key: "religiosity", label: "مستوى التدين", step: 2 });
   // «أفضّل عدم الذكر» is an answer the member chose, so only an empty sect is mentioned
-  if (sectApplies(country) && blank(profile.sect)) out.push({ key: "sect", label: "المذهب", step: 2 });
+  if (sectAsked(country, profile.religion) && blank(profile.sect)) out.push({ key: "sect", label: "المذهب", step: 2 });
   return out;
 }

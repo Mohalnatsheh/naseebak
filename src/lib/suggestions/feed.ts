@@ -13,12 +13,12 @@
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { calculateCompatibility } from "@/lib/matching/score";
-import { visibleSect } from "@/lib/profile-sect";
+import { publicReligionFields } from "@/lib/profile-religion";
 import { suggestionReason } from "@/lib/matching/reasons";
 import { expireMutualSuggestions, openMutualWhere } from "@/lib/suggestions/mutual";
 import { isUnavailable } from "@/lib/matches/state";
 import { proUserIds } from "@/lib/pro/status";
-import { getCycleFlags, type CycleFlags } from "@/lib/settings";
+import { getCycleFlags, getReligionEnabled, type CycleFlags } from "@/lib/settings";
 import type { FeedCandidate, FeedItem, FeedKind, FeedTab } from "@/lib/suggestions/feed-types";
 
 const LEGACY_SENT_VISIBLE_MS = 14 * 24 * 60 * 60 * 1000;
@@ -155,7 +155,7 @@ const CARD_FIELDS = [
   "drivingLicense", "willingToRelocate", "familyValues",
 ] as const;
 
-export function toFeedCandidate(p: Person): FeedCandidate {
+export function toFeedCandidate(p: Person, religionOn = false): FeedCandidate {
   const prof = p.profile ?? {};
   const dob = prof.dateOfBirth as Date | string | null | undefined;
   const age = dob ? Math.floor((Date.now() - new Date(dob).getTime()) / (365.25 * 24 * 60 * 60 * 1000)) : null;
@@ -166,9 +166,9 @@ export function toFeedCandidate(p: Person): FeedCandidate {
     isVerified: p.isVerified,
     age,
     childrenCount: (prof.childrenCount as number | undefined) ?? 0,
-    ...(fields as Omit<FeedCandidate, "id" | "firstName" | "isVerified" | "age" | "childrenCount" | "sect">),
-    // «أفضّل عدم الذكر» is never shown (as if empty)
-    sect: visibleSect(prof.sect as string | null | undefined),
+    ...(fields as Omit<FeedCandidate, "id" | "firstName" | "isVerified" | "age" | "childrenCount" | "sect" | "religion">),
+    // religion, plus hijab/niqab/beard/sect (a Christian shows none; «أفضّل عدم الذكر» is never shown)
+    ...publicReligionFields(prof as Parameters<typeof publicReligionFields>[0], religionOn),
   };
 }
 
@@ -236,7 +236,11 @@ export async function getSuggestionFeed(
 ): Promise<{ items: FeedItem[]; page: number; totalPages: number; total: number }> {
   await expireMutualSuggestions(userId);
   const now = new Date();
-  const flags = await getCycleFlags();
+  // «الديانة» on cards only: a count never builds cards, and a failed read shows no religion (switch off)
+  const [flags, religionOn] = await Promise.all([
+    getCycleFlags(),
+    opts.countOnly ? Promise.resolve(false) : getReligionEnabled().catch(() => false),
+  ]);
   const order = suggestionOrder(flags);
   const groupDays: GroupDays = flags.activeFirstFeed ? ACTIVE_FIRST_GROUP_DAYS : ACTIVITY_GROUP_DAYS;
   const otherSelect = opts.countOnly ? countSelect : personSelect;
@@ -397,7 +401,7 @@ export async function getSuggestionFeed(
       compatibilityScore: r.score ?? calculateCompatibility(v, o),
       reason: suggestionReason(v, o),
       createdAt: r.createdAt.toISOString(),
-      candidate: toFeedCandidate(r.other),
+      candidate: toFeedCandidate(r.other, religionOn),
       ...(pros.has(r.other.id) && { isPro: true as const }),
       ...(activity && { activity }),
       ...(r.expiresAt && { expiresAt: r.expiresAt.toISOString() }),

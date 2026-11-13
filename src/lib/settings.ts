@@ -25,6 +25,8 @@ const DEFAULTS: Record<string, string> = {
   chat_delete_enabled: "false",
   // WhatsApp-style chat layout on the website (2026-11-13), off = today's chat
   chat_whatsapp_layout: "false",
+  // «الديانة» field: asked, shown and stored only while on. The pair rule in matching applies either way
+  religion_enabled: "false",
   // Jordan charged in JOD instead of USD for new purchases (2026-11-11). Open checkouts and Pro subscriptions keep theirs
   jod_charging: "false",
   // Home + suggestions redesign (2026-11-13). Off = the current home and suggestion cards
@@ -116,6 +118,11 @@ export async function getChatDeleteEnabled(): Promise<boolean> {
 /** WhatsApp-style chat layout on the website (`chat_whatsapp_layout`, Admin → Settings). Default off */
 export async function getChatWhatsappLayout(): Promise<boolean> {
   return (await getSetting("chat_whatsapp_layout")) === "true";
+}
+
+/** «الديانة» question switch (`religion_enabled`, Admin → Settings). Default off: nothing asked, shown or stored */
+export async function getReligionEnabled(): Promise<boolean> {
+  return (await getSetting("religion_enabled")) === "true";
 }
 
 /** Whether a new purchase by a member of this country is charged in JOD (switch `jod_charging`, Jordan only) */

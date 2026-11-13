@@ -17,7 +17,8 @@ import {
   secondChanceCards,
   weeklyCounts,
 } from "@/lib/matching/auto-suggest";
-import { calculateCompatibility, mutuallyAcceptable } from "@/lib/matching/score";
+import { calculateCompatibility, mutuallyAcceptable, passesDealbreakers } from "@/lib/matching/score";
+import { religionsMatch } from "@/lib/profile-religion";
 import { meetsSuggestionGate } from "@/lib/profile-completeness";
 import { getCycleFlags } from "@/lib/settings";
 import { isTestPhone, testPhones } from "@/lib/test-accounts";
@@ -50,13 +51,15 @@ export interface MemberSuggestStatus {
   candidates: number | null;
   /** At the weekly cap: when the next card can arrive */
   nextSuggestionsAt: Date | null;
+  /** Only with `no_candidates`: people who pass everything else and are kept apart only by «الديانة» */
+  blockedByReligion: number | null;
 }
 
 async function suitableCandidates(
   user: Parameters<typeof calculateCompatibility>[0] & { id: string; gender: "MALE" | "FEMALE"; country: string; phone: string | null },
   flags: Awaited<ReturnType<typeof getCycleFlags>>,
   now: Date,
-): Promise<number> {
+): Promise<{ count: number; blockedByReligion: number }> {
   const { introRequests: perRequestCredits, mutualSuggestions: mutual, creditOnInterest } = flags;
   const pastSelect = {
     recipientId: true, candidateId: true, status: true, recipientDecision: true, candidateDecision: true, expiresAt: true, updatedAt: true, closedByChange: true,
@@ -99,17 +102,25 @@ async function suitableCandidates(
     },
     select: scoringSelect,
   });
-  let ranked = candidates
-    .filter((c) => meetsSuggestionGate(c, perRequestCredits))
-    .filter((c) => !mutual || mutuallyAcceptable(user, c))
-    .filter((c) => calculateCompatibility(user, c) >= minSuggestionScore(flags, user.country));
+  const minScore = minSuggestionScore(flags, user.country);
+  const gated = candidates.filter((c) => meetsSuggestionGate(c, perRequestCredits));
+  // Mirrors `rank` in generate: shared flow = every rule incl. «الديانة»; legacy = «الديانة» only
+  const accepted = gated.filter((c) => (mutual ? mutuallyAcceptable(user, c) : religionsMatch(user.profile, c.profile)));
+  // Everything else holds and only «الديانة» fails
+  const blockedByReligion = gated.filter(
+    (c) =>
+      !religionsMatch(user.profile, c.profile) &&
+      (!mutual || (!!user.profile && !!c.profile && passesDealbreakers(user.profile, c.profile, c.gender) && passesDealbreakers(c.profile, user.profile, user.gender))) &&
+      calculateCompatibility(user, c) >= minScore,
+  ).length;
+  let ranked = accepted.filter((c) => calculateCompatibility(user, c) >= minScore);
   // Per-request mode skips people who already got their weekly share; credit on interest never skips
   if (mutual && !creditOnInterest && ranked.length > 0) {
     const busy = await weeklyCounts(ranked.map((c) => c.id), new Date(now.getTime() - WEEK_MS));
     ranked = ranked.filter((c) => (busy.get(c.id) ?? 0) < WEEKLY_FREE_SUGGESTIONS);
   }
   const waiting = creditOnInterest ? await secondChanceCards(user, flags, now) : [];
-  return ranked.length + hidden + waiting.length;
+  return { count: ranked.length + hidden + waiting.length, blockedByReligion };
 }
 
 export async function memberSuggestStatus(userId: string, now = new Date()): Promise<MemberSuggestStatus | null> {
@@ -150,6 +161,7 @@ export async function memberSuggestStatus(userId: string, now = new Date()): Pro
     reason: null,
     candidates: null,
     nextSuggestionsAt: null,
+    blockedByReligion: null,
   };
   if (openSuggestions > 0) return status;
 
@@ -180,6 +192,6 @@ export async function memberSuggestStatus(userId: string, now = new Date()): Pro
     }
   }
 
-  const candidates = await suitableCandidates(user, flags, now);
-  return { ...stop(candidates > 0 ? "ready" : "no_candidates"), candidates };
+  const { count: candidates, blockedByReligion } = await suitableCandidates(user, flags, now);
+  return { ...stop(candidates > 0 ? "ready" : "no_candidates"), candidates, blockedByReligion: candidates > 0 ? null : blockedByReligion };
 }

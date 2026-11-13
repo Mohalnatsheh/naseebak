@@ -73,6 +73,7 @@ import { markPageNotificationsRead } from "@/lib/notifications-client";
 import { veilLabel } from "@/lib/profile-veil";
 import { EmptyState } from "@/components/shared/line-art";
 import type { MatchSummary } from "@/components/matches/match-types";
+import { MatchProfileSheet } from "@/components/matches/match-profile-sheet";
 
 interface Match {
   id: string;
@@ -133,6 +134,14 @@ interface Match {
 /** Compile-time check: a `Match` is what the full-profile panel takes */
 type AssertSummary<T extends MatchSummary> = T;
 export type MatchIsSummary = AssertSummary<Match>;
+
+/** A match's revealed photos (the API refuses closed or unrevealed matches); throws on a failed answer */
+async function fetchMatchPhotos(matchId: string): Promise<{ id: string; url: string }[]> {
+  const res = await fetch(`/api/matches/${matchId}/photos`);
+  if (!res.ok) throw new Error(`photos ${res.status}`);
+  const data = await res.json();
+  return data.photos || [];
+}
 
 const visitStatusLabels: Record<string, string> = {
   REQUESTED: "طلب زيارة مرسل",
@@ -279,6 +288,11 @@ export function MatchesView({ embedded = false }: { embedded?: boolean } = {}) {
   const viewerReligion = religionOf(profile?.profile as ReligionProfile | null | undefined);
   const { words } = countryConfig(country);
   const introMode = counts.flags.introRequests;
+  // `dashboard_redesign`: one «الملف كاملاً» panel replaces the inline details and photos on the card
+  const redesign = !!counts.dashboardRedesign;
+  const [profileSheetId, setProfileSheetId] = useState<string | null>(null);
+  const [photosFailed, setPhotosFailed] = useState<Record<string, boolean>>({});
+  const photoRequests = useRef(new Set<string>());
   // Opened from a notification link (?match=<id>): scroll to and highlight that card
   const [focusMatchId, setFocusMatchId] = useState<string | null>(null);
   const focusLoaded = useRef(false);
@@ -446,10 +460,8 @@ export function MatchesView({ embedded = false }: { embedded?: boolean } = {}) {
     if (!isCurrentlyShown && !matchPhotos[matchId]) {
       setLoadingPhotos((prev) => ({ ...prev, [matchId]: true }));
       try {
-        const res = await fetch(`/api/matches/${matchId}/photos`);
-        if (!res.ok) throw new Error(`photos ${res.status}`);
-        const data = await res.json();
-        setMatchPhotos((prev) => ({ ...prev, [matchId]: data.photos || [] }));
+        const photos = await fetchMatchPhotos(matchId);
+        setMatchPhotos((prev) => ({ ...prev, [matchId]: photos }));
       } catch (err) {
         console.error("Failed to fetch photos", err);
         // Close the panel again (a retry is one tap away) instead of claiming there are no photos
@@ -460,6 +472,23 @@ export function MatchesView({ embedded = false }: { embedded?: boolean } = {}) {
       }
     }
   }, [showPhotos, matchPhotos]);
+
+  /** The panel's photo loader: same state as the inline gallery; a failure is kept per match for the retry line */
+  const loadSheetPhotos = useCallback(async () => {
+    const matchId = profileSheetId;
+    if (!matchId || photoRequests.current.has(matchId)) return;
+    photoRequests.current.add(matchId);
+    setPhotosFailed((prev) => ({ ...prev, [matchId]: false }));
+    try {
+      const photos = await fetchMatchPhotos(matchId);
+      setMatchPhotos((prev) => ({ ...prev, [matchId]: photos }));
+    } catch (err) {
+      console.error("Failed to fetch photos", err);
+      setPhotosFailed((prev) => ({ ...prev, [matchId]: true }));
+    } finally {
+      photoRequests.current.delete(matchId);
+    }
+  }, [profileSheetId]);
 
   function toggleExpand(id: string) {
     setExpandedCards((prev) => {
@@ -661,9 +690,9 @@ export function MatchesView({ embedded = false }: { embedded?: boolean } = {}) {
                     { icon: Flag, label: nationalityLabel(c.nationality, isFemale ? "MALE" : "FEMALE") },
                   ]}
                   aboutMe={c.aboutMe}
-                  expanded={!locked && isExpanded}
-                  onToggleExpand={locked ? undefined : () => toggleExpand(m.id)}
-                  details={locked ? undefined :
+                  expanded={!locked && !redesign && isExpanded}
+                  onToggleExpand={locked || redesign ? undefined : () => toggleExpand(m.id)}
+                  details={locked || redesign ? undefined :
                       <div className="px-5 md:px-6 pb-4 space-y-3" style={{ animation: "fadeSlideIn 0.3s ease-out" }}>
                         <Section title="المعلومات الشخصية" icon={User} defaultOpen={true}>
                           <InfoRow icon={Calendar} label="العمر" value={c.age ? `${c.age} سنة` : null} />
@@ -760,7 +789,7 @@ export function MatchesView({ embedded = false }: { embedded?: boolean } = {}) {
                     )}
 
                     {/* Photos toggle */}
-                    {m.photosRevealed && !m.closed && showPhotos[m.id] && (
+                    {!redesign && m.photosRevealed && !m.closed && showPhotos[m.id] && (
                       <div className="mx-5 md:mx-6 mb-4">
                         {loadingPhotos[m.id] ? (
                           <div className="flex flex-col items-center justify-center gap-2 p-6 bg-muted/30 rounded-xl border border-border/40">
@@ -821,6 +850,16 @@ export function MatchesView({ embedded = false }: { embedded?: boolean } = {}) {
                         {/* A closed match never shows photos (the API refuses them): no «عرض الصور» then (QA WM-12) */}
                         {m.closed ? (
                           <span className="flex-1" />
+                        ) : redesign ? (
+                          <Button
+                            variant="outline"
+                            aria-label={`الملف كاملاً: ${c.firstName}`}
+                            className="flex-1 h-11 rounded-xl font-semibold border-primary/20 text-primary hover:bg-primary/5 hover:border-primary/30"
+                            onClick={() => setProfileSheetId(m.id)}
+                          >
+                            <User className="h-4 w-4 me-2" aria-hidden="true" />
+                            الملف كاملاً
+                          </Button>
                         ) : m.photosRevealed ? (
                           <Button
                             variant="outline"
@@ -1068,6 +1107,16 @@ export function MatchesView({ embedded = false }: { embedded?: boolean } = {}) {
           </div>
         </DialogContent>
       </Dialog>
+
+      {redesign && (
+        <MatchProfileSheet
+          match={matches.find((x) => x.id === profileSheetId) ?? null}
+          photos={profileSheetId ? matchPhotos[profileSheetId] : undefined}
+          photosFailed={!!(profileSheetId && photosFailed[profileSheetId])}
+          onLoadPhotos={loadSheetPhotos}
+          onClose={() => setProfileSheetId(null)}
+        />
+      )}
 
       <ImageLightbox
         images={lightboxImages}

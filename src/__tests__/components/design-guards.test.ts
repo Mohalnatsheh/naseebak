@@ -58,4 +58,10 @@ describe("design guards on member pages", () => {
   it("no endless decorative pings (spinners, skeletons and the recording dot may move)", () => {
     expect(offenders(/animate-ping|infinite alternate|_infinite\]/)).toEqual([]);
   });
+
+  // Array.prototype.findLast / findLastIndex arrived in Safari 15.4: on iOS 15.0–15.3 the call throws when it runs
+  // (the build doesn't polyfill it), like regex lookbehind (see src/__tests__/lib/no-regex-lookbehind.test.ts).
+  it("no findLast / findLastIndex (missing before iOS 15.4; use a reverse loop)", () => {
+    expect(offenders(/\.findLast\(|\.findLastIndex\(/)).toEqual([]);
+  });
 });

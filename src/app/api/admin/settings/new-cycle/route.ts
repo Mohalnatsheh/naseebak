@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 import { closeLegacyInFlight } from "@/lib/suggestions/mutual";
 
 async function state() {
-  const [flags, chatRaw, mutualRaw, creditRaw, activeFirstRaw, saRelaxedRaw, lbRelaxedRaw, freeReplyRaw, paywallRaw, proRaw, chatDeleteRaw, redesignRaw, jodRaw, migration] = await Promise.all([
+  const [flags, chatRaw, mutualRaw, creditRaw, activeFirstRaw, saRelaxedRaw, lbRelaxedRaw, freeReplyRaw, paywallRaw, proRaw, chatDeleteRaw, redesignRaw, chatWaRaw, jodRaw, migration] = await Promise.all([
     getCycleFlags(),
     getSetting("chat_enabled"),
     getSetting("new_suggestions_flow"),
@@ -19,6 +19,7 @@ async function state() {
     getSetting("pro_enabled"),
     getSetting("chat_delete_enabled"),
     getSetting("dashboard_redesign"),
+    getSetting("chat_whatsapp_layout"),
     getSetting("jod_charging"),
     db.systemSetting.findUnique({ where: { key: "migration_new_cycle_v1" } }),
   ]);
@@ -35,6 +36,7 @@ async function state() {
     proEnabled: proRaw === "true",
     chatDeleteEnabled: chatDeleteRaw === "true",
     dashboardRedesign: redesignRaw === "true",
+    chatWhatsappLayout: chatWaRaw === "true",
     jodCharging: jodRaw === "true",
     creditsMigratedAt: migration?.value ?? null,
   };
@@ -67,6 +69,8 @@ const schema = z.object({
   /** Pro members delete a message or clear a chat; off hides the buttons only, earlier deletions stay hidden */
   chatDeleteEnabled: z.boolean().optional(),
   dashboardRedesign: z.boolean().optional(),
+  /** WhatsApp-style chat layout on the website; off = the classic chat */
+  chatWhatsappLayout: z.boolean().optional(),
   /** New Jordanian purchases charged in JOD instead of USD; open checkouts and existing Pro subscriptions keep theirs */
   jodCharging: z.boolean().optional(),
 });
@@ -118,6 +122,10 @@ export async function PATCH(request: Request) {
     if (parsed.data.dashboardRedesign !== undefined) {
       await setSetting("dashboard_redesign", String(parsed.data.dashboardRedesign));
       console.log(`[admin settings] dashboard_redesign=${parsed.data.dashboardRedesign} by ${result.session.user.id}`);
+    }
+    if (parsed.data.chatWhatsappLayout !== undefined) {
+      await setSetting("chat_whatsapp_layout", String(parsed.data.chatWhatsappLayout));
+      console.log(`[admin settings] chat_whatsapp_layout=${parsed.data.chatWhatsappLayout} by ${result.session.user.id}`);
     }
     if (parsed.data.jodCharging !== undefined) {
       await setSetting("jod_charging", String(parsed.data.jodCharging));

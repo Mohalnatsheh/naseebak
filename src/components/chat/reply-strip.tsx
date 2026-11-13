@@ -39,9 +39,12 @@ export function BubbleQuote({
   partnerName,
   mine,
   onOpen,
+  className,
 }: {
   quote: ReplyQuote;
   partnerName: string;
+  /** Extra classes (the WhatsApp layout gives the quote in my bubble `bg-bubble-mine-quote`) */
+  className?: string;
   /** The bubble is mine (navy): the quote uses the light-on-navy tones */
   mine: boolean;
   onOpen?: (id: string) => void;
@@ -57,7 +60,8 @@ export function BubbleQuote({
       aria-label={`ردّ على ${author}: ${quote.snippet}`}
       className={cn(
         "mb-1 block w-full min-w-32 rounded-lg border-s-[3px] border-accent px-2 py-1 text-start",
-        mine ? "bg-primary-foreground/12 hover:bg-primary-foreground/18" : "bg-primary/6 hover:bg-primary/10"
+        mine ? "bg-primary-foreground/12 hover:bg-primary-foreground/18" : "bg-primary/6 hover:bg-primary/10",
+        className
       )}
     >
       {/* The author in dark gold (accent-ink, P2-1); in my navy bubble it stays light (gold on navy measured 2.4:1, QA PA-M8) */}

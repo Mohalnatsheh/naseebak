@@ -5,8 +5,8 @@ import { ChevronRight, ChevronUp, Loader2, Lock, Mic, SendHorizontal, Square, Tr
 import { cn } from "@/lib/utils";
 import type { ReplyQuote } from "@/lib/chat/reply";
 import { MAX_RECORD_SEC } from "./voice-recorder";
-import { PhotoButton, ProLock, clockLabel, useVoiceRecording, type ComposerMedia } from "./media-buttons";
-import { holdGesture, holdReleaseSends } from "./chat-interactions";
+import { PhotoButton, ProLock, clockLabel, type ComposerMedia } from "./media-buttons";
+import { useHoldToRecord } from "./use-hold-to-record";
 import { ReplyStrip } from "./reply-strip";
 import { StarterChips } from "./starter-chips";
 import { LiveLevel } from "./live-level";
@@ -18,9 +18,6 @@ export interface ChatComposerHandle {
   fill: (text: string, opts?: { onlyIfEmpty?: boolean }) => void;
   focus: () => void;
 }
-
-/** A press on the mic: where it went down, and in which direction the page reads */
-type Hold = { id: number; x: number; y: number; rtl: boolean };
 
 /**
  * The composer: a pill-shaped box (the photo button inside, at its end) and one round button beside it — the mic
@@ -53,24 +50,8 @@ export const ChatComposer = forwardRef<ChatComposerHandle, {
   const [hint, setHint] = useState<string | null>(null);
   const area = useRef<HTMLTextAreaElement>(null);
   const micHintId = useId();
-  const voice = useVoiceRecording(media);
-  const phase = voice.state.phase;
-
-  // The press on the mic (null once released, cancelled, locked or lost) and the slide shown under the finger
-  const hold = useRef<Hold | null>(null);
-  const [holdDx, setHoldDx] = useState<number | null>(null);
-  // The click that ends a press is not a tap on whatever the button became meanwhile (send, after locking); cleared
-  // by the next press elsewhere on the button. A keyboard click (detail 0) is never swallowed
-  const swallowClick = useRef(false);
-  // Locked while the microphone prompt was still open: keep recording once it starts
-  const lockedDuringStart = useRef(false);
-  // Released before recording began (a tap): a hint, not an error
-  const releasedEarly = useRef(false);
-
-  const holding = holdDx !== null && (phase === "starting" || phase === "recording");
-  const recordingView = phase === "recording" && !holding;
-  const stoppedView = phase === "stopping" || phase === "stopped";
-  const busyVoice = holding || recordingView || stoppedView;
+  const rec = useHoldToRecord(media, { female, onError: setHint, textRef: area });
+  const { voice, phase, holding, recordingView, stoppedView, busyVoice, elapsed, stopReason, slide, said, roundButton } = rec;
   // The mic takes the send button's place while the box is empty (one round button at the end)
   const showMic = !!media && !text.trim() && !busyVoice;
 
@@ -96,110 +77,12 @@ export const ChatComposer = forwardRef<ChatComposerHandle, {
     return () => clearTimeout(t);
   }, [hint]);
 
-  /** The press is over (whatever happens to the recording) */
-  function endHold() {
-    hold.current = null;
-    setHoldDx(null);
-  }
-
-  /** The press was lost without a release: stop and wait, or give the microphone back if it hadn't started */
-  function loseHold() {
-    if (!hold.current) return;
-    endHold();
-    if (phase === "recording") void voice.pause("interrupted");
-  }
-
-  // A second finger (or another pointer) anywhere while holding: the press is no longer clear. Subscribed once per
-  // press (not on every move); the latest loseHold is read through a ref
-  const loseHoldRef = useRef(loseHold);
-  useEffect(() => {
-    loseHoldRef.current = loseHold;
-  });
-  const pressing = holdDx !== null;
-  useEffect(() => {
-    if (!pressing) return;
-    const onDown = (e: PointerEvent) => {
-      if (hold.current && e.pointerId !== hold.current.id) loseHoldRef.current();
-    };
-    window.addEventListener("pointerdown", onDown, true);
-    return () => window.removeEventListener("pointerdown", onDown, true);
-  }, [pressing]);
-
-  function startHold(e: React.PointerEvent<HTMLButtonElement>) {
-    if (!media || media.mode !== "enabled" || phase !== "idle") return;
-    if (e.pointerType === "mouse" && e.button !== 0) return;
-    e.preventDefault(); // no focus / text selection under a held finger
-    swallowClick.current = true;
-    try {
-      e.currentTarget.setPointerCapture?.(e.pointerId);
-    } catch {
-      // not capturable (already released): pointerleave covers it
-    }
-    const rtl = getComputedStyle(e.currentTarget).direction !== "ltr";
-    hold.current = { id: e.pointerId, x: e.clientX, y: e.clientY, rtl };
-    setHoldDx(0);
-    setHint(null);
-    void voice.start({ keep: () => hold.current !== null || lockedDuringStart.current }).then((ok) => {
-      if (!ok && releasedEarly.current) setHint(female ? "اضغطي مطولاً للتسجيل، وارفعي إصبعكِ للإرسال" : "اضغط مطولاً للتسجيل، وارفع إصبعك للإرسال");
-      releasedEarly.current = false;
-      lockedDuringStart.current = false;
-    });
-  }
-  function moveHold(e: React.PointerEvent<HTMLButtonElement>) {
-    const h = hold.current;
-    if (!h || e.pointerId !== h.id) return;
-    const dx = e.clientX - h.x;
-    const step = holdGesture({ dx, dy: e.clientY - h.y, rtl: h.rtl });
-    if (step === "cancel") {
-      endHold();
-      voice.cancel();
-    } else if (step === "lock") {
-      if (phase === "starting") lockedDuringStart.current = true;
-      endHold();
-    } else {
-      setHoldDx(dx);
-    }
-  }
-
-  function releaseHold(e: React.PointerEvent<HTMLButtonElement>) {
-    const h = hold.current;
-    if (!h || e.pointerId !== h.id) return;
-    endHold();
-    // Released far from the mic (the finger wandered off): stop and wait, like the app — never a silent send
-    const near = holdReleaseSends({ dx: e.clientX - h.x, dy: e.clientY - h.y });
-    if (phase === "recording") void (near ? voice.send() : voice.pause("interrupted"));
-    else if (phase === "starting") releasedEarly.current = true;
-  }
-
-  // One announcement per change (QA PA-L3 / WC2-11): the ticking clock is never read out
-  // (state adjusted while rendering, not in an effect)
-  const [said, setSaid] = useState("");
-  const [lastPhase, setLastPhase] = useState(phase);
-  if (phase !== lastPhase) {
-    setLastPhase(phase);
-    if (phase === "recording") setSaid("بدأ التسجيل");
-    else if (phase === "stopped") setSaid("توقف التسجيل · جاهز للإرسال");
-  }
-
-  const roundButton = useRef<HTMLButtonElement>(null);
-  /** «إيقاف التسجيل»: its button goes away, so the focus moves to «إرسال الرسالة الصوتية» (QA PA-M9) */
-  function stopByHand() {
-    void voice.pause("manual");
-    requestAnimationFrame(() => roundButton.current?.focus());
-  }
-  function cancelRecording() {
-    voice.cancel();
-    setSaid("أُلغي التسجيل");
-    requestAnimationFrame(() => area.current?.focus());
-  }
-
   /** Esc: cancel a recording, else drop the reply (QA WC2-10) */
   function onComposerKey(e: React.KeyboardEvent<HTMLDivElement>) {
     if (e.key !== "Escape" || e.nativeEvent.isComposing) return;
     if (busyVoice || phase === "starting") {
       e.preventDefault();
-      endHold();
-      cancelRecording();
+      rec.escape();
     } else if (replyTo && onCancelReply) {
       e.preventDefault();
       onCancelReply();
@@ -223,30 +106,16 @@ export const ChatComposer = forwardRef<ChatComposerHandle, {
   }
 
   function onRoundClick(e: React.MouseEvent) {
-    if (swallowClick.current && e.detail > 0) {
-      swallowClick.current = false;
-      return;
-    }
-    if (busyVoice) return void voice.send();
-    if (showMic && media) {
-      if (media.mode === "locked") return media.onLocked();
-      // Keyboard / assistive tech (a click with no press): record hands-free, then stop / cancel / send
-      return void voice.start();
-    }
+    if (rec.roundClick(e, showMic)) return;
     void submit();
   }
 
-  const elapsed = "elapsed" in voice.state ? voice.state.elapsed : 0;
-  const stopReason = voice.state.phase === "stopping" || voice.state.phase === "stopped" ? voice.state.reason : null;
   const clock = (
     <span dir="ltr" className="font-mono text-sm tabular-nums text-foreground">
       {clockLabel(elapsed)}
       {(recordingView || stoppedView) && <span className="text-muted-foreground"> / {clockLabel(MAX_RECORD_SEC)}</span>}
     </span>
   );
-  // Slide-to-cancel follows the finger a little (towards the start edge only)
-  const slide = holdDx === null ? 0 : Math.max(-120, Math.min(120, holdDx));
-
   return (
     <div
       onKeyDown={onComposerKey}
@@ -297,7 +166,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, {
             <div className="flex min-h-11 flex-1 items-center gap-1.5 ps-1 pe-1">
               <button
                 type="button"
-                onClick={cancelRecording}
+                onClick={rec.cancelRecording}
                 aria-label="إلغاء التسجيل"
                 className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full text-destructive hover:bg-destructive/10"
               >
@@ -310,7 +179,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, {
                   <LiveLevel stream={voice.stream} className="mx-1 min-w-0 flex-1" />
                   <button
                     type="button"
-                    onClick={stopByHand}
+                    onClick={rec.stopByHand}
                     aria-label="إيقاف التسجيل"
                     className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full text-destructive hover:bg-destructive/10"
                   >
@@ -368,17 +237,12 @@ export const ChatComposer = forwardRef<ChatComposerHandle, {
             ref={roundButton}
             type="button"
             onClick={onRoundClick}
-            onPointerDown={(e) => {
-              if (showMic) return startHold(e);
-              swallowClick.current = false;
-              // Keep the focus in the box so the phone keyboard stays open between messages
-              e.preventDefault();
-            }}
-            onPointerMove={moveHold}
-            onPointerUp={releaseHold}
-            onPointerCancel={loseHold}
-            onLostPointerCapture={loseHold}
-            onPointerLeave={loseHold}
+            onPointerDown={(e) => rec.roundPointerDown(e, showMic)}
+            onPointerMove={rec.moveHold}
+            onPointerUp={rec.releaseHold}
+            onPointerCancel={rec.loseHold}
+            onLostPointerCapture={rec.loseHold}
+            onPointerLeave={rec.loseHold}
             onContextMenu={(e) => showMic && e.preventDefault()}
             // Never disabled under a held press (a disabled button gets no pointer events: the release would be lost)
             disabled={busyVoice ? phase === "stopping" : !showMic && (!text.trim() || sending || text.trim().length > MAX)}

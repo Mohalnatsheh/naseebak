@@ -6,7 +6,13 @@ import {
   nextVoiceSpeed,
   seekFraction,
   voiceBars,
+  getLastVoiceSpeed,
+  rememberVoiceSpeed,
 } from "@/components/chat/voice-wave";
+import { createElement } from "react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { VoiceBubble } from "@/components/chat/media-bubble";
+import type { ChatMedia } from "@/lib/chat/service";
 import { clampPan, clampZoom, photoSwipe } from "@/components/chat/photo-viewer-logic";
 
 describe("voice waveform from the duration", () => {
@@ -110,5 +116,35 @@ describe("photo viewer", () => {
     expect(clampPan({ x: 30, y: -40 }, 2, stage)).toEqual({ x: 30, y: -40 });
     // Not zoomed: no pan at all
     expect(clampPan({ x: 50, y: 50 }, 1, stage)).toEqual({ x: 0, y: 0 });
+  });
+});
+
+describe("voice speed memory (WhatsApp layout only)", () => {
+  beforeEach(() => {
+    vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+    vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {});
+    rememberVoiceSpeed(1.5);
+  });
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+    rememberVoiceSpeed(1);
+  });
+
+  const media = { url: "https://cdn.test/v.m4a", type: "audio/mp4", durationSec: 8, width: null, height: null } satisfies ChatMedia;
+  const playIt = () => fireEvent.click(screen.getByRole("button", { name: /تشغيل الرسالة الصوتية/ }));
+
+  it("default: every note starts at 1× (the switch-off chat is unchanged)", async () => {
+    render(createElement(VoiceBubble, { media, mine: true, messageId: "v1" }));
+    playIt();
+    expect(await screen.findByRole("button", { name: "سرعة التشغيل 1×" })).toBeTruthy();
+  });
+
+  it("rememberSpeed: starts at the last speed used in this tab, and a change is remembered", async () => {
+    expect(getLastVoiceSpeed()).toBe(1.5);
+    render(createElement(VoiceBubble, { media, mine: true, messageId: "v2", rememberSpeed: true }));
+    playIt();
+    fireEvent.click(await screen.findByRole("button", { name: "سرعة التشغيل 1.5×" }));
+    expect(getLastVoiceSpeed()).toBe(2);
   });
 });

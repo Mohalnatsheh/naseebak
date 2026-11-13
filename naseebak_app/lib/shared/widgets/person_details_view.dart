@@ -10,6 +10,7 @@ class PersonDetailsView extends StatefulWidget {
     required this.person,
     required this.female,
     this.initiallyExpanded = false,
+    this.alwaysExpanded = false,
     this.tribeLabel = 'العائلة',
   });
 
@@ -21,6 +22,9 @@ class PersonDetailsView extends StatefulWidget {
   /// Gender of the person described (the viewer's opposite)
   final bool female;
   final bool initiallyExpanded;
+
+  /// Show every fact and text at once, with no «عرض كل التفاصيل» toggle (the full profile screen).
+  final bool alwaysExpanded;
 
   @override
   State<PersonDetailsView> createState() => _PersonDetailsViewState();
@@ -71,13 +75,14 @@ class _PersonDetailsViewState extends State<PersonDetailsView> {
       if (p.hobbies != null && p.hobbies!.isNotEmpty) ('الهوايات', p.hobbies!),
       if (p.interests != null && p.interests!.isNotEmpty) ('الاهتمامات', p.interests!),
     ];
-    final hasMore = more.isNotEmpty || texts.isNotEmpty;
+    final hasMore = !widget.alwaysExpanded && (more.isNotEmpty || texts.isNotEmpty);
+    final expanded = widget.alwaysExpanded || _expanded;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         ...key.where((e) => e.value.isNotEmpty).map((e) => _FactRow(fact: e)),
-        if (_expanded) ...[
+        if (expanded) ...[
           ...more.where((e) => e.value.isNotEmpty).map((e) => _FactRow(fact: e)),
           for (final t in texts) ...[
             const SizedBox(height: 10),

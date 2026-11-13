@@ -755,6 +755,26 @@ void main() {
       await r.leave(tester);
     });
 
+    testWidgets('the permission dialog cancels the touch mid-hold: once allowed, the same hint, nothing recorded (U3)',
+        (tester) async {
+      final r = ChatTestRoom();
+      final answer = Completer<bool>();
+      r.permission = () => answer.future;
+      await r.open(tester);
+      final g = await holdMic(tester);
+      // The system dialog takes the touch: a pointer cancel, not a lift
+      await g.cancel();
+      await frames(tester);
+      expect(find.text(holdTooShortText), findsNothing);
+      answer.complete(true);
+      await frames(tester);
+      expect(find.text(micAllowedHint(true)), findsOneWidget);
+      expect(r.rec.started, isFalse);
+      expect(r.uploads, isEmpty);
+      expect(find.byKey(const Key('voice-hold-bar')), findsNothing);
+      await r.leave(tester);
+    });
+
     testWidgets('the reactions chip and a quote are at least 44 px tall to tap', (tester) async {
       final r = ChatTestRoom(messages: [
         {

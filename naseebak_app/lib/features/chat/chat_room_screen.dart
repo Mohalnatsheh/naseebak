@@ -1762,6 +1762,8 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     if (_voice == _Voice.recording && rec != null) {
       _stopRecording(rec, limit: false);
     } else if (_voice == _Voice.starting) {
+      // A system permission dialog mid-hold usually cancels the touch: the same U3 hint as a lift while asking
+      if (_askingMic != null && _askingMic == rec) _releasedAsking = rec;
       _releaseVoice();
       setState(() => _voice = _Voice.idle);
     } else {

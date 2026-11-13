@@ -44,6 +44,18 @@ export function nextVoiceSpeed(speed: number): VoiceSpeed {
   return VOICE_SPEEDS[(i + 1) % VOICE_SPEEDS.length];
 }
 
+/** The speed last chosen in this tab (WhatsApp layout only: its notes start at it) */
+let lastVoiceSpeed: VoiceSpeed = 1;
+
+export function getLastVoiceSpeed(): VoiceSpeed {
+  return lastVoiceSpeed;
+}
+
+/** Set by the caller of nextVoiceSpeed when the member changes the speed */
+export function rememberVoiceSpeed(speed: VoiceSpeed): void {
+  lastVoiceSpeed = speed;
+}
+
 const PLAYED_KEY = "naseeb:voice-played";
 /** The newest this many played notes are remembered */
 const PLAYED_MAX = 400;

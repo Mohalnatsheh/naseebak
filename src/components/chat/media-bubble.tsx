@@ -7,7 +7,16 @@ import { cn } from "@/lib/utils";
 import type { ChatMedia } from "@/lib/chat/service";
 import { clockLabel } from "./media-buttons";
 import { useRowTabIndex } from "./row-focus";
-import { hasPlayedVoice, markVoicePlayed, nextVoiceSpeed, seekFraction, voiceBars, type VoiceSpeed } from "./voice-wave";
+import {
+  getLastVoiceSpeed,
+  hasPlayedVoice,
+  markVoicePlayed,
+  nextVoiceSpeed,
+  rememberVoiceSpeed,
+  seekFraction,
+  voiceBars,
+  type VoiceSpeed,
+} from "./voice-wave";
 
 /** Shown photo width in the bubble; the height follows the photo's own shape */
 const PHOTO_WIDTH = 240;
@@ -105,7 +114,21 @@ let playing: HTMLAudioElement | null = null;
  * m:ss (the time played while playing, else the length), the speed 1× / 1.5× / 2× while it plays, and a dot on the
  * other person's notes until played in this browser.
  */
-export function VoiceBubble({ media, mine, messageId }: { media: ChatMedia; mine: boolean; messageId: string }) {
+export function VoiceBubble({
+  media,
+  mine,
+  messageId,
+  rememberSpeed = false,
+  onNavy = mine,
+}: {
+  media: ChatMedia;
+  mine: boolean;
+  messageId: string;
+  /** WhatsApp layout: start at the last speed used in this tab, and remember a change (default: always 1×) */
+  rememberSpeed?: boolean;
+  /** Light-on-navy colours (today's navy bubble of mine); false on a light bubble. Defaults to `mine` */
+  onNavy?: boolean;
+}) {
   const rowTab = useRowTabIndex();
   const audio = useRef<HTMLAudioElement>(null);
   const wave = useRef<HTMLDivElement>(null);
@@ -113,7 +136,7 @@ export function VoiceBubble({ media, mine, messageId }: { media: ChatMedia; mine
   const [current, setCurrent] = useState(0);
   const [length, setLength] = useState<number>(media.durationSec ?? 0);
   const [error, setError] = useState(false);
-  const [speed, setSpeed] = useState<VoiceSpeed>(1);
+  const [speed, setSpeed] = useState<VoiceSpeed>(() => (rememberSpeed ? getLastVoiceSpeed() : 1));
   // A seek before the file is loaded: applied once it is
   const pendingSeek = useRef<number | null>(null);
   const bars = useMemo(() => voiceBars(messageId, media.durationSec), [messageId, media.durationSec]);
@@ -178,8 +201,8 @@ export function VoiceBubble({ media, mine, messageId }: { media: ChatMedia; mine
     seekTo(seekFraction(e.clientX, rect, getComputedStyle(el).direction === "rtl"));
   }
 
-  const fg = mine ? "bg-primary-foreground" : "bg-primary";
-  const bg = mine ? "bg-primary-foreground/35" : "bg-primary/25";
+  const fg = onNavy ? "bg-primary-foreground" : "bg-primary";
+  const bg = onNavy ? "bg-primary-foreground/35" : "bg-primary/25";
 
   return (
     <div className="flex min-w-56 items-center gap-1.5 py-0.5">
@@ -191,7 +214,7 @@ export function VoiceBubble({ media, mine, messageId }: { media: ChatMedia; mine
         aria-label={state === "playing" ? "إيقاف مؤقت" : played ? "تشغيل الرسالة الصوتية" : "تشغيل الرسالة الصوتية · لم تُسمع بعد"}
         className={cn(
           "relative flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full transition-transform active:scale-95",
-          mine ? "bg-primary-foreground text-primary" : "bg-primary text-primary-foreground"
+          onNavy ? "bg-primary-foreground text-primary" : "bg-primary text-primary-foreground"
         )}
       >
         {state === "loading" ? (
@@ -244,7 +267,7 @@ export function VoiceBubble({ media, mine, messageId }: { media: ChatMedia; mine
             />
           ))}
         </div>
-        <p className={cn("mt-0.5 text-xs", mine ? "text-primary-foreground/80" : "text-muted-foreground")}>
+        <p className={cn("mt-0.5 text-xs", onNavy ? "text-primary-foreground/80" : "text-muted-foreground")}>
           {error ? (
             "تعذّر تشغيل الرسالة الصوتية"
           ) : (
@@ -260,6 +283,7 @@ export function VoiceBubble({ media, mine, messageId }: { media: ChatMedia; mine
           onClick={() => {
             const next = nextVoiceSpeed(speed);
             setSpeed(next);
+            if (rememberSpeed) rememberVoiceSpeed(next);
             if (audio.current) applySpeed(audio.current, next);
           }}
           tabIndex={rowTab}
@@ -270,7 +294,7 @@ export function VoiceBubble({ media, mine, messageId }: { media: ChatMedia; mine
             dir="ltr"
             className={cn(
               "rounded-full px-1.5 py-0.5 text-xs font-bold tabular-nums",
-              mine ? "bg-primary-foreground/20 text-primary-foreground" : "bg-primary/10 text-primary"
+              onNavy ? "bg-primary-foreground/20 text-primary-foreground" : "bg-primary/10 text-primary"
             )}
           >
             {speed}×

@@ -166,7 +166,11 @@ class HomeScreen extends ConsumerWidget {
           icon: Icons.inbox_rounded,
           urgent: true,
           title: '${c.pendingIntros == 1 ? 'طلب تعارف' : requestsWaiting(c.pendingIntros)} بانتظار ردّ$yours',
-          onTap: () => context.go('/matches'),
+          // The waiting request's match, like the website (the match list when the server names none)
+          onTap: () => openAppRoute(
+            GoRouter.of(context),
+            c.pendingIntroMatchId != null ? '/matches/${c.pendingIntroMatchId}' : '/matches',
+          ),
         ),
       if (c.actionableMatches > 0)
         _Row(
@@ -498,11 +502,16 @@ class _LoadErrorRow extends StatelessWidget {
           alignment: WrapAlignment.spaceBetween,
           spacing: AppSpace.sm,
           children: [
-            Row(mainAxisSize: MainAxisSize.min, children: [
-              const Icon(Icons.wifi_off_rounded, color: AppColors.muted),
-              const SizedBox(width: AppSpace.md),
-              Flexible(child: Text(text, style: AppText.labelRegular.copyWith(color: AppColors.ink))),
-            ]),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.wifi_off_rounded, color: AppColors.muted),
+                const SizedBox(width: AppSpace.md),
+                Flexible(
+                  child: Text(text, style: AppText.labelRegular.copyWith(color: AppColors.ink)),
+                ),
+              ],
+            ),
             TextButton(onPressed: onRetry, child: const Text('إعادة المحاولة')),
           ],
         ),

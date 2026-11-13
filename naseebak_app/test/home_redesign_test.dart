@@ -51,6 +51,7 @@ void main() {
       GoRoute(path: '/home', builder: (_, _) => const HomeScreen()),
       GoRoute(path: '/suggestions', builder: (_, s) => placeholder('suggestions?${s.uri.query}')),
       GoRoute(path: '/matches', builder: (_, _) => placeholder('matches')),
+      GoRoute(path: '/matches/:id', builder: (_, s) => placeholder('match ${s.pathParameters['id']}')),
       GoRoute(path: '/chats', builder: (_, _) => placeholder('chats')),
       GoRoute(path: '/credits', builder: (_, _) => placeholder('credits')),
       GoRoute(path: '/pro', builder: (_, _) => placeholder('pro')),
@@ -100,12 +101,21 @@ void main() {
   });
 
   group('«بانتظار ردّك»', () {
-    testWidgets('rows from what the status chips used: requests and matches, gendered, to /matches', (tester) async {
+    testWidgets('rows from what the status chips used: requests and matches, gendered; matches to /matches', (tester) async {
       await pumpHome(tester, counts: {'pendingIntros': 1, 'actionableMatches': 2});
       expect(find.text('بانتظار ردّكِ'), findsOneWidget);
       expect(find.text('طلب تعارف بانتظار ردّكِ'), findsOneWidget);
       expect(find.text('توافقان ينتظرانكِ'), findsOneWidget);
       expect(find.text('يمكنكِ طلب تعارف عائلي أو محادثة.'), findsOneWidget);
+      await tapAndSettle(tester, find.text('توافقان ينتظرانكِ'));
+      expect(find.text('route:matches'), findsOneWidget);
+    });
+
+    testWidgets('the request row opens the waiting request\'s match (the match list when none is named)', (tester) async {
+      await pumpHome(tester, counts: {'pendingIntros': 1, 'pendingIntroMatchId': 'm7'});
+      await tapAndSettle(tester, find.text('طلب تعارف بانتظار ردّكِ'));
+      expect(find.text('route:match m7'), findsOneWidget);
+      await pumpHome(tester, counts: {'pendingIntros': 1});
       await tapAndSettle(tester, find.text('طلب تعارف بانتظار ردّكِ'));
       expect(find.text('route:matches'), findsOneWidget);
     });

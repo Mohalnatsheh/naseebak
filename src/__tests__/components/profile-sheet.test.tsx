@@ -49,6 +49,11 @@ describe("ProfileSheet", () => {
     expect(within(dialog).queryAllByRole("button", { expanded: true })).toEqual([]);
   });
 
+  it("rounds the score (a Float in the schema)", () => {
+    render(<ProfileSheet item={{ ...item, compatibilityScore: 82.6 } as FeedItem} onClose={() => {}} footer={null} />);
+    expect(within(screen.getByRole("dialog")).getByText("توافق 83%")).toBeTruthy();
+  });
+
   it("renders the footer and the menu", () => {
     render(<ProfileSheet item={item} onClose={() => {}} footer={<div>FOOT</div>} menu={<button>MENU</button>} />);
     expect(screen.getByText("FOOT")).toBeTruthy();

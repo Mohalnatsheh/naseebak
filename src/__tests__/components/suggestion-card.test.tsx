@@ -58,6 +58,11 @@ describe("SuggestionCard", () => {
     expect(screen.getByText("STATUS")).toBeTruthy();
   });
 
+  it("rounds the score (a Float in the schema)", () => {
+    setup({ ...base, compatibilityScore: 82.6 } as unknown as FeedItem);
+    expect(screen.getByText("توافق 83%")).toBeTruthy();
+  });
+
   it("opens from the body or the button once; actions never open it", () => {
     const { onOpen, inner } = setup();
     fireEvent.click(screen.getByText("نسرين، 27"));

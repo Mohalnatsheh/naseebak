@@ -69,7 +69,7 @@ export function SuggestionCard({
             </p>
           </div>
           <span className="shrink-0 rounded-full bg-accent-soft px-2.5 py-1 text-caption font-bold text-accent-ink">
-            توافق {item.compatibilityScore}%
+            توافق {Math.round(item.compatibilityScore)}%
           </span>
         </div>
 

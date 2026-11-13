@@ -127,7 +127,7 @@ export function ProfileSheet({
             <p className="text-label text-muted-foreground">
               {meta}
               {meta ? " · " : ""}
-              <span className="text-accent-ink">توافق {item.compatibilityScore}%</span>
+              <span className="text-accent-ink">توافق {Math.round(item.compatibilityScore)}%</span>
             </p>
             <p className="text-caption text-muted-foreground">الصور تظهر بعد التوافق المتبادل فقط</p>
           </div>

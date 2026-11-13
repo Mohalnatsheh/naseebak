@@ -144,7 +144,7 @@ needed a release.
   (`core/storage/picker_files.dart`); a refused microphone offers
   «الإعدادات» (`openAppSettings` on the `naseebak/system` channel). The splash plays in full on the first launch only
   (0.6 s after). A paused account can open `/pro` (renewal shown on the paused page); `/pro` sends test accounts home.
-- **WhatsApp-style chat (built 2026-11-14 on `feature/app-whatsapp-chat`, NOT released; no switch, so it needs a new app
+- **WhatsApp-style chat (built 2026-11-14, merged into `main`, NOT released; my bubbles stay on the left (owner); no switch, so it needs a new app
   version and old apps keep their chat; spec `../docs/superpowers/specs/2026-11-13-whatsapp-style-chat-design.md`).** It
   replaces what the «Modern chat» notes below say about look, menu, composer and the chats tabs; the status bar, family
   steps, report, hold-to-record, reactions data, typing, photos and voice stay as they are:

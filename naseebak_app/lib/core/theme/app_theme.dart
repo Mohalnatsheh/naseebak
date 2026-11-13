@@ -42,8 +42,22 @@ class AppColors {
   static const danger = Color(0xFFB3261E);
   static const dangerBg = Color(0xFFFDECEA);
 
-  /// Chat: my bubbles in navy with white text, the other person's in white with ink text, on warm sand
-  static const chatMine = navy;
+  /// Chat: my bubbles in pale navy with ink text (end side), the other person's in white (start side), on warm sand
+  static const bubbleMine = Color(0xFFDFE9F4);
+  static const bubbleMineQuote = Color(0xFFCDDBE9);
+
+  /// Selected message: navy at 14 %
+  static const chatSelect = Color(0x2422476A);
+
+  /// Floating chips over the chat: white at 92 %
+  static const chatChip = Color(0xEBFFFFFF);
+
+  /// Safety note chip (its text stays `goldText`)
+  static const safetyChip = Color(0xFFF9EDD9);
+
+  /// Secondary text and icons on the dark photo viewer: white at 70 %
+  static const onDarkMuted = Color(0xB3FFFFFF);
+  static const chatMine = bubbleMine;
   static const chatTheirs = Colors.white;
   static const chatBackdrop = sand;
 }

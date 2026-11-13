@@ -43,6 +43,7 @@ import '../../features/welcome/splash_screen.dart';
 import '../../features/welcome/welcome_state.dart';
 import '../analytics/analytics.dart';
 import '../auth/auth_controller.dart';
+import 'route_observer.dart';
 
 /// Where the member must be, given the session and the picked country (null = stay).
 ///
@@ -194,6 +195,8 @@ final routerProvider = Provider<GoRouter>((ref) {
 
   router = GoRouter(
     navigatorKey: rootNavigatorKey,
+    // The chat knows whether it is on top (it marks messages read only then)
+    observers: [appRouteObserver],
     initialLocation: '/splash',
     refreshListenable: refresh,
     redirect: (context, state) {

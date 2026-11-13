@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:naseebak_app/app/providers.dart';
 import 'package:naseebak_app/core/auth/auth_controller.dart';
 import 'package:naseebak_app/core/network/api_client.dart';
+import 'package:naseebak_app/core/routing/route_observer.dart';
 import 'package:naseebak_app/core/storage/token_store.dart';
 import 'package:naseebak_app/core/theme/app_theme.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -160,6 +161,7 @@ Widget rtlApp(Widget child) => MaterialApp(
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
+      navigatorObservers: [appRouteObserver],
       home: child,
     );
 

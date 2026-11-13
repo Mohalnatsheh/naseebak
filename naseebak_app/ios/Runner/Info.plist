@@ -34,6 +34,8 @@
 	<false/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>لالتقاط صورة وإرسالها في المحادثة</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>لتسجيل رسالة صوتية في المحادثة</string>
 	<key>NSPhotoLibraryUsageDescription</key>

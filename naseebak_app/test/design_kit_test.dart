@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:naseebak_app/core/theme/app_theme.dart';
 import 'package:naseebak_app/features/discovery/suggestion_card.dart';
 import 'package:naseebak_app/features/discovery/suggestion_models.dart';
 import 'package:naseebak_app/features/profile/quiz_screen.dart';
@@ -112,6 +113,13 @@ void main() {
     for (final f in Directory('lib/features').listSync(recursive: true).whereType<File>().where((f) => f.path.endsWith('.dart'))) {
       expect(f.readAsStringSync().contains('fontSize:'), isFalse, reason: f.path);
     }
+  });
+
+  test('the chat media bubbles use colour tokens, not Colors.white70-style presets', () {
+    final preset = RegExp(r'Colors\.(white|black)\d\d');
+    expect(preset.hasMatch(File('lib/features/chat/media_bubbles.dart').readAsStringSync()), isFalse);
+    expect((AppColors.onDarkMuted.a - 0.7).abs(), lessThan(0.01));
+    expect(AppColors.onDarkMuted.withValues(alpha: 1), Colors.white);
   });
 
   testWidgets('the quiz answer is one row of five steps, even at 320 dp with large text', (tester) async {

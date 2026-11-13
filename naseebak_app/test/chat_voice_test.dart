@@ -22,6 +22,7 @@ import 'package:naseebak_app/features/home/counts.dart';
 import 'package:naseebak_app/features/pro/pro_repository.dart';
 import 'package:record/record.dart' show AudioEncoder;
 
+import 'helpers/chat_room_helpers.dart' show pickFromGallery;
 import 'helpers/fake_api.dart';
 import 'helpers/fake_recorder.dart';
 import 'helpers/fake_voice_player.dart';
@@ -190,9 +191,9 @@ final _clock = find.byKey(const Key('voice-clock'));
 /// The recording bar's clock ticks every 250 ms
 Future<void> _tick(WidgetTester tester) => tester.pump(const Duration(milliseconds: 300));
 
-/// The photo button, then «إرسال» on the preview (nothing is uploaded before it)
+/// The paperclip → «المعرض», then «إرسال» on the preview (nothing is uploaded before it)
 Future<void> pickAndSendPhoto(WidgetTester tester) async {
-  await tester.tap(find.byKey(const Key('chat-photo')));
+  await pickFromGallery(tester);
   final send = find.byKey(const Key('photo-preview-send'));
   for (var i = 0; i < 20 && send.evaluate().isEmpty; i++) {
     await tester.pump(const Duration(milliseconds: 20));
@@ -260,6 +261,25 @@ void main() {
     expect(h.settingsOpened, 1);
     expect(h.recorders.every((r) => !r.started), isTrue);
     await tester.pump(const Duration(seconds: 5));
+  });
+
+  testWidgets('the header back arrow while recording still asks first', (tester) async {
+    final h = _Harness()..withBack = true;
+    await h.open(tester);
+    // The push transition finishes (the arrow is on screen)
+    await tester.pump(const Duration(seconds: 1));
+    await tester.tap(_mic);
+    await tester.pump();
+    await tester.pump();
+    expect(h.rec.started, isTrue);
+    await tester.tap(find.byKey(const Key('chat-back')));
+    await tester.pumpAndSettle();
+    expect(find.text('حذف الرسالة الصوتية؟'), findsOneWidget);
+    await tester.tap(find.text('حذف والخروج'));
+    await tester.pumpAndSettle();
+    expect(find.text('chats-list'), findsOneWidget);
+    expect(h.rec.cancelled, isTrue);
+    expect(h.uploads, isEmpty);
   });
 
   testWidgets('back while recording asks first: «إلغاء» keeps the recording, «حذف والخروج» deletes it and leaves',
@@ -488,7 +508,7 @@ void main() {
     for (var i = 0; i < 5; i++) {
       await tester.pump(const Duration(milliseconds: 50));
     }
-    expect(find.text('إعادة الإرسال'), findsOneWidget);
+    expect(find.byKey(const Key('chat-failed-info')), findsOneWidget);
     // The server did save it: the next poll brings «📷 صورة» (no nonce in the GET)
     h.serverExtra = [
       {
@@ -503,7 +523,7 @@ void main() {
     await tester.pump(const Duration(seconds: 1));
     await tester.pump();
     await tester.pump();
-    expect(find.text('إعادة الإرسال'), findsNothing);
+    expect(find.byKey(const Key('chat-failed-info')), findsNothing);
     expect(find.byType(ChatBubble), findsNWidgets(2));
     await h.leave(tester);
   });
@@ -531,7 +551,7 @@ void main() {
     await tester.pump(const Duration(seconds: 1));
     await tester.pump();
     await tester.pump();
-    expect(find.text('إعادة الإرسال'), findsOneWidget);
+    expect(find.byKey(const Key('chat-failed-info')), findsOneWidget);
     await h.leave(tester);
   });
 
@@ -608,14 +628,14 @@ void main() {
     for (var i = 0; i < 5; i++) {
       await tester.pump(const Duration(milliseconds: 50));
     }
-    expect(find.text('إعادة الإرسال'), findsOneWidget);
+    expect(find.byKey(const Key('chat-failed-info')), findsOneWidget);
     expect(find.byType(ChatBubble), findsNWidgets(3));
     // The server holds only the photo that was sent: the failed one keeps its retry
     h.serverExtra = [sentCopy!];
     await tester.pump(const Duration(seconds: 1));
     await tester.pump();
     await tester.pump();
-    expect(find.text('إعادة الإرسال'), findsOneWidget);
+    expect(find.byKey(const Key('chat-failed-info')), findsOneWidget);
     expect(find.byType(ChatBubble), findsNWidgets(3));
     // Its own copy turns up after all: shown once
     h.serverExtra = [
@@ -632,7 +652,7 @@ void main() {
     await tester.pump(const Duration(seconds: 1));
     await tester.pump();
     await tester.pump();
-    expect(find.text('إعادة الإرسال'), findsNothing);
+    expect(find.byKey(const Key('chat-failed-info')), findsNothing);
     expect(find.byType(ChatBubble), findsNWidgets(3));
     await h.leave(tester);
   });
@@ -781,7 +801,7 @@ void main() {
     for (var i = 0; i < 10; i++) {
       await tester.pump(const Duration(milliseconds: 20));
     }
-    expect(find.text('إعادة الإرسال'), findsOneWidget);
+    expect(find.byKey(const Key('chat-failed-info')), findsOneWidget);
     expect(file.existsSync(), isTrue, reason: 'kept for the retry while the chat is open');
     await h.leave(tester);
     await tester.pumpAndSettle();

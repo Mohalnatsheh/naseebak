@@ -1,6 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:in_app_review/in_app_review.dart';
 import 'package:naseebak_app/app/providers.dart';
 import 'package:naseebak_app/core/analytics/analytics.dart';
@@ -16,6 +20,33 @@ import 'package:naseebak_app/features/chat/chat_room_screen.dart';
 
 import 'helpers/chat_room_helpers.dart';
 import 'helpers/fake_api.dart';
+
+/// The room inside a router with a match page, signed in as u1
+Future<void> _openRouted(WidgetTester tester, FakeAdapter adapter) async {
+  adapter
+    ..on('GET', '/api/mobile/me', FakeResponse(200, {'user': meJson()}))
+    ..on('POST', '/api/chats/c1/read', const FakeResponse(200, {'ok': true}))
+    ..on('GET', '/api/chats/ably-token', const FakeResponse(404, {'error': 'غير متاح'}));
+  final overrides = await testOverrides(adapter, store: MemoryTokenStore('t1'));
+  final container = ProviderContainer(overrides: [...overrides, chatCacheProvider.overrideWithValue(MemoryChatCache())]);
+  addTearDown(container.dispose);
+  container.read(authControllerProvider);
+  await tester.pumpWidget(const SizedBox());
+  for (var i = 0; i < 50 && !container.read(authControllerProvider).isSignedIn; i++) {
+    await tester.pump(const Duration(milliseconds: 10));
+  }
+  final router = GoRouter(
+    initialLocation: '/chats/c1',
+    routes: [
+      GoRoute(
+        path: '/chats/c1',
+        builder: (_, _) => const ChatRoomScreen(chatId: 'c1', pollInterval: Duration(hours: 1)),
+      ),
+      GoRoute(path: '/matches/:id', builder: (_, _) => const Scaffold(body: Text('match-page'))),
+    ],
+  );
+  await tester.pumpWidget(UncontrolledProviderScope(container: container, child: rtlRouterApp(router)));
+}
 
 void main() {
   group('chat cache', () {
@@ -55,6 +86,47 @@ void main() {
       expect(saved.messages.map((m) => m.id).take(2), ['m001', 'm002']); // older cached messages kept
       expect(saved.messages.last.id, 'm042');
       expect(saved.messages.length, 42);
+    });
+
+    testWidgets('reduced motion: «الأحدث» jumps at once', (tester) async {
+      tester.platformDispatcher.accessibilityFeaturesTestValue = const FakeAccessibilityFeatures(disableAnimations: true);
+      addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
+      final cache = MemoryChatCache();
+      await cache.write('u1', 'c1', cached(List.generate(40, (i) => i + 1), hasMore: true));
+      final adapter = FakeAdapter()..on('GET', '/api/chats/c1', FakeResponse(200, page(List.generate(30, (i) => i + 13), hasMore: true)));
+      await openRoom(tester, adapter, cache);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('chat-newest')), findsOneWidget);
+      final list = tester.widget<ListView>(find.byType(ListView).first);
+      expect(list.controller!.offset, greaterThan(0));
+      await tester.tap(find.byKey(const Key('chat-newest')));
+      await tester.pump();
+      // No scroll animation: already at the newest after one frame
+      expect(list.controller!.offset, 0);
+    });
+
+    testWidgets('scrolled up, a poll brings 2 partner messages: the jump button counts 2', (tester) async {
+      var extra = false;
+      final adapter = FakeAdapter()
+        ..handlers['GET /api/chats/c1'] = (r) => FakeResponse(200, {
+              ...page([]),
+              'messages': [
+                for (var n = 1; n <= 30; n++) msg(n, readAt: chatT0),
+                if (extra && r.queryParameters.containsKey('after')) ...[msg(31), msg(32)],
+              ],
+            });
+      await openRoom(tester, adapter, MemoryChatCache(), pollInterval: const Duration(seconds: 4));
+      await tester.pumpAndSettle();
+      await tester.drag(find.byType(ListView), const Offset(0, 900));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('chat-newest')), findsOneWidget);
+      expect(find.byKey(const Key('chat-newest-count')), findsNothing);
+      final sem = tester.getSemantics(find.byKey(const Key('chat-newest')));
+      expect(sem.getSemanticsData().hasAction(SemanticsAction.tap), isTrue);
+      extra = true;
+      await tester.pump(const Duration(seconds: 4));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.descendant(of: find.byKey(const Key('chat-newest-count')), matching: find.text('2')), findsOneWidget);
     });
 
     testWidgets('more than a page arrived meanwhile: starts again from the newest page', (tester) async {
@@ -345,7 +417,7 @@ void main() {
       await tester.enterText(find.byKey(const Key('chat-input')), 'رقمي 0790000000');
       await tester.tap(find.byKey(const Key('chat-send')));
       await tester.pumpAndSettle();
-      expect(find.text('تعديل الرسالة'), findsOneWidget);
+      expect(find.byKey(const Key('chat-refusal')), findsOneWidget);
       later = true;
       await tester.pump(const Duration(seconds: 4));
       await tester.pumpAndSettle();
@@ -355,11 +427,89 @@ void main() {
       expect(replyY, greaterThan(refusedY));
 
       // «حذف»: the refused message leaves the phone (screen and device copy)
+      await openFailed(tester);
       await tester.tap(find.byKey(const Key('chat-failed-delete')));
       await tester.pumpAndSettle();
       expect(find.text('رقمي 0790000000'), findsNothing);
       final saved = (await cache.read('u1', 'c1'))!;
       expect(saved.messages.any((m) => m.state == SendState.failed), isFalse);
+    });
+
+    testWidgets('a failed text: ⓘ beside it; «إعادة المحاولة» resends with the same nonce; «حذف» removes it',
+        (tester) async {
+      final adapter = FakeAdapter()
+        ..on('POST', '/api/chats/c1/messages', const FakeResponse.network())
+        ..on('GET', '/api/chats/c1', FakeResponse(200, page([1])));
+      await openRoom(tester, adapter, MemoryChatCache());
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byKey(const Key('chat-input')), 'اختبار');
+      await tester.tap(find.byKey(const Key('chat-send')));
+      await tester.pumpAndSettle();
+      final info = find.byKey(const Key('chat-failed-info'));
+      expect(info, findsOneWidget);
+      expect(find.text('إعادة الإرسال'), findsNothing, reason: 'the actions live in the ⓘ sheet');
+      // On the bubble's inward side: before it, in reading order (to the right of my bubble at the end side)
+      expect(tester.getCenter(info).dx, greaterThan(tester.getCenter(find.text('اختبار')).dx));
+      expect(tester.getSize(info).height, greaterThanOrEqualTo(44));
+      await openFailed(tester);
+      expect(find.text('إعادة المحاولة'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('failed-retry')));
+      await tester.pumpAndSettle();
+      final posts = adapter.to('POST', '/api/chats/c1/messages');
+      expect(posts, hasLength(2));
+      expect((posts[1].data as Map)['clientNonce'], (posts[0].data as Map)['clientNonce']);
+      await openFailed(tester);
+      await tester.tap(find.byKey(const Key('chat-failed-delete')));
+      await tester.pumpAndSettle();
+      expect(find.text('اختبار'), findsNothing);
+      expect(info, findsNothing);
+    });
+
+    testWidgets(
+        'a filtered text: the gold note with the server message; «تعديل الرسالة» puts it back in the box; «تعارف عائلي» opens the match page when the offer is open',
+        (tester) async {
+      final adapter = FakeAdapter()
+        ..on('POST', '/api/chats/c1/messages', const FakeResponse(422, {'error': 'لا يمكن إرسال أرقام', 'code': 'FILTERED'}))
+        ..on('GET', '/api/chats/c1', FakeResponse(200, {...page([1]), 'bothWrote': true}))
+        ..on('GET', '/api/matches/x1/intro', const FakeResponse(200, {
+          'flags': {'introRequests': true, 'chat': true},
+          'family': {'status': 'none'},
+          'chat': {'status': 'open'},
+        }));
+      await _openRouted(tester, adapter);
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byKey(const Key('chat-input')), 'رقمي 0790000000');
+      await tester.tap(find.byKey(const Key('chat-send')));
+      await tester.pumpAndSettle();
+      final note = find.byKey(const Key('chat-refusal'));
+      expect(find.descendant(of: note, matching: find.text('لا يمكن إرسال أرقام')), findsOneWidget);
+      expect(find.descendant(of: note, matching: find.byIcon(Icons.shield_outlined)), findsOneWidget);
+      // The offer is open: the note carries the family button, which opens the match page
+      await tester.tap(find.byKey(const Key('chat-refusal-family')));
+      await tester.pumpAndSettle();
+      expect(find.text('match-page'), findsOneWidget);
+      // Back in the chat, «تعديل الرسالة» puts the text in the box and sends nothing
+      Navigator.of(tester.element(find.text('match-page'))).pop();
+      await tester.pumpAndSettle();
+      await openFailed(tester);
+      await tester.tap(find.byKey(const Key('failed-retry')));
+      await tester.pumpAndSettle();
+      expect(tester.widget<TextField>(find.byKey(const Key('chat-input'))).controller!.text, 'رقمي 0790000000');
+      expect(adapter.to('POST', '/api/chats/c1/messages'), hasLength(1), reason: 'editing sends nothing');
+
+    });
+
+    testWidgets('a filtered text without an open family offer shows the note alone', (tester) async {
+      final adapter = FakeAdapter()
+        ..on('POST', '/api/chats/c1/messages', const FakeResponse(422, {'error': 'لا يمكن إرسال أرقام', 'code': 'FILTERED'}))
+        ..on('GET', '/api/chats/c1', FakeResponse(200, page([1])));
+      await openRoom(tester, adapter, MemoryChatCache());
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byKey(const Key('chat-input')), 'رقمي 0790000000');
+      await tester.tap(find.byKey(const Key('chat-send')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('chat-refusal')), findsOneWidget);
+      expect(find.byKey(const Key('chat-refusal-family')), findsNothing);
     });
 
     testWidgets('a text that failed offline is still there (with its retry) after leaving and coming back',
@@ -373,7 +523,7 @@ void main() {
       await tester.enterText(find.byKey(const Key('chat-input')), 'اختبار');
       await tester.tap(find.byKey(const Key('chat-send')));
       await tester.pumpAndSettle();
-      expect(find.text('إعادة الإرسال'), findsOneWidget);
+      expect(find.byKey(const Key('chat-failed-info')), findsOneWidget);
       await tester.pumpWidget(UncontrolledProviderScope(container: container, child: const SizedBox()));
       await tester.pumpWidget(UncontrolledProviderScope(
         container: container,
@@ -381,7 +531,94 @@ void main() {
       ));
       await tester.pumpAndSettle();
       expect(find.text('اختبار'), findsOneWidget);
-      expect(find.text('إعادة الإرسال'), findsOneWidget);
+      expect(find.byKey(const Key('chat-failed-info')), findsOneWidget);
+    });
+
+    /// Types «نص مهم», sends it on a held request (answered offline) and leaves the room before the answer
+    Future<(ProviderContainer, Completer<void>)> sendThenLeave(WidgetTester tester, MemoryChatCache cache) async {
+      final release = Completer<void>();
+      final adapter = FakeAdapter()
+        ..on('POST', '/api/chats/c1/messages', const FakeResponse.network())
+        ..on('GET', '/api/chats/c1', FakeResponse(200, page([1])))
+        ..hold('POST', '/api/chats/c1/messages', release.future);
+      final container =
+          await openRoom(tester, adapter, cache, extra: [
+        pickerFilesCleanerProvider.overrideWithValue(() async {}),
+        chatDraftsProvider.overrideWithValue(MemoryChatDrafts()),
+      ]);
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byKey(const Key('chat-input')), 'نص مهم');
+      await tester.tap(find.byKey(const Key('chat-send')));
+      await tester.pump();
+      await tester.pumpWidget(UncontrolledProviderScope(container: container, child: const SizedBox()));
+      await tester.pump();
+      return (container, release);
+    }
+
+    testWidgets('a text whose send fails after leaving the chat is kept as failed (B2)', (tester) async {
+      final cache = MemoryChatCache();
+      final (container, release) = await sendThenLeave(tester, cache);
+      release.complete();
+      await tester.pumpAndSettle();
+      final saved = (await cache.read('u1', 'c1'))!;
+      final failed = saved.messages.singleWhere((m) => m.state == SendState.failed);
+      expect(failed.body, 'نص مهم');
+      expect(failed.maybeSent, isTrue);
+      expect(saved.messages.first.id, 'm001', reason: 'the copy keeps what it had');
+
+      await tester.pumpWidget(UncontrolledProviderScope(
+        container: container,
+        child: rtlApp(const ChatRoomScreen(chatId: 'c1', pollInterval: Duration(hours: 1))),
+      ));
+      await tester.pumpAndSettle();
+      expect(find.text('نص مهم'), findsOneWidget);
+      expect(find.byKey(const Key('chat-failed-info')), findsOneWidget);
+    });
+
+    testWidgets('a failed text reopened from the device is not taken for an earlier identical one (B10)',
+        (tester) async {
+      final cache = MemoryChatCache();
+      final earlier = {...msg(1, mine: true), 'body': 'نص'};
+      await cache.write(
+          'u1',
+          'c1',
+          CachedChat(
+            conversation: ChatSummary.fromJson(conv),
+            messages: [
+              ChatMessage.fromJson(earlier),
+              ChatMessage(
+                id: 'local-n1',
+                body: 'نص',
+                createdAt: chatT0.add(const Duration(minutes: 1, seconds: 30)),
+                mine: true,
+                state: SendState.failed,
+                nonce: 'n1',
+                maybeSent: true,
+              ),
+            ],
+            hasMore: false,
+          ));
+      final adapter = FakeAdapter()
+        ..on('GET', '/api/chats/c1', FakeResponse(200, {...page([]), 'messages': [earlier]}));
+      await openRoom(tester, adapter, cache);
+      await tester.pumpAndSettle();
+      expect(find.text('نص'), findsNWidgets(2));
+      expect(find.byKey(const Key('chat-failed-info')), findsOneWidget);
+      final saved = (await cache.read('u1', 'c1'))!;
+      expect(saved.messages.where((m) => m.state == SendState.failed).single.nonce, 'n1');
+    });
+
+    testWidgets('a failure after a sign-out writes nothing back', (tester) async {
+      final cache = MemoryChatCache();
+      final (container, release) = await sendThenLeave(tester, cache);
+      container.read(authControllerProvider.notifier).handleUnauthorized();
+      for (var i = 0; i < 20 && container.read(authControllerProvider).isSignedIn; i++) {
+        await tester.pump(const Duration(milliseconds: 10));
+      }
+      expect(container.read(authControllerProvider).isSignedIn, isFalse);
+      release.complete();
+      await tester.pumpAndSettle();
+      expect(await cache.read('u1', 'c1'), isNull);
     });
 
     testWidgets('what was typed stays per chat (back, app killed); sending clears it; sign-out wipes drafts',

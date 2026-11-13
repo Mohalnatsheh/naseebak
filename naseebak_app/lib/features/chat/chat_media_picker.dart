@@ -13,16 +13,15 @@ class PickedPhoto {
 
 typedef PhotoPicker = Future<PickedPhoto?> Function();
 
-/// Opens the gallery (tests replace it). 2048 px at quality 85 makes iOS write JPEG, so HEIC arrives as JPEG.
-final chatPhotoPickerProvider = Provider<PhotoPicker>(
-  (ref) => () async {
-    final file = await ImagePicker().pickImage(
-      source: ImageSource.gallery,
-      maxWidth: 2048,
-      maxHeight: 2048,
-      imageQuality: 85,
-    );
-    if (file == null) return null;
-    return PickedPhoto(path: file.path, bytes: await file.length());
-  },
-);
+/// One photo from [source]. 2048 px at quality 85 makes iOS write JPEG, so HEIC arrives as JPEG.
+Future<PickedPhoto?> _pickFrom(ImageSource source) async {
+  final file = await ImagePicker().pickImage(source: source, maxWidth: 2048, maxHeight: 2048, imageQuality: 85);
+  if (file == null) return null;
+  return PickedPhoto(path: file.path, bytes: await file.length());
+}
+
+/// Opens the gallery (tests replace it)
+final chatPhotoPickerProvider = Provider<PhotoPicker>((ref) => () => _pickFrom(ImageSource.gallery));
+
+/// Opens the camera, same limits as the gallery (tests replace it)
+final chatCameraPickerProvider = Provider<PhotoPicker>((ref) => () => _pickFrom(ImageSource.camera));

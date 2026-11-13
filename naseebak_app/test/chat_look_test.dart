@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:naseebak_app/core/localization/digits.dart';
+import 'package:naseebak_app/core/theme/app_theme.dart';
 import 'package:naseebak_app/features/chat/chat_bubble.dart';
 import 'package:naseebak_app/features/chat/chat_cache.dart';
 import 'package:naseebak_app/features/chat/chat_format.dart';
@@ -53,6 +54,28 @@ void main() {
       expect(b.unreadDivider, isTrue);
       expect(b.tail, isTrue);
       expect(chatRowLayout(items, 1, unreadFromId: 'b').unreadDivider, isFalse);
+    });
+  });
+
+  group('unread strip', () {
+    test('unreadStripLabel: 1, 2, 3, 12', () {
+      expect(unreadStripLabel(1), 'رسالة غير مقروءة');
+      expect(unreadStripLabel(2), 'رسالتان غير مقروءتين');
+      expect(unreadStripLabel(3), '3 رسائل غير مقروءة');
+      expect(unreadStripLabel(12), '12 رسالة غير مقروءة');
+    });
+
+    test('unreadCountFrom counts only the partner\'s messages from the first unread on', () {
+      final oldestFirst = [
+        m('a', day),
+        m('b', day.add(const Duration(minutes: 1))),
+        m('c', day.add(const Duration(minutes: 2)), mine: true),
+        m('d', day.add(const Duration(minutes: 3))),
+        m('e', day.add(const Duration(minutes: 4))),
+      ];
+      expect(unreadCountFrom(oldestFirst, 'b'), 3);
+      expect(unreadCountFrom(oldestFirst, 'd'), 2);
+      expect(unreadCountFrom(oldestFirst, 'zzz'), 0);
     });
   });
 
@@ -127,6 +150,55 @@ void main() {
   });
 
   group('bubbles', () {
+    test('chat tokens match the website and pass contrast', () {
+      double contrast(Color a, Color b) {
+        final l1 = a.computeLuminance(), l2 = b.computeLuminance();
+        final hi = l1 > l2 ? l1 : l2, lo = l1 > l2 ? l2 : l1;
+        return (hi + 0.05) / (lo + 0.05);
+      }
+
+      expect(AppColors.bubbleMine, const Color(0xFFDFE9F4));
+      expect(AppColors.bubbleMineQuote, const Color(0xFFCDDBE9));
+      expect(AppColors.chatSelect, const Color(0x2422476A));
+      expect(AppColors.chatChip, const Color(0xEBFFFFFF));
+      expect(AppColors.safetyChip, const Color(0xFFF9EDD9));
+      expect(AppColors.chatMine, AppColors.bubbleMine);
+      expect(contrast(AppColors.ink, AppColors.bubbleMine), greaterThanOrEqualTo(7));
+      expect(contrast(AppColors.muted, AppColors.bubbleMine), greaterThanOrEqualTo(4.5));
+      expect(contrast(AppColors.navy, AppColors.bubbleMine), greaterThanOrEqualTo(4.5));
+    });
+
+    testWidgets('my bubble sits on the end side (left in Arabic) in bubbleMine with ink text; theirs on the start side in white',
+        (tester) async {
+      final t = DateTime(2026, 11, 10, 14, 5);
+      await tester.pumpWidget(rtlApp(Scaffold(
+        body: Column(children: [
+          ChatBubble(message: ChatMessage(id: '1', body: 'رسالتي', createdAt: t, mine: true)),
+          ChatBubble(message: ChatMessage(id: '2', body: 'رسالتها', createdAt: t, mine: false)),
+        ]),
+      )));
+      expect(tester.getCenter(find.text('رسالتي')).dx, lessThan(tester.getCenter(find.text('رسالتها')).dx));
+      final colors = [
+        for (final p in tester.widgetList<CustomPaint>(find.byType(CustomPaint)))
+          if (p.painter is BubblePainter) (p.painter! as BubblePainter).color,
+      ];
+      expect(colors, [AppColors.bubbleMine, AppColors.chatTheirs]);
+      expect(tester.widget<Text>(find.text('رسالتي')).style!.color, AppColors.ink);
+    });
+
+    testWidgets('ticks: ✓ grey while unread, ✓✓ navy once read', (tester) async {
+      final t = DateTime(2026, 11, 10, 14, 5);
+      await tester.pumpWidget(rtlApp(Scaffold(
+        body: Column(children: [
+          ChatBubble(message: ChatMessage(id: '1', body: 'a', createdAt: t, mine: true)),
+          ChatBubble(message: ChatMessage(id: '2', body: 'b', createdAt: t, mine: true, readAt: t)),
+        ]),
+      )));
+      expect(tester.widget<Icon>(find.byIcon(Icons.done_rounded)).color, AppColors.muted);
+      expect(tester.widget<Icon>(find.byIcon(Icons.done_all_rounded)).color, AppColors.navy);
+      expect(find.bySemanticsLabel('أُرسلت'), findsOneWidget);
+      expect(find.bySemanticsLabel('مقروءة'), findsOneWidget);
+    });
     testWidgets('the time on every bubble, ticks only on mine', (tester) async {
       final t = DateTime(2026, 11, 10, 14, 5);
       await tester.pumpWidget(rtlApp(Scaffold(
@@ -160,23 +232,88 @@ void main() {
   });
 
   group('chat room', () {
-    testWidgets('«رسائل جديدة» sits above the first message that was unread on opening', (tester) async {
+    testWidgets('the unread strip spans the list, reads the count at open and sits above the first unread',
+        (tester) async {
+      var extra = false;
       final adapter = FakeAdapter()
-        ..on('GET', '/api/chats/c1', FakeResponse(200, {
-          ...page([]),
-          'messages': [
-            msg(1, readAt: DateTime.utc(2026, 10, 30, 11)),
-            msg(2, mine: true),
-            msg(3),
-            msg(4),
-          ],
-        }));
+        ..handlers['GET /api/chats/c1'] = (r) => FakeResponse(200, {
+              ...page([]),
+              'messages': [
+                msg(1, readAt: DateTime.utc(2026, 10, 30, 11)),
+                msg(2, mine: true),
+                msg(3),
+                msg(4),
+                if (extra && r.queryParameters.containsKey('after')) msg(5),
+              ],
+            });
+      await openRoom(tester, adapter, MemoryChatCache(), pollInterval: const Duration(seconds: 4));
+      await tester.pumpAndSettle();
+      final strip = find.byKey(const Key('chat-unread-divider'));
+      expect(strip, findsOneWidget);
+      expect(find.text(unreadStripLabel(2)), findsOneWidget);
+      expect(tester.getSize(strip).width, tester.getSize(find.byType(ListView)).width);
+      final y = tester.getCenter(strip).dy;
+      expect(y, lessThan(tester.getCenter(find.text('رسالة 3')).dy));
+      expect(y, greaterThan(tester.getCenter(find.text('رسالة 2')).dy));
+      extra = true;
+      await tester.pump(const Duration(seconds: 4));
+      await tester.pumpAndSettle();
+      expect(find.text('رسالة 5'), findsOneWidget);
+      expect(find.text(unreadStripLabel(2)), findsOneWidget, reason: 'fixed at open');
+    });
+
+    testWidgets('at large system text (2.0) the unread strip grows with its label and still spans the list',
+        (tester) async {
+      tester.platformDispatcher.textScaleFactorTestValue = 2.0;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      final adapter = FakeAdapter()
+        ..handlers['GET /api/chats/c1'] = (r) => FakeResponse(200, {
+              ...page([]),
+              'messages': [msg(1, readAt: DateTime.utc(2026, 10, 30, 11)), msg(2, mine: true), msg(3), msg(4)],
+            });
       await openRoom(tester, adapter, MemoryChatCache());
       await tester.pumpAndSettle();
-      expect(find.text('رسائل جديدة'), findsOneWidget);
-      final divider = tester.getCenter(find.text('رسائل جديدة')).dy;
-      expect(divider, lessThan(tester.getCenter(find.text('رسالة 3')).dy));
-      expect(divider, greaterThan(tester.getCenter(find.text('رسالة 2')).dy));
+      final strip = find.byKey(const Key('chat-unread-divider'));
+      final label = find.text(unreadStripLabel(2));
+      expect(label, findsOneWidget);
+      final stripRect = tester.getRect(strip);
+      final labelRect = tester.getRect(label);
+      expect(stripRect.height, greaterThan(32));
+      expect(stripRect.top, lessThanOrEqualTo(labelRect.top));
+      expect(stripRect.bottom, greaterThanOrEqualTo(labelRect.bottom));
+      expect(stripRect.width, tester.getSize(find.byType(ListView)).width);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('the safety note reads «محادثة خاصة · لا تشارك الأرقام أو الحسابات» (feminine for her: the test member), in safetyChip',
+        (tester) async {
+      final adapter = FakeAdapter()..on('GET', '/api/chats/c1', FakeResponse(200, page([1, 2])));
+      await openRoom(tester, adapter, MemoryChatCache());
+      await tester.pumpAndSettle();
+      final chip = find.byKey(const Key('chat-safety'));
+      expect(chip, findsOneWidget);
+      expect(find.descendant(of: chip, matching: find.text('محادثة خاصة · لا تشاركي الأرقام أو الحسابات')), findsOneWidget);
+      final fill = tester.widget<Material>(find.ancestor(of: chip, matching: find.byType(Material)).first);
+      expect(fill.color, AppColors.safetyChip);
+      await tester.tap(chip);
+      await tester.pumpAndSettle();
+      expect(find.byType(AlertDialog), findsOneWidget);
+    });
+
+    testWidgets('the floating day hides 1 s after scrolling stops', (tester) async {
+      final adapter = FakeAdapter()..on('GET', '/api/chats/c1', FakeResponse(200, page(List.generate(30, (i) => i + 1))));
+      await openRoom(tester, adapter, MemoryChatCache());
+      await tester.pumpAndSettle();
+      final gesture = await tester.startGesture(tester.getCenter(find.byType(ListView)));
+      await gesture.moveBy(const Offset(0, 300));
+      await tester.pump(const Duration(milliseconds: 300));
+      await gesture.up();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 900));
+      expect(find.byKey(const Key('chat-sticky-day')), findsOneWidget);
+      await tester.pump(const Duration(milliseconds: 200));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.byKey(const Key('chat-sticky-day')), findsNothing);
     });
 
     testWidgets('one bar: the family step shows while the chat is far from its end', (tester) async {

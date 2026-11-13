@@ -15,6 +15,7 @@ import '../../core/network/json.dart';
 import '../../core/privacy/screen_privacy.dart';
 import '../../core/push/push_permission.dart';
 import '../../core/review/store_review.dart';
+import '../../core/routing/route_observer.dart';
 import '../../core/storage/picker_files.dart';
 import '../../core/system/app_settings.dart';
 import '../../core/theme/app_theme.dart';
@@ -24,7 +25,6 @@ import '../home/counts.dart';
 import '../home/gendered_copy.dart';
 import '../matches/match_detail_screen.dart' show ReportAnswer, ReportSheet;
 import '../matches/matches_repository.dart';
-import '../pro/pro_badge.dart';
 import '../pro/pro_repository.dart';
 import 'chat_background.dart';
 import 'chat_bubble.dart';
@@ -35,8 +35,11 @@ import 'chat_live.dart';
 import 'chat_media_picker.dart';
 import 'chat_models.dart';
 import 'chat_status_bar.dart';
+import 'emoji_panel.dart';
 import 'hold_to_record.dart';
 import 'last_chat.dart';
+import 'wa_chat_header.dart';
+import 'wa_composer.dart';
 import 'media_bubbles.dart' show ChatPhotoGallery, formatVoiceDuration;
 import 'message_menu.dart';
 import 'photo_preview_screen.dart';
@@ -44,7 +47,10 @@ import 'reply_strip.dart';
 import 'starter_chips.dart';
 import 'typing_signal.dart';
 import 'voice_playback.dart';
+import 'wa_selection.dart';
 import 'voice_recorder.dart';
+
+export 'wa_composer.dart' show composerHintGap;
 
 /// One conversation. It opens at once from the messages kept on the device (`ChatCache`), then the newest page from
 /// the API is merged in. With Ably configured on the server, live events (`ChatLive`) trigger a fetch at once and the
@@ -97,9 +103,6 @@ class ChatRoomScreen extends ConsumerStatefulWidget {
   ConsumerState<ChatRoomScreen> createState() => _ChatRoomScreenState();
 }
 
-/// The room kept between the composer's start edge (where the cursor stands) and its hint
-const composerHintGap = 6.0;
-
 /// A failed photo or voice note whose file the phone has since removed
 const mediaFileGoneText = 'لم يعد الملف موجوداً على الهاتف، يمكنك إرساله من جديد';
 
@@ -107,10 +110,40 @@ const mediaFileGoneText = 'لم يعد الملف موجوداً على الها
 const micRefusedText = 'لإرسال رسالة صوتية يلزم السماح باستخدام الميكروفون.';
 const micBlockedText = 'الميكروفون غير مسموح لنصيبك. يمكنك السماح به من إعدادات الهاتف.';
 
+/// The hold ended while the microphone prompt was up and the answer was «سماح»: how to record now (audit U3).
+/// Follows the viewer's gender, as on the website (never a masculine command for everyone)
+String micAllowedHint(bool female) => 'تم السماح بالميكروفون، ${forViewer(female, 'اضغط', 'اضغطي')} مطولاً للتسجيل';
+
+/// A camera that couldn't open (none, or an error)
+const cameraFailedText = 'تعذّر فتح الكاميرا';
+
+/// The camera refused to Naseebak (iOS `camera_access_denied`): the way to the phone's settings, as for the microphone
+const cameraBlockedText = 'الكاميرا غير مسموحة لنصيبك. يمكنك السماح بها من إعدادات الهاتف.';
+
+/// The picker's error code for a refused camera (image_picker on iOS)
+const cameraAccessDeniedCode = 'camera_access_denied';
+
+/// The emoji panel is never shorter than this (no keyboard seen yet)
+const emojiPanelMinHeight = 260.0;
+
+/// …nor taller than this share of the screen
+const emojiPanelMaxShare = 0.45;
+
+/// The emoji panel's full height: the tallest keyboard seen (at least [emojiPanelMinHeight]), at most
+/// [emojiPanelMaxShare] of the screen
+double emojiPanelHeight({required double keyboard, required double screen}) {
+  final h = keyboard < emojiPanelMinHeight ? emojiPanelMinHeight : keyboard;
+  final cap = screen * emojiPanelMaxShare;
+  return h > cap ? cap : h;
+}
+
+/// How long the panel's room is held for a keyboard on its way up (it gives way as soon as the keyboard is up)
+const emojiHandover = Duration(milliseconds: 450);
+
 /// Shared preferences: the microphone was refused once on this phone (the next refusal points to the settings)
 const micRefusedKey = 'mic_refused_once';
 
-class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBindingObserver {
+class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBindingObserver, RouteAware {
   final _input = TextEditingController();
   final _inputFocus = FocusNode();
 
@@ -146,6 +179,14 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
   String? _highlightId;
   Timer? _highlightTimer;
 
+  /// The one selected message (long-press): the top bar and the reactions follow it. Only the id is kept; the message
+  /// is read from the live list every build, and the selection ends when it is gone or nothing can be done with it.
+  String? _selectedId;
+
+  /// Where the reaction picker floats: the selected row; below it when the row is too near the top of the list
+  final _pickerLink = LayerLink();
+  bool _pickerBelow = false;
+
   /// Message rows on screen by message id (the sticky date chip, scrolling to a quote's original or to «رسائل جديدة»).
   /// Keyed by id, not list index: an arriving message shifts every index.
   final Map<String, BuildContext> _rowsById = {};
@@ -167,6 +208,16 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
 
   /// In the background (no polling, no live link until resumed)
   bool _background = false;
+
+  /// This chat's route, watched so read marks follow whether it is on top (audit B1)
+  ModalRoute<dynamic>? _route;
+
+  /// The chat is the screen on top: nothing pushed over it (a page, a sheet, a dialog, a menu)
+  bool get _onTop => _route?.isCurrent ?? true;
+
+  /// The newest point a read mark was sent for (null: none yet), and the one being sent now
+  DateTime? _readUpTo;
+  DateTime? _readingUpTo;
   StreamSubscription<void>? _live;
   bool _liveConnected = false;
 
@@ -199,8 +250,26 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
   /// doesn't change shape when the server copy replaces it
   final Map<String, String> _waveSeeds = {};
 
-  /// The gallery is open (a second tap does nothing)
+  /// The gallery or the camera is open (a second tap does nothing)
   bool _picking = false;
+
+  /// The emoji panel is in the keyboard's place (back closes it first)
+  bool _emojiOpen = false;
+
+  /// The tallest keyboard seen (logical px): the emoji panel takes it. The tallest, not the last: the inset is reported
+  /// per frame while the keyboard animates, so the last non-zero one is a few px from the end of the close
+  double _keyboardHeight = 0;
+
+  /// The keyboard's inset right now (logical px): while the panel's room is shown it takes only what the keyboard
+  /// doesn't, so the composer stays put while one replaces the other
+  double _keyboardInset = 0;
+
+  /// The panel was closed for the keyboard: its room is held (shrinking as the keyboard rises) until the keyboard is up
+  bool _emojiHandover = false;
+  Timer? _handoverTimer;
+
+  /// The hold on the mic ended while the microphone prompt was up for this recorder (U3: «سماح» then says how)
+  VoiceRecorder? _releasedAsking;
 
   /// The voice note being recorded (one recorder per note; null when idle or released)
   _Voice _voice = _Voice.idle;
@@ -222,6 +291,9 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
   /// visit, gone once I write)
   String? _unreadFromId;
   bool _unreadFixed = false;
+
+  /// The count the strip reads: fixed at open, never changed by what arrives later
+  int _unreadAtOpen = 0;
 
   /// The family step for the status bar (`/api/matches/{id}/intro`); null when there is none or it couldn't load
   FamilyStep? _family;
@@ -290,6 +362,10 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // The field taken back (a tap on it, «رد»): the keyboard returns and the emoji panel leaves
+    _inputFocus.addListener(() {
+      if (_inputFocus.hasFocus && _emojiOpen && mounted) _emojiToKeyboard();
+    });
     // This chat's own (another chat pushed on top, e.g. from a notice, has its own and never touches this one's)
     _playback = VoicePlayback(
       createPlayer: ref.read(voicePlayerFactoryProvider),
@@ -343,6 +419,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    appRouteObserver.unsubscribe(this);
     _saveDraft();
     // Left normally: a later cold start opens home, not this chat
     unawaited(LastChat.forget(_prefs, widget.chatId));
@@ -378,6 +455,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     _stickyHide?.cancel();
     _typingTimer?.cancel();
     _typingMute?.cancel();
+    _handoverTimer?.cancel();
     _highlightTimer?.cancel();
     _input.dispose();
     _inputFocus.dispose();
@@ -549,9 +627,13 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     });
     // What this device already has: the chat shows at once, the network only adds what changed
     final member = _memberId;
+    // Messages the device copy already held as sent: never the server's copy of a text kept as failed (audit B10,
+    // an earlier identical text of mine would otherwise take its place); a retry is safe, the server knows the nonce
+    final heldAtOpen = <String>{};
     if (member != null && _chat == null) {
       final cached = await _cache.read(member, widget.chatId);
       if (cached != null && mounted && _chat == null) {
+        heldAtOpen.addAll(cached.messages.where((m) => m.state == SendState.sent).map((m) => m.id));
         setState(() {
           _chat = cached.conversation;
           _messages
@@ -572,7 +654,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
         if (page.bothWrote == true) _serverBothWrote = true;
         _mergeLatest(page);
         // A text kept as failed (offline) that the server saved after all
-        _reconcile(page.messages);
+        _reconcile(page.messages.where((m) => !heldAtOpen.contains(m.id)));
         _deleteEnabled = page.deleteEnabled;
         // The device copy too: what was cleared, hidden or deleted meanwhile
         _applyDeletes(clearedBefore: page.clearedBefore, hidden: page.hiddenIds, deleted: page.deletedIds);
@@ -590,6 +672,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
       if (!_unreadFixed) {
         _unreadFixed = true;
         _unreadFromId = firstUnreadId(page.messages);
+        _unreadAtOpen = _unreadFromId == null ? 0 : unreadCountFrom(page.messages, _unreadFromId!);
         // Opened on unread messages: «رسائل جديدة» in view, not only the newest
         if (_unreadFromId != null) WidgetsBinding.instance.addPostFrameCallback((_) => _revealUnread());
       }
@@ -808,7 +891,8 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
       _notePartnerTyping(page.partnerTyping);
       _dropVoiceIfNotAllowed();
       if (fresh.isNotEmpty || changed) _saveCache();
-      if (fresh.any((m) => !m.mine)) _markRead();
+      // Also retries a read that failed or waited (the chat was covered or in the background)
+      _markReadIfDue();
       _watch();
       if (after == null) _fillScreen();
       if (++_pollsSinceFamily * (_timerEvery ?? widget.pollInterval).inMilliseconds >= _familyRecheck.inMilliseconds) {
@@ -946,15 +1030,59 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
   bool _keyboardOpen = false;
   void _followKeyboard() {
     if (!mounted) return;
-    final open = (View.maybeOf(context)?.viewInsets.bottom ?? 0) > 0;
-    if (open != _keyboardOpen) setState(() => _keyboardOpen = open);
+    final view = View.maybeOf(context);
+    final inset = view == null ? 0.0 : view.viewInsets.bottom / view.devicePixelRatio;
+    if (inset > _keyboardHeight) _keyboardHeight = inset;
+    final open = inset > 0;
+    final changed = inset != _keyboardInset;
+    _keyboardInset = inset;
+    // The keyboard is up: the room held for it goes
+    if (_emojiHandover && inset >= _panelFull() - 1) _endHandover();
+    if (open != _keyboardOpen || (changed && (_emojiOpen || _emojiHandover))) setState(() => _keyboardOpen = open);
+  }
+
+  double _panelFull() => emojiPanelHeight(keyboard: _keyboardHeight, screen: MediaQuery.sizeOf(context).height);
+
+  /// The emoji panel gives way to the keyboard (the field takes the focus): its room stays until the keyboard is up
+  void _emojiToKeyboard() {
+    _handoverTimer?.cancel();
+    setState(() {
+      _emojiOpen = false;
+      _emojiHandover = true;
+    });
+    // No keyboard comes (a hardware keyboard, a refused focus): the room goes anyway
+    _handoverTimer = Timer(emojiHandover, _endHandover);
+  }
+
+  void _endHandover() {
+    _handoverTimer?.cancel();
+    _handoverTimer = null;
+    if (!_emojiHandover || !mounted) return;
+    setState(() => _emojiHandover = false);
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _keyboardOpen = (View.maybeOf(context)?.viewInsets.bottom ?? 0) > 0;
+    final view = View.maybeOf(context);
+    _keyboardInset = view == null ? 0.0 : view.viewInsets.bottom / view.devicePixelRatio;
+    if (_keyboardInset > _keyboardHeight) _keyboardHeight = _keyboardInset;
+    _keyboardOpen = _keyboardInset > 0;
+    final route = ModalRoute.of(context);
+    if (route != null && route != _route) {
+      if (_route != null) appRouteObserver.unsubscribe(this);
+      _route = route;
+      appRouteObserver.subscribe(this, route);
+    }
   }
+
+  /// Back on top (what covered the chat was closed): what they wrote meanwhile is read now
+  @override
+  void didPopNext() => _markReadIfDue();
+
+  // A page or a sheet over the chat: polling goes on (the unseen count), read marks wait (`_markRead`)
+  @override
+  void didPushNext() {}
 
   void _onScrollNotification(ScrollNotification n) {
     if (n.depth != 0) return;
@@ -971,7 +1099,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     } else if (n is ScrollEndNotification) {
       _stickyAfterLayout();
       _stickyHide?.cancel();
-      _stickyHide = Timer(const Duration(milliseconds: 1400), () {
+      _stickyHide = Timer(dateChipHideAfter, () {
         if (mounted && _scrolling) setState(() => _scrolling = false);
       });
     }
@@ -1042,7 +1170,10 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
 
   void _toNewest() {
     if (!_scroll.hasClients) return;
-    _scroll.animateTo(0, duration: const Duration(milliseconds: 300), curve: Curves.easeOutCubic);
+    // Reduced motion: straight there (a zero-length animateTo isn't allowed)
+    final d = AppMotion.of(context, const Duration(milliseconds: 300));
+    if (d == Duration.zero) return _scroll.jumpTo(0);
+    _scroll.animateTo(0, duration: d, curve: Curves.easeOutCubic);
   }
 
   Future<void> _loadOlder() async {
@@ -1069,11 +1200,35 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     }
   }
 
+  /// Marks the partner's messages read, only while the chat is on top and the app in front (audit B1)
   Future<void> _markRead() async {
+    if (!mounted || !_onTop || _background) return;
     final last = _lastServerTime;
+    // The same mark already on its way
+    if (last != null && last == _readingUpTo) return;
+    _readingUpTo = last;
     try {
       await _repo.markRead(widget.chatId, upTo: last);
-    } catch (_) {}
+      if (last != null && (_readUpTo == null || last.isAfter(_readUpTo!))) _readUpTo = last;
+    } catch (_) {
+      // Retried by the next poll (`readIsDue`)
+    } finally {
+      if (_readingUpTo == last) _readingUpTo = null;
+    }
+  }
+
+  void _markReadIfDue() {
+    if (!mounted) return;
+    DateTime? newestPartnerAt;
+    for (final m in _messages.reversed) {
+      if (m.state == SendState.sent && !m.mine) {
+        newestPartnerAt = m.createdAt;
+        break;
+      }
+    }
+    if (readIsDue(onTop: _onTop, foreground: !_background, newestPartnerAt: newestPartnerAt, readUpTo: _readUpTo)) {
+      _markRead();
+    }
   }
 
   Future<void> _send([ChatMessage? retry]) async {
@@ -1100,6 +1255,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
       if (retry == null) {
         _input.clear();
         _replyTo = null;
+        _emojiOpen = false;
       }
       // I answered: what was new has been read
       _unreadFromId = null;
@@ -1110,6 +1266,10 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     _toNewest();
     // Taken before the request: `ref` can't be used once the chat was left meanwhile
     final container = ProviderScope.containerOf(context, listen: false);
+    final cache = _cache;
+    final member = _memberId;
+    final chat = _chat;
+    final chatId = widget.chatId;
     try {
       final sent = await _repo.send(widget.chatId, text, nonce: nonce, replyToId: reply?.id);
       _confirmedIds.add(sent.id);
@@ -1123,7 +1283,15 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
       // «المحادثات» shows the last message and orders by it: my own message changes no unread count, so reload it here
       ref.invalidate(chatListProvider);
     } on ApiException catch (e) {
-      if (!mounted) return;
+      if (!mounted) {
+        // Left meanwhile (audit B2): kept on the phone as failed, so the next visit shows it with «إعادة الإرسال».
+        // Never after a sign-out, nor for another member signed in since
+        if (member == null || _signedOut || container.read(authControllerProvider).me?.id != member) return;
+        final failed = local.copyWith(
+            state: SendState.failed, error: e.message, filtered: e.code == 'FILTERED', maybeSent: e.isNetwork);
+        unawaited(cache.addFailed(member, chatId, failed, conversation: chat));
+        return;
+      }
       setState(() {
         final i = _messages.indexWhere((m) => m.nonce == nonce);
         if (i >= 0) {
@@ -1141,15 +1309,28 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
 
   String _newNonce() => 'app-${DateTime.now().microsecondsSinceEpoch}-${_nonceSeq++}';
 
-  /// The photo button (Pro): pick from the gallery, refuse over 10 MB, then send.
-  Future<void> _pickPhoto() async {
+  /// The paperclip (Pro): its sheet «المعرض» / «الكاميرا», then the photo from that source. The emoji panel closes.
+  Future<void> _attach() async {
+    if (_picking) return;
+    if (_emojiOpen) setState(() => _emojiOpen = false);
+    _inputFocus.unfocus();
+    final source = await showAttachSheet(context);
+    if (source == null || !mounted) return;
+    // The chat closed or Pro went away while the sheet was up
+    final chat = _chat;
+    if (!_canWrite || chat == null || _mediaModeNow(chat) != MediaButtons.enabled) return;
+    await _pickPhoto(camera: source == AttachSource.camera);
+  }
+
+  /// A photo (Pro) from the gallery or the camera: refuse over 10 MB, show the preview, then send.
+  Future<void> _pickPhoto({bool camera = false}) async {
     if (_picking) return;
     _picking = true;
     // The keyboard closes before the system picker opens: an open text field under the picker and the preview could
     // get the iPhone keyboard back afterwards with nothing focused, so nothing could close it (TestFlight report)
     _inputFocus.unfocus();
     try {
-      await _pickPhotoAndSend();
+      await _pickPhotoAndSend(camera: camera);
     } finally {
       _hideOrphanKeyboard();
     }
@@ -1161,12 +1342,20 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     SystemChannels.textInput.invokeMethod<void>('TextInput.hide');
   }
 
-  Future<void> _pickPhotoAndSend() async {
+  Future<void> _pickPhotoAndSend({required bool camera}) async {
     PickedPhoto? photo;
     try {
-      photo = await ref.read(chatPhotoPickerProvider)();
+      photo = await ref.read(camera ? chatCameraPickerProvider : chatPhotoPickerProvider)();
+    } on PlatformException catch (e) {
+      if (mounted) {
+        if (camera && e.code == cameraAccessDeniedCode) {
+          _showWithSettings(cameraBlockedText);
+        } else {
+          showSnack(context, camera ? cameraFailedText : 'تعذّر اختيار الصورة');
+        }
+      }
     } catch (_) {
-      if (mounted) showSnack(context, 'تعذّر اختيار الصورة');
+      if (mounted) showSnack(context, camera ? cameraFailedText : 'تعذّر اختيار الصورة');
     } finally {
       _picking = false;
     }
@@ -1351,13 +1540,19 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     _recorder = rec;
     // Recording and playback never overlap (they share the phone's audio session)
     _playback.pauseCurrent();
-    setState(() => _voice = _Voice.starting);
+    setState(() {
+      _voice = _Voice.starting;
+      // The recording bar takes the composer's place: no emoji panel under it
+      _emojiOpen = false;
+    });
     var allowed = false;
     _askingMic = rec;
     try {
       allowed = await rec.hasPermission();
     } catch (_) {}
     if (_askingMic == rec) _askingMic = null;
+    final heldThroughPrompt = _releasedAsking == rec;
+    if (heldThroughPrompt) _releasedAsking = null;
     // A refusal is said even when the hold already ended (the finger lifted to answer the prompt): the first
     // «لا» used to vanish with the dropped recorder (QA A2-L5)
     if (!allowed) {
@@ -1366,6 +1561,14 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
       _holding = false;
       _drop(rec);
       if (mounted) _micRefused();
+      return;
+    }
+    // The finger lifted to answer the prompt (U3): nothing records, but the member learns the mic works now
+    if (heldThroughPrompt) {
+      _drop(rec);
+      if (mounted && _recorder == null) {
+        showSnack(context, micAllowedHint(ref.read(authControllerProvider).me?.isFemale ?? false));
+      }
       return;
     }
     if (_recorder != rec || !mounted || !_voiceAllowed) return _drop(rec);
@@ -1391,12 +1594,13 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     final prefs = ref.read(sharedPreferencesProvider);
     final before = prefs.getBool(micRefusedKey) ?? false;
     unawaited(prefs.setBool(micRefusedKey, true));
+    _showWithSettings(before ? micBlockedText : micRefusedText);
+  }
+
+  /// A refused permission (microphone, camera): the reason with «الإعدادات», which opens the phone's settings
+  void _showWithSettings(String text) {
     final open = ref.read(openAppSettingsProvider);
-    showSnack(
-      context,
-      before ? micBlockedText : micRefusedText,
-      action: SnackBarAction(label: 'الإعدادات', onPressed: () => open()),
-    );
+    showSnack(context, text, action: SnackBarAction(label: 'الإعدادات', onPressed: () => open()));
   }
 
   /// A recorder let go during an await (prompt, start, stop) or refused: cancel it (deleting its file) and dispose it.
@@ -1544,6 +1748,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
       // Let go before the recorder started: nothing is recorded. A short hold says so, like any hold under 1 s;
       // a release while the microphone prompt was up (the member was answering it) says nothing.
       final asking = _askingMic != null && _askingMic == rec;
+      if (asking) _releasedAsking = rec;
       _releaseVoice();
       setState(() => _voice = _Voice.idle);
       if (!asking) showSnack(context, holdTooShortText);
@@ -1575,6 +1780,8 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     if (_voice == _Voice.recording && rec != null) {
       _stopRecording(rec, limit: false);
     } else if (_voice == _Voice.starting) {
+      // A system permission dialog mid-hold usually cancels the touch: the same U3 hint as a lift while asking
+      if (_askingMic != null && _askingMic == rec) _releasedAsking = rec;
       _releaseVoice();
       setState(() => _voice = _Voice.idle);
     } else {
@@ -1760,27 +1967,50 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     }
   }
 
-  /// Long-press on a sent message: reply, react, copy (text), report (theirs), and Pro's delete entries
-  Future<void> _openMenu(ChatMessage m) async {
-    if (m.state != SendState.sent) return;
+  /// Long-press on a sent message (or, while selecting, a tap on another one): it becomes the selection. Nothing is
+  /// selected when nothing can be done with it.
+  void _select(ChatMessage m) {
+    if (selectedMessageOf([m], m.id, canInteract: _open, deleteMode: _deleteModeNow(), open: _open) == null) return;
     FocusManager.instance.primaryFocus?.unfocus();
-    final choice = await showMessageMenu(context, message: m, canInteract: _open, deleteMode: _deleteModeNow(), open: _open);
-    if (!mounted || choice == null) return;
-    switch (choice) {
-      case MenuReply():
-        _startReply(m);
-      case MenuReact(:final emoji):
-        _react(m.id, emoji);
-      case MenuCopy():
-        await Clipboard.setData(ClipboardData(text: m.body));
-        if (mounted) showSnack(context, 'تم نسخ الرسالة');
-      case MenuReport():
-        _end(report: true, message: m);
-      case MenuDeleteForMe():
-        _deleteMessage(m, forEveryone: false);
-      case MenuDeleteForEveryone():
-        _deleteMessage(m, forEveryone: true);
-    }
+    unawaited(HapticFeedback.selectionClick());
+    setState(() {
+      _selectedId = m.id;
+      _pickerBelow = false;
+    });
+    // Too near the top of the list for the picker above it: below the row instead
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _selectedId != m.id) return;
+      final row = _rowsById[m.id]?.findRenderObject();
+      final list = _listKey.currentContext?.findRenderObject();
+      if (row is! RenderBox || list is! RenderBox || !row.attached || !list.attached) return;
+      final top = row.localToGlobal(Offset.zero, ancestor: list).dy;
+      final below = top < _pickerRoom;
+      if (below != _pickerBelow) setState(() => _pickerBelow = below);
+    });
+  }
+
+  /// The picker's height and its gap above the row
+  static const _pickerRoom = 60.0;
+
+  /// While selecting: a tap on the selected bubble clears it, on another one moves it there
+  void _tapWhileSelecting(ChatMessage m) => m.id == _selectedId ? _clearSelection() : _select(m);
+
+  void _clearSelection() {
+    if (_selectedId != null) setState(() => _selectedId = null);
+  }
+
+  /// The bar's «حذف»: the Pro screen when not Pro; else «حذف لدى الجميع» (my own message in an open chat) or «حذف لديّ»
+  Future<void> _deleteChosen(ChatMessage m) async {
+    final mode = _deleteModeNow();
+    if (mode == DeleteMode.hidden) return;
+    if (mode == DeleteMode.upsell) return _openPro();
+    final e = messageMenuEntries(m, canInteract: _open, deleteMode: mode, open: _open);
+    final everyone = await showDeleteChoice(context, canEveryone: e.deleteForEveryone);
+    if (everyone == null || !mounted) return;
+    // The copy held now (a poll may have changed or removed it while the dialog was up)
+    final i = _messages.indexWhere((x) => x.id == m.id);
+    if (i < 0) return;
+    await _deleteMessage(_messages[i], forEveryone: everyone);
   }
 
   /// Pro chat delete: [DeleteMode.use] for Pro, the upsell for a member who could buy it, else nothing. Like the media
@@ -1807,23 +2037,14 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     );
   }
 
-  /// «حذف لديّ» / «حذف لدى الجميع». Not Pro: the Pro screen, nothing sent. «لدى الجميع» (my own message, open chat)
-  /// is confirmed first. Shown at once; a refusal puts it back and says why.
+  /// «حذف لديّ» / «حذف لدى الجميع», chosen in the bar's one dialog: sent at once (no second confirm, as on the
+  /// website). Not Pro: the Pro screen, nothing sent. Shown at once; a refusal puts it back and says why.
   Future<void> _deleteMessage(ChatMessage m, {required bool forEveryone}) async {
     final mode = _deleteModeNow();
     if (mode == DeleteMode.hidden || m.state != SendState.sent) return;
     if (mode == DeleteMode.upsell) return _openPro();
-    if (forEveryone) {
-      if (!m.mine || m.deleted || !_open) return;
-      final ok = await confirmDeleteSheet(
-        context,
-        title: 'حذف الرسالة لدى الجميع؟',
-        body: deleteForEveryoneConfirm,
-        confirmLabel: 'حذف لدى الجميع',
-      );
-      // The chat may have closed while the sheet was up: «لدى الجميع» only in an open chat
-      if (!ok || !mounted || !_open) return;
-    }
+    // «لدى الجميع» only for my own message in an open chat (it may have closed while the dialog was up)
+    if (forEveryone && (!m.mine || m.deleted || !_open)) return;
     // The copy held now (a poll may have changed it since the long-press)
     // Everything as it is now: a refusal puts back the message and the quotes of it that read as the trace
     final snapshot = List.of(_messages);
@@ -1948,6 +2169,18 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     }
   }
 
+  /// The pill under a bubble: who reacted; «إزالة تفاعلي» removes mine
+  Future<void> _showWhoReacted(ChatMessage m) async {
+    final remove = await showWhoReacted(
+      context,
+      reactions: m.reactions,
+      partnerName: _chat?.partnerName ?? '',
+      canRemove: _open && m.myReaction != null && !m.deleted,
+    );
+    if (!mounted) return;
+    if (remove) _react(m.id, null);
+  }
+
   /// A tapped quote: the original, loading older pages if needed, scrolled into view and tinted for a moment
   Future<void> _goToQuoted(String id) async {
     for (var i = 0; i < 5 && _hasMore && !_messages.any((m) => m.id == id); i++) {
@@ -2054,19 +2287,46 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     if (mounted && Navigator.of(context).canPop()) Navigator.of(context).pop();
   }
 
-  @override
-  Widget build(BuildContext context) => ProviderScope(
-    overrides: [voicePlaybackProvider.overrideWithValue(_playback)],
-    child: PopScope(
-      canPop: !_voiceUnsent,
-      onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) _backWhileRecording();
-      },
-      child: _screen(context),
-    ),
-  );
+  /// The header's back arrow leaves the chat even with the emoji panel open (the panel closes as part of leaving);
+  /// an unsent voice note still asks first. The system back keeps its order: selection, panel, recording.
+  void _toolbarBack() {
+    if (_voiceUnsent) {
+      _backWhileRecording();
+      return;
+    }
+    if (_emojiOpen) setState(() => _emojiOpen = false);
+    // pop, not maybePop: the PopScope still refuses while the panel is open, until the next frame
+    if (Navigator.of(context).canPop()) Navigator.of(context).pop();
+  }
 
-  Widget _screen(BuildContext context) {
+  @override
+  Widget build(BuildContext context) {
+    final selected = selectedMessageOf(_messages, _selectedId, canInteract: _open, deleteMode: _deleteMode(), open: _open);
+    // Gone, no longer sent, or nothing left to do with it (deleted, the chat closed): the selection ends. Derived state,
+    // set here so this very build (the bar, the back button) already follows it.
+    if (selected == null) _selectedId = null;
+    // No composer (the chat closed, chats off): no emoji panel either
+    if (!_canWrite) {
+      _emojiOpen = false;
+      _emojiHandover = false;
+    }
+    return ProviderScope(
+      overrides: [voicePlaybackProvider.overrideWithValue(_playback)],
+      child: PopScope(
+        canPop: !_voiceUnsent && _selectedId == null && !_emojiOpen,
+        onPopInvokedWithResult: (didPop, _) {
+          if (didPop) return;
+          // Back clears the selection first, then closes the emoji panel, and stays in the chat
+          if (_selectedId != null) return _clearSelection();
+          if (_emojiOpen) return setState(() => _emojiOpen = false);
+          _backWhileRecording();
+        },
+        child: _screen(context, selected),
+      ),
+    );
+  }
+
+  Widget _screen(BuildContext context, ChatMessage? selected) {
     final chat = _chat;
     final female = ref.watch(authControllerProvider).me?.isFemale ?? false;
     final left = chat != null && chat.status == 'ACTIVE' ? chatTimeLeft(chat.expiresAt) : null;
@@ -2078,104 +2338,57 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     final textScale = MediaQuery.textScalerOf(context).scale(14) / 14;
     final status = _statusLine(chat, left, female);
     final deleteMode = _deleteMode();
+    final tools = selected == null
+        ? null
+        : selectionToolsFor(selected, canInteract: _open, deleteMode: deleteMode, open: _open);
     return Scaffold(
-      appBar: AppBar(
-        titleSpacing: 0,
-        toolbarHeight: kToolbarHeight * (textScale < 1 ? 1 : textScale),
-        title: InkWell(
-          key: const Key('chat-header'),
-          borderRadius: BorderRadius.circular(12),
-          // The match page: the family introduction, the photos, ending the match
-          onTap: canOpenMatch ? _openMatch : null,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            child: Row(
-              children: [
-                // One avatar (P2-5) with the chat's time as a gold arc around it (S4); the initial is decoration (the
-                // name says who it is, QA A-L08). The arc's days are said on a tap, and to screen readers.
-                Semantics(
-                  label: left?.text,
-                  button: left != null,
-                  child: GestureDetector(
-                    key: const Key('chat-time-arc'),
-                    onTap: left == null ? null : () => showSnack(context, left.text),
-                    // One Pro marker in the header: the «Pro» badge by the name (no dot here, review A2 minor 4)
-                    child: MemberAvatar(
-                      name: chat?.partnerName ?? '',
-                      size: 42,
-                      timeLeft: chat?.status == 'ACTIVE' ? chatTimeFraction(chat?.expiresAt) : null,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Flexible(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Flexible(
-                            child: NameWithBadge(
-                              isPro: chat?.partnerIsPro ?? false,
-                              child: Text(chat?.partnerName ?? 'المحادثة', maxLines: 1, overflow: TextOverflow.ellipsis),
-                            ),
-                          ),
-                          // The match's seal (S1), small
-                          if (chat != null) const Padding(padding: EdgeInsetsDirectional.only(start: 6), child: SealMark(size: 16)),
-                        ],
-                      ),
-                      ?status,
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        actions: [
-          if (chat != null)
-            PopupMenuButton<String>(
-              tooltip: 'خيارات',
-              onSelected: (v) {
-                switch (v) {
-                  case 'match':
-                    _openMatch();
-                  case 'extend':
-                    _extend();
-                  case 'end':
-                    _end();
-                  case 'report':
-                    _end(report: true);
-                  case 'clear':
-                    _clearChat();
-                }
+      appBar: selected != null
+          ? ChatSelectionBar(
+              tools: tools!,
+              deleteLocked: deleteMode == DeleteMode.upsell,
+              textScale: textScale,
+              onClose: _clearSelection,
+              onReply: () {
+                _clearSelection();
+                _startReply(selected);
               },
-              itemBuilder: (_) => [
-                if (!chat.matchHidden) const PopupMenuItem(value: 'match', child: Text('صفحة التوافق')),
-                if (chat.canExtend) const PopupMenuItem(value: 'extend', child: Text('تمديد 7 أيام')),
-                if (chat.canSend) const PopupMenuItem(value: 'end', child: Text('إنهاء المحادثة')),
-                // Pro chat delete (a closed chat too: «مسح لديّ» works there)
-                if (deleteMode != DeleteMode.hidden)
-                  PopupMenuItem(
-                    key: const Key('chat-clear'),
-                    value: 'clear',
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Text('مسح المحادثة'),
-                        if (deleteMode == DeleteMode.upsell) ...[
-                          const SizedBox(width: 8),
-                          const Icon(Icons.lock_rounded, size: 16, color: AppColors.goldText, semanticLabel: 'مع Pro'),
-                        ],
-                      ],
-                    ),
-                  ),
-                const PopupMenuItem(value: 'report', child: Text('إبلاغ')),
-              ],
-            ),
-        ],
+              onCopy: () async {
+                _clearSelection();
+                await Clipboard.setData(ClipboardData(text: selected.body));
+                if (mounted) showSnack(this.context, 'تم نسخ الرسالة');
+              },
+              onDelete: () {
+                _clearSelection();
+                _deleteChosen(selected);
+              },
+              onReport: () {
+                _clearSelection();
+                _end(report: true, message: selected);
+              },
+            )
+          : WaChatHeader(
+        chat: chat,
+        onBack: _toolbarBack,
+        status: status,
+        left: left,
+        deleteMode: deleteMode,
+        textScale: textScale,
+        // The match page: the family introduction, the photos, ending the match
+        onOpenMatch: canOpenMatch ? _openMatch : null,
+        onMenu: (a) {
+          switch (a) {
+            case ChatMenuAction.match:
+              _openMatch();
+            case ChatMenuAction.extend:
+              _extend();
+            case ChatMenuAction.clear:
+              _clearChat();
+            case ChatMenuAction.report:
+              _end(report: true);
+            case ChatMenuAction.end:
+              _end();
+          }
+        },
       ),
       // The chat: no screenshots (Android), hidden during screen recording (iOS)
       body: SecureArea(
@@ -2224,7 +2437,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
                             ),
                           ],
                         )
-                      : _messageList(items, safety, proPurchasable),
+                      : _messageList(items, safety, proPurchasable, selected, tools),
                 ),
               ),
               _footer(chat),
@@ -2350,11 +2563,11 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
         child: Padding(
           padding: const EdgeInsets.only(top: 4, bottom: 6),
           child: Material(
-            color: AppColors.goldLight.withValues(alpha: 0.35),
-            borderRadius: BorderRadius.circular(10),
+            color: AppColors.safetyChip,
+            borderRadius: BorderRadius.circular(AppRadius.md),
             child: InkWell(
               key: const Key('chat-safety'),
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(AppRadius.md),
               onTap: () => _safetyInfo(female),
               child: ConstrainedBox(
                 constraints: const BoxConstraints(minHeight: 44),
@@ -2367,15 +2580,17 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
                       const SizedBox(width: 6),
                       Flexible(
                         child: Text(
-                          forViewer(female, 'لحمايتك: لا تُشارك أرقاماً أو روابط', 'لحمايتكِ: لا تُشاركي أرقاماً أو روابط'),
+                          forViewer(
+                            female,
+                            'محادثة خاصة · لا تشارك الأرقام أو الحسابات',
+                            'محادثة خاصة · لا تشاركي الأرقام أو الحسابات',
+                          ),
                           maxLines: 2,
                           textAlign: TextAlign.center,
                           overflow: TextOverflow.ellipsis,
                           style: AppText.caption.copyWith(color: AppColors.goldText),
                         ),
                       ),
-                      const SizedBox(width: 4),
-                      const Icon(Icons.info_outline_rounded, size: 15, color: AppColors.goldText),
                     ],
                   ),
                 ),
@@ -2385,7 +2600,14 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
         ),
       );
 
-  Widget _messageList(List<ChatMessage> items, Widget? safety, bool proPurchasable) {
+  Widget _messageList(
+    List<ChatMessage> items,
+    Widget? safety,
+    bool proPurchasable,
+    ChatMessage? selected,
+    SelectionTools? tools,
+  ) {
+    final selecting = selected != null;
     // The safety chip sits above the oldest message once the whole history is loaded
     final showSafety = safety != null && !_hasMore;
     final extra = (_loadingOlder ? 1 : 0) + (showSafety ? 1 : 0);
@@ -2394,88 +2616,109 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
         // A tapped photo opens full screen with every photo of the chat (oldest first) to swipe through
         ChatPhotoGallery(
           photos: () => _messages,
+          partnerName: _chat?.partnerName ?? '',
           child: NotificationListener<ScrollNotification>(
             onNotification: (n) {
               _onScrollNotification(n);
               return false;
             },
-            child: ListView.builder(
-              key: _listKey,
-              controller: _scroll,
-              reverse: true,
-              // Scrolling the messages closes the keyboard
-              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-              padding: const EdgeInsets.fromLTRB(8, 6, 8, 10),
-              itemCount: items.length + extra,
-              itemBuilder: (context, i) {
-                if (i >= items.length) {
-                  if (_loadingOlder && i == items.length) {
-                    return const Padding(
-                      padding: EdgeInsets.all(12),
-                      child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
-                    );
+            // While selecting, a tap on the list's background ends the selection (a bubble's own tap wins over it)
+            child: GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onTap: selecting ? _clearSelection : null,
+              child: ListView.builder(
+                key: _listKey,
+                controller: _scroll,
+                reverse: true,
+                // Scrolling the messages closes the keyboard
+                keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                padding: const EdgeInsets.fromLTRB(8, 6, 8, 10),
+                itemCount: items.length + extra,
+                itemBuilder: (context, i) {
+                  if (i >= items.length) {
+                    if (_loadingOlder && i == items.length) {
+                      return const Padding(
+                        padding: EdgeInsets.all(12),
+                        child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                      );
+                    }
+                    return safety!;
                   }
-                  return safety!;
-                }
-                final m = items[i];
-                final layout = chatRowLayout(items, i, unreadFromId: _unreadFromId);
-                final sent = m.state == SendState.sent;
-                final bubble = ChatBubble(
-                  key: ValueKey(m.id),
-                  message: m,
-                  tail: layout.tail,
-                  tightTop: layout.tightTop,
-                  partnerName: _chat?.partnerName ?? '',
-                  onQuoteTap: _goToQuoted,
-                  waveSeed: _waveSeeds[m.id],
-                  onReactionTap: _open && m.myReaction != null && !m.deleted ? () => _react(m.id, null) : null,
-                  onOpenPro: m.proRequired && proPurchasable ? _openPro : null,
-                  onDelete: m.state == SendState.failed ? () => _deleteFailed(m) : null,
-                  onRetry: m.state == SendState.failed && !m.proRequired
-                      ? () => m.kind != MessageKind.text
-                          ? _sendMedia(retry: m)
-                          : m.filtered
-                          ? _editFailed(m)
-                          : _send(m)
-                      : null,
-                );
-                // Long-press: the menu; swipe towards the end side: reply. A tapped quote's original is tinted briefly.
-                final row = AnimatedContainer(
-                  duration: const Duration(milliseconds: 250),
-                  color: _highlightId == m.id ? AppColors.gold.withValues(alpha: 0.22) : Colors.transparent,
-                  child: SwipeToReply(
-                    // A trace can't be answered
-                    enabled: _open && sent && !m.deleted,
-                    onReply: () => _startReply(m),
-                    child: GestureDetector(
-                      onLongPress: sent ? () => _openMenu(m) : null,
-                      child: bubble,
+                  final m = items[i];
+                  final layout = chatRowLayout(items, i, unreadFromId: _unreadFromId);
+                  final sent = m.state == SendState.sent;
+                  final bubble = ChatBubble(
+                    key: ValueKey(m.id),
+                    message: m,
+                    tail: layout.tail,
+                    tightTop: layout.tightTop,
+                    partnerName: _chat?.partnerName ?? '',
+                    onQuoteTap: _goToQuoted,
+                    waveSeed: _waveSeeds[m.id],
+                    onReactionsTap: () => _showWhoReacted(m),
+                    onFamily: _open && _family == FamilyStep.offer && !(_chat?.matchHidden ?? true) ? _openMatch : null,
+                    onOpenPro: m.proRequired && proPurchasable ? _openPro : null,
+                    onDelete: m.state == SendState.failed ? () => _deleteFailed(m) : null,
+                    onRetry: m.state == SendState.failed && !m.proRequired
+                        ? () => m.kind != MessageKind.text
+                            ? _sendMedia(retry: m)
+                            : m.filtered
+                            ? _editFailed(m)
+                            : _send(m)
+                        : null,
+                  );
+                  // Long-press selects; while selecting, a tap selects instead of the bubble's own action (the photo
+                  // viewer, a quote's jump, play), so the bubble takes no pointer then. Swipe inward: reply. The
+                  // selected row is washed full width; a tapped quote's original is tinted briefly.
+                  final isSelected = selected?.id == m.id;
+                  final canSelect = selecting && sent;
+                  Widget row = AnimatedContainer(
+                    duration: AppMotion.of(context, const Duration(milliseconds: 250)),
+                    color: isSelected
+                        ? AppColors.chatSelect
+                        : _highlightId == m.id
+                        ? AppColors.gold.withValues(alpha: 0.22)
+                        : Colors.transparent,
+                    child: SwipeToReply(
+                      mine: m.mine,
+                      // A trace can't be answered
+                      enabled: _open && sent && !m.deleted,
+                      onReply: () {
+                        _clearSelection();
+                        _startReply(m);
+                      },
+                      child: GestureDetector(
+                        onLongPress: sent ? () => _select(m) : null,
+                        onTap: canSelect ? () => _tapWhileSelecting(m) : null,
+                        child: AbsorbPointer(absorbing: canSelect, child: bubble),
+                      ),
                     ),
-                  ),
-                );
-                return _RowProbe(
-                  key: ValueKey('row-${m.id}'),
-                  id: m.id,
-                  rowsById: _rowsById,
-                  child: !layout.daySeparator && !layout.unreadDivider
-                      // A message that arrives or is sent while the chat is open rises 6 px into place (P2-1); none
-                      // with reduced motion, and never the ones already there when it opened
-                      // (my own message confirmed by the server is a new row under its server id: it rose already, as
-                      // it was sent)
-                      ? RiseIn(
-                          enabled: _loadedOnce && !_shownAtOpen.contains(m.id) && !(m.mine && m.state == SendState.sent),
-                          child: row,
-                        )
-                      : Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            if (layout.daySeparator) _DayChip(label: chatDayLabel(m.createdAt)),
-                            if (layout.unreadDivider) const _UnreadDivider(),
-                            row,
-                          ],
-                        ),
-                );
-              },
+                  );
+                  if (isSelected) row = CompositedTransformTarget(link: _pickerLink, child: row);
+                  return _RowProbe(
+                    key: ValueKey('row-${m.id}'),
+                    id: m.id,
+                    rowsById: _rowsById,
+                    child: !layout.daySeparator && !layout.unreadDivider
+                        // A message that arrives or is sent while the chat is open rises 6 px into place (P2-1); none
+                        // with reduced motion, and never the ones already there when it opened
+                        // (my own message confirmed by the server is a new row under its server id: it rose already, as
+                        // it was sent)
+                        ? RiseIn(
+                            enabled: _loadedOnce && !_shownAtOpen.contains(m.id) && !(m.mine && m.state == SendState.sent),
+                            child: row,
+                          )
+                        : Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              if (layout.daySeparator) _DayChip(label: chatDayLabel(m.createdAt)),
+                              if (layout.unreadDivider) _UnreadDivider(count: _unreadAtOpen),
+                              row,
+                            ],
+                          ),
+                  );
+                },
+              ),
             ),
           ),
         ),
@@ -2499,16 +2742,67 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
         if (_away)
           PositionedDirectional(
             bottom: 12,
-            start: 12,
-            child: FilledButton.tonalIcon(
-              key: const Key('chat-newest'),
-              onPressed: _toNewest,
-              icon: const Icon(Icons.arrow_downward_rounded, size: 18),
-              label: Text(_unseen > 0 ? 'الأحدث ($_unseen)' : 'الأحدث'),
-            ),
+            end: 12,
+            child: NewestButton(unseen: _unseen, onPressed: _toNewest),
           ),
+        // The four reactions float above the selected row (below it near the top), on its own side
+        if (selected != null && tools!.react) _picker(selected),
       ],
     );
+  }
+
+  Widget _picker(ChatMessage m) {
+    final dir = Directionality.of(context);
+    final side = m.mine ? AlignmentDirectional.topEnd : AlignmentDirectional.topStart;
+    final bottomSide = m.mine ? AlignmentDirectional.bottomEnd : AlignmentDirectional.bottomStart;
+    return Positioned(
+      top: 0,
+      left: 0,
+      child: CompositedTransformFollower(
+        link: _pickerLink,
+        // Scrolled out of view: hidden with its row
+        showWhenUnlinked: false,
+        targetAnchor: (_pickerBelow ? bottomSide : side).resolve(dir),
+        followerAnchor: (_pickerBelow ? side : bottomSide).resolve(dir),
+        offset: Offset(0, _pickerBelow ? 4 : -4),
+        child: ReactionPicker(
+          mine: m.myReaction,
+          onPick: (emoji) {
+            _clearSelection();
+            _react(m.id, emoji);
+          },
+        ),
+      ),
+    );
+  }
+
+  /// The composer can be written in (an open chat, chats on)
+  bool get _canWrite {
+    final chat = _chat;
+    return chat != null && chat.canSend && _chatEnabled;
+  }
+
+  /// The emoji button: the panel in the keyboard's place (the field unfocused, the keyboard hidden), or back to the
+  /// keyboard (the field focused)
+  void _toggleEmoji() {
+    if (_emojiOpen) {
+      _emojiToKeyboard();
+      _inputFocus.requestFocus();
+      return;
+    }
+    _inputFocus.unfocus();
+    SystemChannels.textInput.invokeMethod<void>('TextInput.hide');
+    // Shown at once, in the room the keyboard leaves as it closes (sized in `_footer` from the inset)
+    _endHandover();
+    setState(() => _emojiOpen = true);
+  }
+
+  /// A pick from the panel: at the cursor (the field keeps no focus, so the keyboard stays away), then like a keystroke
+  void _insertEmoji(String emoji) {
+    final next = insertAtCursor(_input.value, emoji);
+    if (identical(next, _input.value)) return;
+    _input.value = next;
+    _onTyped(next.text);
   }
 
   Widget _footer(ChatSummary? chat) {
@@ -2516,8 +2810,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     final female = ref.watch(authControllerProvider).me?.isFemale ?? false;
     // Photo and voice follow Pro: usable, greyed with a «Pro» tag for a member who could buy it, or hidden
     final media = _mediaMode(chat);
-    final canSend = chat.canSend && _chatEnabled;
-    if (!canSend) {
+    if (!_canWrite) {
       final text = !_chatEnabled
           ? 'المحادثات متوقفة حالياً.'
           : chat.blocked
@@ -2525,28 +2818,27 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
               : chat.status == 'ENDED'
                   ? (chat.endedByMe ? 'أنهيت هذه المحادثة.' : 'انتهت هذه المحادثة.')
                   : 'انتهت مدة المحادثة.';
-      return SafeArea(
-        top: false,
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          color: AppColors.line.withValues(alpha: 0.5),
-          child: Text(text, textAlign: TextAlign.center, style: const TextStyle(color: AppColors.muted)),
-        ),
-      );
+      return WaReadOnlyFooter(text: text);
     }
     final holdUi = _holding && (_voice == _Voice.starting || _voice == _Voice.recording);
     if (!holdUi && (_voice == _Voice.recording || _voice == _Voice.stopping || _voice == _Voice.stopped)) {
       return _recordingBar();
     }
     final locked = media == MediaButtons.locked;
+    final panel = _emojiOpen && !holdUi;
+    // The panel's room: its full height less what the keyboard still takes, so the composer stays put while one
+    // replaces the other (both ways)
+    final panelRoom = (panel || (_emojiHandover && !holdUi)) ? _panelFull() : 0.0;
+    final room = panelRoom - _keyboardInset;
     // Starters while I haven't written anything (the server stops sending them after my first message)
-    final starters = !holdUi && _replyTo == null && !_messages.any((m) => m.mine) ? _starters : const <String>[];
+    final starters =
+        !holdUi && !panel && _replyTo == null && !_messages.any((m) => m.mine) ? _starters : const <String>[];
     return SafeArea(
       top: false,
-      bottom: !_keyboardOpen,
-      child: Container(
-        decoration: const BoxDecoration(color: Colors.white, border: Border(top: BorderSide(color: AppColors.line))),
+      // The keyboard's place (keyboard or panel) already covers the home indicator
+      bottom: !_keyboardOpen && panelRoom == 0,
+      child: ColoredBox(
+        color: AppColors.chatBackdrop,
         child: ValueListenableBuilder<TextEditingValue>(
           valueListenable: _input,
           builder: (context, value, _) {
@@ -2577,7 +2869,17 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
                                     .clamp(0.0, holdCancelDistance),
                                 female: female,
                               )
-                            : _pill(female, media, locked),
+                            : WaComposerPill(
+                                controller: _input,
+                                focusNode: _inputFocus,
+                                female: female,
+                                media: media,
+                                emojiOpen: _emojiOpen,
+                                onToggleEmoji: _toggleEmoji,
+                                onAttach: _attach,
+                                onOpenPro: _openPro,
+                                onChanged: _onTyped,
+                              ),
                       ),
                       const SizedBox(width: 6),
                       // Part of the input's tap region: sending keeps the keyboard open for the next message
@@ -2585,76 +2887,30 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
                     ],
                   ),
                 ),
+                if (panelRoom > 0 && room > 0)
+                  SizedBox(
+                    key: const Key('emoji-room'),
+                    height: room,
+                    child: ClipRect(
+                      child: OverflowBox(
+                        alignment: Alignment.topCenter,
+                        minHeight: panelRoom,
+                        maxHeight: panelRoom,
+                        // Giving way to the keyboard: shown, not used
+                        child: IgnorePointer(
+                          ignoring: !panel,
+                          child: ExcludeSemantics(
+                            excluding: !panel,
+                            child: EmojiPanel(onPick: _insertEmoji, height: panelRoom),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
               ],
             );
           },
         ),
-      ),
-    );
-  }
-
-  /// The pill: the text box, with the photo button inside at its end (Pro; greyed with «Pro» where it can be bought;
-  /// else hidden)
-  Widget _pill(bool female, MediaButtons media, bool locked) {
-    const none = OutlineInputBorder(borderSide: BorderSide.none);
-    return Container(
-      constraints: const BoxConstraints(minHeight: 48),
-      decoration: BoxDecoration(
-        color: AppColors.offWhite,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: AppColors.line),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          Expanded(
-            child: TextField(
-              key: const Key('chat-input'),
-              controller: _input,
-              focusNode: _inputFocus,
-              minLines: 1,
-              maxLines: 5,
-              maxLength: 2000,
-              textInputAction: TextInputAction.newline,
-              onChanged: _onTyped,
-              // A tap anywhere else (the messages, the header) closes the keyboard
-              onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
-              style: AppText.body,
-              decoration: InputDecoration(
-                // A little room at the start: the cursor of the empty, focused field stands at the very edge and
-                // would cover the hint's first letter, a thin «ا» («كتب رسالتك», simulator QA D1)
-                hint: Padding(
-                  padding: const EdgeInsetsDirectional.only(start: composerHintGap),
-                  child: Text(
-                    forViewer(female, 'اكتب رسالتك…', 'اكتبي رسالتكِ…'),
-                    key: const Key('chat-input-hint'),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppText.body.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
-                  ),
-                ),
-                counterText: '',
-                filled: false,
-                isDense: true,
-                border: none,
-                enabledBorder: none,
-                focusedBorder: none,
-                contentPadding: const EdgeInsetsDirectional.fromSTEB(16, 13, 8, 13),
-              ),
-            ),
-          ),
-          if (media != MediaButtons.hidden)
-            TextFieldTapRegion(
-              child: _MediaButton(
-                key: const Key('chat-photo'),
-                tagKey: const Key('chat-media-pro-tag'),
-                icon: Icons.photo_camera_back_outlined,
-                tooltip: locked ? 'إرسال الصور مع Pro' : 'إرسال صورة',
-                locked: locked,
-                onPressed: locked ? _openPro : _pickPhoto,
-              ),
-            ),
-        ],
       ),
     );
   }
@@ -2672,7 +2928,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
       );
     }
     if (locked) {
-      return _MediaButton(
+      return ComposerMediaButton(
         key: const Key('chat-mic'),
         tagKey: const Key('chat-mic-pro-tag'),
         icon: Icons.mic_none_rounded,
@@ -2696,7 +2952,8 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
         alignment: Alignment.center,
         children: [
           AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
+            key: const Key('chat-mic-disc'),
+            duration: AppMotion.of(context, const Duration(milliseconds: 150)),
             width: 52,
             height: 52,
             transform: Matrix4.diagonal3Values(holdUi ? 1.15 : 1, holdUi ? 1.15 : 1, 1),
@@ -2727,59 +2984,6 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
 /// the file (`stopping`), stopped at the limit and waiting for «إرسال» or «إلغاء» (`stopped`)
 enum _Voice { idle, starting, recording, stopping, stopped }
 
-/// A composer media button. Locked: greyed, with a small «Pro» tag; the whole button (tag included) opens the plans.
-class _MediaButton extends StatelessWidget {
-  const _MediaButton({
-    super.key,
-    required this.tagKey,
-    required this.icon,
-    required this.tooltip,
-    required this.locked,
-    required this.onPressed,
-  });
-
-  final Key tagKey;
-  final IconData icon;
-  final String tooltip;
-  final bool locked;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 48,
-      height: 52,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          IconButton(
-              tooltip: tooltip,
-              onPressed: onPressed,
-              style: IconButton.styleFrom(minimumSize: const Size(48, 52)),
-              icon: Icon(icon, color: locked ? AppColors.muted.withValues(alpha: 0.6) : AppColors.navy),
-            ),
-          // Locked (no Pro): a small gold lock instead of a «Pro» sticker (design P2-1, DS-14); the button opens the
-          // one explanation, «عضوية Pro»
-          if (locked)
-            PositionedDirectional(
-              top: 8,
-              end: 6,
-              child: IgnorePointer(
-                child: Container(
-                  key: tagKey,
-                  width: 16,
-                  height: 16,
-                  decoration: const BoxDecoration(color: AppColors.gold, shape: BoxShape.circle),
-                  child: const Icon(Icons.lock_rounded, size: 10, color: Colors.white),
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
 /// «اليوم» / «أمس» / a date between the messages of two days; [floating] is the copy kept at the top while scrolling
 class _DayChip extends StatelessWidget {
   const _DayChip({super.key, required this.label, this.floating = false, this.fade = 1});
@@ -2801,44 +3005,63 @@ class _DayChip extends StatelessWidget {
   }
 }
 
-/// The chat's one pill: a day, «رسائل جديدة» ([accent]), the floating day while scrolling
+/// The chat's one pill: a day, the floating day while scrolling
 class ChatPill extends StatelessWidget {
-  const ChatPill({super.key, required this.label, this.fade = 1, this.accent = false});
+  const ChatPill({super.key, required this.label, this.fade = 1});
   final String label;
   final double fade;
-  final bool accent;
 
   @override
   Widget build(BuildContext context) {
-    final ink = accent ? AppColors.navy : AppColors.muted;
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: accent ? AppColors.navy.withValues(alpha: 0.08 * fade) : Colors.white.withValues(alpha: 0.94 * fade),
+        color: AppColors.chatChip.withValues(alpha: AppColors.chatChip.a * fade),
         borderRadius: BorderRadius.circular(AppRadius.full),
-        border: Border.all(color: (accent ? AppColors.navy.withValues(alpha: 0.25) : AppColors.line).withValues(alpha: fade)),
+        border: Border.all(color: AppColors.line.withValues(alpha: fade)),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
-        child: Text(label, style: AppText.caption.copyWith(color: ink.withValues(alpha: fade), fontWeight: FontWeight.w700)),
+        child: Text(label, style: AppText.caption.copyWith(color: AppColors.muted.withValues(alpha: fade), fontWeight: FontWeight.w700)),
       ),
     );
   }
 }
 
-/// «رسائل جديدة» above the first message that was unread when the chat opened
+/// The full-width strip «N رسائل غير مقروءة» above the first message that was unread when the chat opened. It reaches
+/// the list's edges (the list's own side padding is 8).
 class _UnreadDivider extends StatelessWidget {
-  const _UnreadDivider();
+  const _UnreadDivider({required this.count});
+  final int count;
 
   @override
   Widget build(BuildContext context) {
-    return const Padding(
-      key: Key('chat-unread-divider'),
-      padding: EdgeInsets.only(top: 10, bottom: 2),
-      child: Row(
+    return Padding(
+      padding: const EdgeInsets.only(top: 10, bottom: 4),
+      // At least 32 high, growing with large system text (a fixed height clipped the label). The fill reaches 8 px past
+      // each side, to the list's edges.
+      child: Stack(
+        clipBehavior: Clip.none,
         children: [
-          Expanded(child: Divider(color: AppColors.gold, thickness: 0.8)),
-          Padding(padding: EdgeInsets.symmetric(horizontal: 8), child: ChatPill(label: 'رسائل جديدة', accent: true)),
-          Expanded(child: Divider(color: AppColors.gold, thickness: 0.8)),
+          PositionedDirectional(
+            start: -8,
+            end: -8,
+            top: 0,
+            bottom: 0,
+            child: const ColoredBox(key: Key('chat-unread-divider'), color: AppColors.chatChip),
+          ),
+          ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 32, minWidth: double.infinity),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Center(
+                child: Text(
+                  unreadStripLabel(count),
+                  textAlign: TextAlign.center,
+                  style: AppText.label.copyWith(color: AppColors.navy),
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );

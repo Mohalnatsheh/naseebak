@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart' show TextDirection;
 
+import '../../core/localization/arabic_count.dart';
 import '../../core/localization/digits.dart';
 import 'chat_models.dart';
 
@@ -74,6 +75,25 @@ String? firstUnreadId(List<ChatMessage> oldestFirst) {
   return first;
 }
 
+/// The strip's text: «3 رسائل غير مقروءة» (the website's `unreadStripLabel`)
+String unreadStripLabel(int n) => arabicCount(
+      n,
+      one: 'رسالة غير مقروءة',
+      two: 'رسالتان غير مقروءتين',
+      few: 'رسائل غير مقروءة',
+      many: 'رسالة غير مقروءة',
+    );
+
+/// How many of the partner's messages stand from [fromId] on (0 when [fromId] isn't in the list)
+int unreadCountFrom(List<ChatMessage> oldestFirst, String fromId) {
+  final at = oldestFirst.indexWhere((m) => m.id == fromId);
+  if (at < 0) return 0;
+  return oldestFirst.skip(at).where((m) => !m.mine).length;
+}
+
+/// The floating day chip leaves this long after scrolling stops
+const dateChipHideAfter = Duration(seconds: 1);
+
 /// A message's own direction, from its first strong letter: Arabic (and other right-to-left scripts) → RTL, a Latin
 /// letter → LTR. Nothing strong (a number, emoji, punctuation) → LTR, so `07 9 12 34 567` reads in its own order and
 /// isn't reversed group by group inside the Arabic layout.
@@ -91,3 +111,15 @@ bool _rtl(int r) =>
 
 bool _ltrLetter(int r) =>
     (r >= 0x41 && r <= 0x5A) || (r >= 0x61 && r <= 0x7A) || (r >= 0xC0 && r <= 0x24F) || (r >= 0x370 && r <= 0x52F);
+
+/// The partner's messages are marked read only while the chat is the screen on top and the app is in front, and only
+/// when they wrote after the last read sent (audit B1). [readUpTo] null = nothing marked yet.
+bool readIsDue({
+  required bool onTop,
+  required bool foreground,
+  required DateTime? newestPartnerAt,
+  required DateTime? readUpTo,
+}) {
+  if (!onTop || !foreground || newestPartnerAt == null) return false;
+  return readUpTo == null || newestPartnerAt.isAfter(readUpTo);
+}

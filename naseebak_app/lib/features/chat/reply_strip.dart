@@ -89,15 +89,15 @@ class QuoteInBubble extends StatelessWidget {
   final ReplyQuote quote;
   final String partnerName;
 
-  /// Drawn on my navy bubble (light colours) or on theirs (white)
+  /// Drawn on my pale-navy bubble or on theirs (white)
   final bool onMine;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    final bar = onMine ? AppColors.goldLight : AppColors.navy;
-    final name = onMine ? AppColors.goldLight : AppColors.navy;
-    final text = onMine ? Colors.white.withValues(alpha: 0.85) : AppColors.muted;
+    final bar = AppColors.navy;
+    final name = AppColors.navy;
+    final text = AppColors.muted;
     return Semantics(
       button: onTap != null,
       label: 'رد على ${quoteAuthor(quote.mine, partnerName)}',
@@ -111,7 +111,7 @@ class QuoteInBubble extends StatelessWidget {
           constraints: const BoxConstraints(minHeight: 44),
           padding: const EdgeInsetsDirectional.fromSTEB(8, 4, 8, 4),
           decoration: BoxDecoration(
-            color: onMine ? Colors.white.withValues(alpha: 0.14) : AppColors.navy.withValues(alpha: 0.06),
+            color: onMine ? AppColors.bubbleMineQuote : AppColors.navy.withValues(alpha: 0.06),
             borderRadius: BorderRadius.circular(8),
             border: BorderDirectional(start: BorderSide(color: bar, width: 3)),
           ),

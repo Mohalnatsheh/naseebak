@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:naseebak_app/core/localization/digits.dart';
+import 'package:naseebak_app/core/theme/app_theme.dart';
 import 'package:naseebak_app/features/chat/chat_bubble.dart';
 import 'package:naseebak_app/features/chat/chat_cache.dart';
 import 'package:naseebak_app/features/chat/chat_format.dart';
@@ -127,6 +128,55 @@ void main() {
   });
 
   group('bubbles', () {
+    test('chat tokens match the website and pass contrast', () {
+      double contrast(Color a, Color b) {
+        final l1 = a.computeLuminance(), l2 = b.computeLuminance();
+        final hi = l1 > l2 ? l1 : l2, lo = l1 > l2 ? l2 : l1;
+        return (hi + 0.05) / (lo + 0.05);
+      }
+
+      expect(AppColors.bubbleMine, const Color(0xFFDFE9F4));
+      expect(AppColors.bubbleMineQuote, const Color(0xFFCDDBE9));
+      expect(AppColors.chatSelect, const Color(0x2422476A));
+      expect(AppColors.chatChip, const Color(0xEBFFFFFF));
+      expect(AppColors.safetyChip, const Color(0xFFF9EDD9));
+      expect(AppColors.chatMine, AppColors.bubbleMine);
+      expect(contrast(AppColors.ink, AppColors.bubbleMine), greaterThanOrEqualTo(7));
+      expect(contrast(AppColors.muted, AppColors.bubbleMine), greaterThanOrEqualTo(4.5));
+      expect(contrast(AppColors.navy, AppColors.bubbleMine), greaterThanOrEqualTo(4.5));
+    });
+
+    testWidgets('my bubble sits on the end side (left in Arabic) in bubbleMine with ink text; theirs on the start side in white',
+        (tester) async {
+      final t = DateTime(2026, 11, 10, 14, 5);
+      await tester.pumpWidget(rtlApp(Scaffold(
+        body: Column(children: [
+          ChatBubble(message: ChatMessage(id: '1', body: 'رسالتي', createdAt: t, mine: true)),
+          ChatBubble(message: ChatMessage(id: '2', body: 'رسالتها', createdAt: t, mine: false)),
+        ]),
+      )));
+      expect(tester.getCenter(find.text('رسالتي')).dx, lessThan(tester.getCenter(find.text('رسالتها')).dx));
+      final colors = [
+        for (final p in tester.widgetList<CustomPaint>(find.byType(CustomPaint)))
+          if (p.painter is BubblePainter) (p.painter! as BubblePainter).color,
+      ];
+      expect(colors, [AppColors.bubbleMine, AppColors.chatTheirs]);
+      expect(tester.widget<Text>(find.text('رسالتي')).style!.color, AppColors.ink);
+    });
+
+    testWidgets('ticks: ✓ grey while unread, ✓✓ navy once read', (tester) async {
+      final t = DateTime(2026, 11, 10, 14, 5);
+      await tester.pumpWidget(rtlApp(Scaffold(
+        body: Column(children: [
+          ChatBubble(message: ChatMessage(id: '1', body: 'a', createdAt: t, mine: true)),
+          ChatBubble(message: ChatMessage(id: '2', body: 'b', createdAt: t, mine: true, readAt: t)),
+        ]),
+      )));
+      expect(tester.widget<Icon>(find.byIcon(Icons.done_rounded)).color, AppColors.muted);
+      expect(tester.widget<Icon>(find.byIcon(Icons.done_all_rounded)).color, AppColors.navy);
+      expect(find.bySemanticsLabel('أُرسلت'), findsOneWidget);
+      expect(find.bySemanticsLabel('مقروءة'), findsOneWidget);
+    });
     testWidgets('the time on every bubble, ticks only on mine', (tester) async {
       final t = DateTime(2026, 11, 10, 14, 5);
       await tester.pumpWidget(rtlApp(Scaffold(

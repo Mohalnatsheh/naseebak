@@ -9,8 +9,8 @@ import 'chat_models.dart';
 import 'media_bubbles.dart';
 import 'reply_strip.dart';
 
-/// One message, WhatsApp-style: mine at the start side (right in Arabic) in navy, the other person's at the end side
-/// in white. The first bubble of a run from one sender has a tail at its top outer corner ([tail]); the next ones in
+/// One message, WhatsApp-style: mine at the end side (left in Arabic) in pale navy with ink text, the other person's at the start
+/// side in white. The first bubble of a run from one sender has a tail at its top outer corner ([tail]); the next ones in
 /// the run sit 2 px apart ([tightTop]), runs 8 px apart. Every bubble carries its own time (and my ticks) inside, at
 /// the end corner; a photo carries them over the picture.
 ///
@@ -63,18 +63,18 @@ class ChatBubble extends StatelessWidget {
     final mine = message.mine;
     final failed = message.state == SendState.failed;
     final bg = mine ? (failed ? AppColors.dangerBg : AppColors.chatMine) : AppColors.chatTheirs;
-    final fg = mine && !failed ? Colors.white : AppColors.ink;
+    final fg = AppColors.ink;
     final border = failed ? AppColors.danger : (mine ? null : AppColors.line);
     final ambient = Directionality.of(context);
-    // The outer side: start for mine, end for theirs, as a physical side for the painter
-    final tailRight = (mine && ambient == TextDirection.rtl) || (!mine && ambient == TextDirection.ltr);
+    // The outer side: end for mine, start for theirs, as a physical side for the painter
+    final tailRight = (!mine && ambient == TextDirection.rtl) || (mine && ambient == TextDirection.ltr);
     final kind = message.kind;
     return Align(
-      alignment: mine ? AlignmentDirectional.centerStart : AlignmentDirectional.centerEnd,
+      alignment: mine ? AlignmentDirectional.centerEnd : AlignmentDirectional.centerStart,
       child: ConstrainedBox(
         constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width * 0.80),
         child: Column(
-          crossAxisAlignment: mine ? CrossAxisAlignment.start : CrossAxisAlignment.end,
+          crossAxisAlignment: mine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
           children: [
             Padding(
               padding: EdgeInsets.only(
@@ -214,12 +214,11 @@ class ChatBubble extends StatelessWidget {
               SendState.sent => message.readAt != null ? Icons.done_all_rounded : Icons.done_rounded,
             },
             size: 14,
-            // Read: gold ticks, like the chats list
+            // Read: navy ✓✓; sent or unread: muted ✓ (white over a photo)
             color: failed
                 ? AppColors.danger
-                : message.state == SendState.sent && message.readAt != null
-                    ? AppColors.goldLight
-                    : (tickColor ?? fg.withValues(alpha: 0.8)),
+                : tickColor ??
+                    (message.state == SendState.sent && message.readAt != null ? AppColors.navy : AppColors.muted),
             semanticLabel: switch (message.state) {
               SendState.sending => 'جارٍ الإرسال',
               SendState.failed => 'لم تُرسل',

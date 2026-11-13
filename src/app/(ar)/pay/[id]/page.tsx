@@ -1,3 +1,4 @@
+import { offerPackageName } from "@/lib/payments/offer";
 import Link from "next/link";
 import Image from "next/image";
 import type { Metadata } from "next";
@@ -57,7 +58,7 @@ export default async function PayPage({
 
   const payment = await db.payment.findUnique({
     where: { id },
-    select: { id: true, status: true, payToken: true, stripePaymentIntentId: true, planName: true, amount: true, currency: true, chargeCurrency: true },
+    select: { id: true, status: true, payToken: true, stripePaymentIntentId: true, planName: true, amount: true, currency: true, chargeCurrency: true, bonusCredits: true },
   });
   if (!payment || !payment.stripePaymentIntentId || !tokenMatches(payment.payToken, t)) {
     return <Message title="رابط الدفع غير صالح" body="يمكنك فتح صفحة الرصيد واختيار الباقة من جديد." href={back.href} cta={back.cta} />;
@@ -92,7 +93,7 @@ export default async function PayPage({
         <div className="rounded-2xl border border-border/70 bg-card p-5">
           <p className="text-sm text-muted-foreground">الشراء من نصيبك</p>
           <div className="mt-1 flex items-baseline justify-between gap-3">
-            <h1 className="text-xl font-bold text-foreground">{pkg?.name ?? "رصيد"}</h1>
+            <h1 className="text-xl font-bold text-foreground">{pkg ? (payment.bonusCredits ? offerPackageName(pkg.name, payment.bonusCredits) : pkg.name) : "رصيد"}</h1>
             <p className="text-2xl font-bold text-primary">{price}</p>
           </div>
           {charged ? (

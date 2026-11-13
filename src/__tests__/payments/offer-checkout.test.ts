@@ -43,6 +43,10 @@ describe("sale offer at checkout", () => {
     const row = db.payment.create.mock.calls[0][0].data;
     expect(row.bonusCredits).toBe(5);
     expect(row.description).toContain("15");
+    // What the member reads while paying says the gift too
+    const args = stripe.create.mock.calls[0][0];
+    expect(args.line_items[0].price_data.product_data.name).toBe("نصيبك · 10 أرصدة + 5 هدية");
+    expect(args.payment_intent_data.description).toBe("نصيبك · 10 أرصدة + 5 هدية");
   });
 
   it("changes nothing while the offer is off", async () => {

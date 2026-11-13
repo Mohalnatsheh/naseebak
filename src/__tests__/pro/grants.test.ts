@@ -29,6 +29,13 @@ beforeEach(() => {
 });
 
 describe("grantProCredits", () => {
+  it("an extra grant (sale offer bonus) never counts as one of the year's grants", async () => {
+    const r = await grantProCredits({ subscriptionId: "s1", paymentId: "pay1", key: "offer:in_1", credits: 4, silent: true, extra: true });
+    expect(r).toBe("granted");
+    expect(db.user.update).toHaveBeenCalledWith({ where: { id: "u1" }, data: { matchCredits: { increment: 4 } } });
+    expect(db.proSubscription.update).not.toHaveBeenCalled();
+  });
+
   it("grants once: grant row, credits, ledger, counter, notice", async () => {
     const r = await grantProCredits({ subscriptionId: "s1", paymentId: "pay1", key: "invoice:in_1", credits: 5 });
     expect(r).toBe("granted");

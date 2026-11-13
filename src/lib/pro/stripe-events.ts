@@ -318,7 +318,7 @@ export async function handleProInvoicePaid(invoice: Stripe.Invoice): Promise<Pro
   const offerBonus = offerBonusFromMeta(meta!);
   if (offerBonus > 0 && invoice.billing_reason === "subscription_create" && (invoice.amount_paid ?? 0) > 0) {
     try {
-      await grantProCredits({ subscriptionId: sub.id, paymentId, key: `offer:${invoice.id}`, credits: offerBonus, silent: true });
+      await grantProCredits({ subscriptionId: sub.id, paymentId, key: `offer:${invoice.id}`, credits: offerBonus, silent: true, extra: true });
     } catch (e) {
       // Never blocks the membership or its «started» notice; the admins can add the bonus by hand
       console.error("[pro] offer bonus grant failed", sub.id, invoice.id, e);

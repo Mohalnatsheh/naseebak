@@ -35,8 +35,10 @@ export async function grantProCredits(args: {
   restartYear?: boolean;
   /** No «رصيد Pro» notice: the caller tells the member in its own (a payment that didn't make Pro live, QA WP2-08) */
   silent?: boolean;
+  /** A sale offer's bonus (key offer:<invoiceId>): never counts in `grantsMade`, which paces the yearly drip (12 a year) */
+  extra?: boolean;
 }): Promise<"granted" | "already"> {
-  const { subscriptionId, paymentId, key, credits, advanceNextTo, restartYear, silent } = args;
+  const { subscriptionId, paymentId, key, credits, advanceNextTo, restartYear, silent, extra } = args;
   if (credits <= 0) return "already";
 
   let userId: string;
@@ -49,10 +51,12 @@ export async function grantProCredits(args: {
       });
       await tx.user.update({ where: { id: sub.userId }, data: { matchCredits: { increment: credits } } });
       await recordCredit({ userId: sub.userId, delta: credits, reason: "PRO_GRANT", refId: grant.id, note: key }, tx);
-      await tx.proSubscription.update({
-        where: { id: subscriptionId },
-        data: { grantsMade: restartYear ? 1 : { increment: 1 }, ...(advanceNextTo ? { nextCreditGrantAt: advanceNextTo } : {}) },
-      });
+      if (!extra) {
+        await tx.proSubscription.update({
+          where: { id: subscriptionId },
+          data: { grantsMade: restartYear ? 1 : { increment: 1 }, ...(advanceNextTo ? { nextCreditGrantAt: advanceNextTo } : {}) },
+        });
+      }
       return sub.userId;
     });
   } catch (e) {

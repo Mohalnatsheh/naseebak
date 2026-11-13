@@ -194,7 +194,7 @@ describe("handleProInvoicePaid", () => {
     expect(await handleProInvoicePaid(inv)).toBe("ok");
     const sub = store.subs[0];
     expect(sub.creditsPerGrant).toBe(8);
-    expect(grants.grantProCredits).toHaveBeenCalledWith({ subscriptionId: sub.id, paymentId: "pay1", key: "offer:in_1", credits: 4, silent: true });
+    expect(grants.grantProCredits).toHaveBeenCalledWith({ subscriptionId: sub.id, paymentId: "pay1", key: "offer:in_1", credits: 4, silent: true, extra: true });
     await handleProInvoicePaid(inv);
     expect(grants.keys).toEqual(new Set(["invoice:in_1", "offer:in_1"]));
   });

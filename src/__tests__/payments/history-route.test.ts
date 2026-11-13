@@ -24,4 +24,14 @@ describe("GET /api/payments/history (QA WEB-PAY-06)", () => {
     expect(d[1]).toBe("[MOCK] شراء 10 أرصدة في نصيبك");
     expect(d[2]).toBe("اشتراك نصيبك Pro (شهري)");
   });
+
+  it("a purchase made during a sale offer shows the credits it really gave", async () => {
+    db.payment.findMany.mockResolvedValue([
+      { id: "a", type: "MATCH_CREDITS", planName: "launch_10", bonusCredits: 5, description: "شراء 15 رصيداً في نصيبك" },
+    ]);
+    db.payment.count.mockResolvedValue(1);
+    db.user.findUnique.mockResolvedValue({ matchCredits: 15 });
+    const data = await (await GET(new Request("http://x/api/payments/history"))).json();
+    expect(data.payments[0].description).toBe("شراء 15 رصيداً في نصيبك");
+  });
 });

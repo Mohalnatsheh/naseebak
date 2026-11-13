@@ -12,7 +12,7 @@ import { MOCK_SESSION_PREFIX, paymentsMockEnabled } from "@/lib/payments/mock";
 import { toCountry } from "@/lib/countries";
 import { getCountrySettings, purchasesAvailable } from "@/lib/countries/settings";
 import { activeOfferFor, jodChargingFor } from "@/lib/settings";
-import { bonusFor } from "@/lib/payments/offer";
+import { bonusFor, offerPackageName } from "@/lib/payments/offer";
 
 /** Stripe's error fields worth logging (never the full request) */
 function stripeErrorInfo(error: unknown) {
@@ -61,6 +61,8 @@ export async function POST(request: Request) {
     // Sale offer (lib/payments/offer): fixed now, so a checkout opened inside the window keeps its bonus
     const offer = await activeOfferFor(true);
     const bonus = offer ? bonusFor(pkg.credits, offer.percent) : 0;
+    // What the member reads while paying (product line, Arabic price line, card description) says the gift too
+    const shown = bonus > 0 ? { ...pkg, name: offerPackageName(pkg.name, bonus) } : pkg;
     const metadata = {
       app: CHECKOUT_APP,
       paymentId,
@@ -78,7 +80,7 @@ export async function POST(request: Request) {
     // If Stripe refuses it, the member gets the usual checkout below instead — never an error.
     if (!paymentsMockEnabled() && (await usesArabicCheckout(me?.phone))) {
       try {
-        const intent = await getStripe().paymentIntents.create(paymentIntentParams(pkg, { paymentId, userId: session.user.id }, bonus));
+        const intent = await getStripe().paymentIntents.create(paymentIntentParams(shown, { paymentId, userId: session.user.id }, bonus));
         intentId = intent.id;
         payToken = newPayToken();
         const path = payPagePath(paymentId, payToken, hosted ? "app" : "web");
@@ -96,7 +98,7 @@ export async function POST(request: Request) {
       reply = { mock: true, paymentId };
     } else {
       try {
-        const lineItems = [{ price_data: { currency: pkg.chargeCurrency, product_data: { name: productName(pkg) }, unit_amount: pkg.chargeAmount }, quantity: 1 }];
+        const lineItems = [{ price_data: { currency: pkg.chargeCurrency, product_data: { name: productName(shown) }, unit_amount: pkg.chargeAmount }, quantity: 1 }];
         const expiresAt = Math.floor((Date.now() + CHECKOUT_TTL_MS) / 1000);
         // Jordan: shown in JOD, charged in USD (in JOD with jod_charging) · Saudi Arabia: SAR (lib/payments/packages)
         const base = hosted
@@ -120,7 +122,7 @@ export async function POST(request: Request) {
         // ever refuses one of those extras, the plain session is created instead: a checkout must never fail for them.
         let checkoutSession: Awaited<ReturnType<ReturnType<typeof getStripe>["checkout"]["sessions"]["create"]>>;
         try {
-          checkoutSession = await getStripe().checkout.sessions.create({ ...base, ...checkoutPresentation(pkg, hosted) });
+          checkoutSession = await getStripe().checkout.sessions.create({ ...base, ...checkoutPresentation(shown, hosted) });
         } catch (error) {
           if (!isPresentationError(error)) throw error;
           console.error("[payments] checkout branding refused, creating a plain session:", stripeErrorInfo(error));

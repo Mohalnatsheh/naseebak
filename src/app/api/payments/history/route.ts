@@ -45,7 +45,7 @@ export async function GET(request: Request) {
       payments: payments.map((p) => {
         const pkg = p.type === "MATCH_CREDITS" ? findAnyPackage(p.planName) : undefined;
         if (!pkg) return p;
-        return { ...p, description: `${p.description?.startsWith("[MOCK] ") ? "[MOCK] " : ""}${packPurchaseDescription(pkg.credits)}` };
+        return { ...p, description: `${p.description?.startsWith("[MOCK] ") ? "[MOCK] " : ""}${packPurchaseDescription(pkg.credits + (p.bonusCredits ?? 0))}` };
       }),
       matchCredits: user?.matchCredits ?? 0,
       page,

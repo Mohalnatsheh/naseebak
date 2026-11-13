@@ -9,8 +9,8 @@ vi.mock("next/navigation", () => ({
 vi.mock("next-auth/react", () => ({ signIn: vi.fn(async () => ({ error: undefined })) }));
 vi.mock("@/lib/analytics", () => ({ trackEvent: vi.fn(), trackMetaEvent: vi.fn() }));
 
-import RegisterPage from "@/app/(ar)/register/page";
-import LoginPage from "@/app/(ar)/login/page";
+import RegisterPage from "@/app/(ar)/register/legacy-register-page";
+import LoginPage from "@/app/(ar)/login/legacy-login-page";
 import { localPhone } from "@/lib/phone";
 
 beforeEach(() => {

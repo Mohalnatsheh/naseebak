@@ -13,7 +13,7 @@ import { useVisitorCountry } from "@/components/shared/visitor-country";
 import { COUNTRIES, type CountryCode } from "@/lib/countries";
 import { toLatinDigits } from "@/lib/digits";
 import { localPhone, normalizePhone } from "@/lib/phone";
-import { dialCountryFor, isPhoneFor, phoneExampleError } from "@/lib/phone-field";
+import { dialCountryFor, isPhoneFor, phoneExampleError, phoneWord } from "@/lib/phone-field";
 import { safeCallbackPath } from "@/lib/safe-redirect";
 import { rateLimitedMinutes } from "@/lib/login-limit";
 import { arabicCount } from "@/lib/utils";
@@ -61,10 +61,13 @@ export function AuthFlow({
   mode,
   callbackUrl,
   inviteCode,
+  existsNotice,
 }: {
   mode: "login" | "register";
   callbackUrl?: string;
   inviteCode?: string;
+  /** `/login?exists=true`: sent back from a sign-up that found the number registered */
+  existsNotice?: boolean;
 }) {
   const router = useRouter();
   const visitorCountry = useVisitorCountry();
@@ -345,6 +348,13 @@ export function AuthFlow({
 
   return (
     <AuthFrame headerLink={headerLink}>
+      {step === "phone" && mode === "login" && existsNotice && (
+        <div role="status" className="mb-4 flex items-center gap-2 rounded-xl border border-primary/20 bg-primary/10 p-4 text-body text-primary">
+          <Info className="size-4 shrink-0" aria-hidden />
+          رقم {phoneWord(country)} مسجل مسبقاً. يمكنك تسجيل الدخول من هنا
+        </div>
+      )}
+
       {step === "phone" && (
         <PhoneStep
           country={country}

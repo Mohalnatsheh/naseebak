@@ -94,6 +94,14 @@ describe("AuthFlow phone step", () => {
     expect(screen.queryByRole("heading", { name: "أدخل الرمز" })).toBeNull();
   });
 
+  it("existsNotice shows the legacy banner above the phone step in login mode only", () => {
+    const { unmount } = render(<AuthFlow mode="login" existsNotice />);
+    expect(screen.getByText(/مسجل مسبقاً. يمكنك تسجيل الدخول من هنا/)).toBeTruthy();
+    unmount();
+    render(<AuthFlow mode="login" />);
+    expect(screen.queryByText(/مسجل مسبقاً/)).toBeNull();
+  });
+
   it("shows the header link for the other mode", () => {
     const { unmount } = render(<AuthFlow mode="login" />);
     expect(screen.getByRole("link", { name: "إنشاء حساب" })).toBeTruthy();

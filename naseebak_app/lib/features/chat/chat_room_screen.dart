@@ -149,6 +149,14 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
   String? _highlightId;
   Timer? _highlightTimer;
 
+  /// The one selected message (long-press): the top bar and the reactions follow it. Only the id is kept; the message
+  /// is read from the live list every build, and the selection ends when it is gone or nothing can be done with it.
+  String? _selectedId;
+
+  /// Where the reaction picker floats: the selected row; below it when the row is too near the top of the list
+  final _pickerLink = LayerLink();
+  bool _pickerBelow = false;
+
   /// Message rows on screen by message id (the sticky date chip, scrolling to a quote's original or to «رسائل جديدة»).
   /// Keyed by id, not list index: an arriving message shifts every index.
   final Map<String, BuildContext> _rowsById = {};
@@ -1833,27 +1841,50 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     }
   }
 
-  /// Long-press on a sent message: reply, react, copy (text), report (theirs), and Pro's delete entries
-  Future<void> _openMenu(ChatMessage m) async {
-    if (m.state != SendState.sent) return;
+  /// Long-press on a sent message (or, while selecting, a tap on another one): it becomes the selection. Nothing is
+  /// selected when nothing can be done with it.
+  void _select(ChatMessage m) {
+    if (selectedMessageOf([m], m.id, canInteract: _open, deleteMode: _deleteModeNow(), open: _open) == null) return;
     FocusManager.instance.primaryFocus?.unfocus();
-    final choice = await showMessageMenu(context, message: m, canInteract: _open, deleteMode: _deleteModeNow(), open: _open);
-    if (!mounted || choice == null) return;
-    switch (choice) {
-      case MenuReply():
-        _startReply(m);
-      case MenuReact(:final emoji):
-        _react(m.id, emoji);
-      case MenuCopy():
-        await Clipboard.setData(ClipboardData(text: m.body));
-        if (mounted) showSnack(context, 'تم نسخ الرسالة');
-      case MenuReport():
-        _end(report: true, message: m);
-      case MenuDeleteForMe():
-        _deleteMessage(m, forEveryone: false);
-      case MenuDeleteForEveryone():
-        _deleteMessage(m, forEveryone: true);
-    }
+    unawaited(HapticFeedback.selectionClick());
+    setState(() {
+      _selectedId = m.id;
+      _pickerBelow = false;
+    });
+    // Too near the top of the list for the picker above it: below the row instead
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _selectedId != m.id) return;
+      final row = _rowsById[m.id]?.findRenderObject();
+      final list = _listKey.currentContext?.findRenderObject();
+      if (row is! RenderBox || list is! RenderBox || !row.attached || !list.attached) return;
+      final top = row.localToGlobal(Offset.zero, ancestor: list).dy;
+      final below = top < _pickerRoom;
+      if (below != _pickerBelow) setState(() => _pickerBelow = below);
+    });
+  }
+
+  /// The picker's height and its gap above the row
+  static const _pickerRoom = 60.0;
+
+  /// While selecting: a tap on the selected bubble clears it, on another one moves it there
+  void _tapWhileSelecting(ChatMessage m) => m.id == _selectedId ? _clearSelection() : _select(m);
+
+  void _clearSelection() {
+    if (_selectedId != null) setState(() => _selectedId = null);
+  }
+
+  /// The bar's «حذف»: the Pro screen when not Pro; else «حذف لدى الجميع» (my own message in an open chat) or «حذف لديّ»
+  Future<void> _deleteChosen(ChatMessage m) async {
+    final mode = _deleteModeNow();
+    if (mode == DeleteMode.hidden) return;
+    if (mode == DeleteMode.upsell) return _openPro();
+    final e = messageMenuEntries(m, canInteract: _open, deleteMode: mode, open: _open);
+    final everyone = await showDeleteChoice(context, canEveryone: e.deleteForEveryone);
+    if (everyone == null || !mounted) return;
+    // The copy held now (a poll may have changed or removed it while the dialog was up)
+    final i = _messages.indexWhere((x) => x.id == m.id);
+    if (i < 0) return;
+    await _deleteMessage(_messages[i], forEveryone: everyone);
   }
 
   /// Pro chat delete: [DeleteMode.use] for Pro, the upsell for a member who could buy it, else nothing. Like the media
@@ -2140,18 +2171,27 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
   }
 
   @override
-  Widget build(BuildContext context) => ProviderScope(
-    overrides: [voicePlaybackProvider.overrideWithValue(_playback)],
-    child: PopScope(
-      canPop: !_voiceUnsent,
-      onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) _backWhileRecording();
-      },
-      child: _screen(context),
-    ),
-  );
+  Widget build(BuildContext context) {
+    final selected = selectedMessageOf(_messages, _selectedId, canInteract: _open, deleteMode: _deleteMode(), open: _open);
+    // Gone, no longer sent, or nothing left to do with it (deleted, the chat closed): the selection ends. Derived state,
+    // set here so this very build (the bar, the back button) already follows it.
+    if (selected == null) _selectedId = null;
+    return ProviderScope(
+      overrides: [voicePlaybackProvider.overrideWithValue(_playback)],
+      child: PopScope(
+        canPop: !_voiceUnsent && _selectedId == null,
+        onPopInvokedWithResult: (didPop, _) {
+          if (didPop) return;
+          // Back clears the selection first, and stays in the chat
+          if (_selectedId != null) return _clearSelection();
+          _backWhileRecording();
+        },
+        child: _screen(context, selected),
+      ),
+    );
+  }
 
-  Widget _screen(BuildContext context) {
+  Widget _screen(BuildContext context, ChatMessage? selected) {
     final chat = _chat;
     final female = ref.watch(authControllerProvider).me?.isFemale ?? false;
     final left = chat != null && chat.status == 'ACTIVE' ? chatTimeLeft(chat.expiresAt) : null;
@@ -2163,8 +2203,35 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     final textScale = MediaQuery.textScalerOf(context).scale(14) / 14;
     final status = _statusLine(chat, left, female);
     final deleteMode = _deleteMode();
+    final tools = selected == null
+        ? null
+        : selectionToolsFor(selected, canInteract: _open, deleteMode: deleteMode, open: _open);
     return Scaffold(
-      appBar: WaChatHeader(
+      appBar: selected != null
+          ? ChatSelectionBar(
+              tools: tools!,
+              deleteLocked: deleteMode == DeleteMode.upsell,
+              textScale: textScale,
+              onClose: _clearSelection,
+              onReply: () {
+                _clearSelection();
+                _startReply(selected);
+              },
+              onCopy: () async {
+                _clearSelection();
+                await Clipboard.setData(ClipboardData(text: selected.body));
+                if (mounted) showSnack(this.context, 'تم نسخ الرسالة');
+              },
+              onDelete: () {
+                _clearSelection();
+                _deleteChosen(selected);
+              },
+              onReport: () {
+                _clearSelection();
+                _end(report: true, message: selected);
+              },
+            )
+          : WaChatHeader(
         chat: chat,
         status: status,
         left: left,
@@ -2234,7 +2301,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
                             ),
                           ],
                         )
-                      : _messageList(items, safety, proPurchasable),
+                      : _messageList(items, safety, proPurchasable, selected, tools),
                 ),
               ),
               _footer(chat),
@@ -2397,7 +2464,14 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
         ),
       );
 
-  Widget _messageList(List<ChatMessage> items, Widget? safety, bool proPurchasable) {
+  Widget _messageList(
+    List<ChatMessage> items,
+    Widget? safety,
+    bool proPurchasable,
+    ChatMessage? selected,
+    SelectionTools? tools,
+  ) {
+    final selecting = selected != null;
     // The safety chip sits above the oldest message once the whole history is loaded
     final showSafety = safety != null && !_hasMore;
     final extra = (_loadingOlder ? 1 : 0) + (showSafety ? 1 : 0);
@@ -2412,84 +2486,103 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
               _onScrollNotification(n);
               return false;
             },
-            child: ListView.builder(
-              key: _listKey,
-              controller: _scroll,
-              reverse: true,
-              // Scrolling the messages closes the keyboard
-              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-              padding: const EdgeInsets.fromLTRB(8, 6, 8, 10),
-              itemCount: items.length + extra,
-              itemBuilder: (context, i) {
-                if (i >= items.length) {
-                  if (_loadingOlder && i == items.length) {
-                    return const Padding(
-                      padding: EdgeInsets.all(12),
-                      child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
-                    );
+            // While selecting, a tap on the list's background ends the selection (a bubble's own tap wins over it)
+            child: GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onTap: selecting ? _clearSelection : null,
+              child: ListView.builder(
+                key: _listKey,
+                controller: _scroll,
+                reverse: true,
+                // Scrolling the messages closes the keyboard
+                keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                padding: const EdgeInsets.fromLTRB(8, 6, 8, 10),
+                itemCount: items.length + extra,
+                itemBuilder: (context, i) {
+                  if (i >= items.length) {
+                    if (_loadingOlder && i == items.length) {
+                      return const Padding(
+                        padding: EdgeInsets.all(12),
+                        child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                      );
+                    }
+                    return safety!;
                   }
-                  return safety!;
-                }
-                final m = items[i];
-                final layout = chatRowLayout(items, i, unreadFromId: _unreadFromId);
-                final sent = m.state == SendState.sent;
-                final bubble = ChatBubble(
-                  key: ValueKey(m.id),
-                  message: m,
-                  tail: layout.tail,
-                  tightTop: layout.tightTop,
-                  partnerName: _chat?.partnerName ?? '',
-                  onQuoteTap: _goToQuoted,
-                  waveSeed: _waveSeeds[m.id],
-                  onReactionsTap: () => _showWhoReacted(m),
-                  onFamily: _open && _family == FamilyStep.offer && !(_chat?.matchHidden ?? true) ? _openMatch : null,
-                  onOpenPro: m.proRequired && proPurchasable ? _openPro : null,
-                  onDelete: m.state == SendState.failed ? () => _deleteFailed(m) : null,
-                  onRetry: m.state == SendState.failed && !m.proRequired
-                      ? () => m.kind != MessageKind.text
-                          ? _sendMedia(retry: m)
-                          : m.filtered
-                          ? _editFailed(m)
-                          : _send(m)
-                      : null,
-                );
-                // Long-press: the menu; swipe towards the end side: reply. A tapped quote's original is tinted briefly.
-                final row = AnimatedContainer(
-                  duration: const Duration(milliseconds: 250),
-                  color: _highlightId == m.id ? AppColors.gold.withValues(alpha: 0.22) : Colors.transparent,
-                  child: SwipeToReply(
-                    // A trace can't be answered
-                    enabled: _open && sent && !m.deleted,
-                    onReply: () => _startReply(m),
-                    child: GestureDetector(
-                      onLongPress: sent ? () => _openMenu(m) : null,
-                      child: bubble,
+                  final m = items[i];
+                  final layout = chatRowLayout(items, i, unreadFromId: _unreadFromId);
+                  final sent = m.state == SendState.sent;
+                  final bubble = ChatBubble(
+                    key: ValueKey(m.id),
+                    message: m,
+                    tail: layout.tail,
+                    tightTop: layout.tightTop,
+                    partnerName: _chat?.partnerName ?? '',
+                    onQuoteTap: _goToQuoted,
+                    waveSeed: _waveSeeds[m.id],
+                    onReactionsTap: () => _showWhoReacted(m),
+                    onFamily: _open && _family == FamilyStep.offer && !(_chat?.matchHidden ?? true) ? _openMatch : null,
+                    onOpenPro: m.proRequired && proPurchasable ? _openPro : null,
+                    onDelete: m.state == SendState.failed ? () => _deleteFailed(m) : null,
+                    onRetry: m.state == SendState.failed && !m.proRequired
+                        ? () => m.kind != MessageKind.text
+                            ? _sendMedia(retry: m)
+                            : m.filtered
+                            ? _editFailed(m)
+                            : _send(m)
+                        : null,
+                  );
+                  // Long-press selects; while selecting, a tap selects instead of the bubble's own action (the photo
+                  // viewer, a quote's jump, play), so the bubble takes no pointer then. Swipe inward: reply. The
+                  // selected row is washed full width; a tapped quote's original is tinted briefly.
+                  final isSelected = selected?.id == m.id;
+                  final canSelect = selecting && sent;
+                  Widget row = AnimatedContainer(
+                    duration: AppMotion.of(context, const Duration(milliseconds: 250)),
+                    color: isSelected
+                        ? AppColors.chatSelect
+                        : _highlightId == m.id
+                        ? AppColors.gold.withValues(alpha: 0.22)
+                        : Colors.transparent,
+                    child: SwipeToReply(
+                      mine: m.mine,
+                      // A trace can't be answered
+                      enabled: _open && sent && !m.deleted,
+                      onReply: () {
+                        _clearSelection();
+                        _startReply(m);
+                      },
+                      child: GestureDetector(
+                        onLongPress: sent ? () => _select(m) : null,
+                        onTap: canSelect ? () => _tapWhileSelecting(m) : null,
+                        child: AbsorbPointer(absorbing: canSelect, child: bubble),
+                      ),
                     ),
-                  ),
-                );
-                return _RowProbe(
-                  key: ValueKey('row-${m.id}'),
-                  id: m.id,
-                  rowsById: _rowsById,
-                  child: !layout.daySeparator && !layout.unreadDivider
-                      // A message that arrives or is sent while the chat is open rises 6 px into place (P2-1); none
-                      // with reduced motion, and never the ones already there when it opened
-                      // (my own message confirmed by the server is a new row under its server id: it rose already, as
-                      // it was sent)
-                      ? RiseIn(
-                          enabled: _loadedOnce && !_shownAtOpen.contains(m.id) && !(m.mine && m.state == SendState.sent),
-                          child: row,
-                        )
-                      : Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            if (layout.daySeparator) _DayChip(label: chatDayLabel(m.createdAt)),
-                            if (layout.unreadDivider) _UnreadDivider(count: _unreadAtOpen),
-                            row,
-                          ],
-                        ),
-                );
-              },
+                  );
+                  if (isSelected) row = CompositedTransformTarget(link: _pickerLink, child: row);
+                  return _RowProbe(
+                    key: ValueKey('row-${m.id}'),
+                    id: m.id,
+                    rowsById: _rowsById,
+                    child: !layout.daySeparator && !layout.unreadDivider
+                        // A message that arrives or is sent while the chat is open rises 6 px into place (P2-1); none
+                        // with reduced motion, and never the ones already there when it opened
+                        // (my own message confirmed by the server is a new row under its server id: it rose already, as
+                        // it was sent)
+                        ? RiseIn(
+                            enabled: _loadedOnce && !_shownAtOpen.contains(m.id) && !(m.mine && m.state == SendState.sent),
+                            child: row,
+                          )
+                        : Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              if (layout.daySeparator) _DayChip(label: chatDayLabel(m.createdAt)),
+                              if (layout.unreadDivider) _UnreadDivider(count: _unreadAtOpen),
+                              row,
+                            ],
+                          ),
+                  );
+                },
+              ),
             ),
           ),
         ),
@@ -2516,7 +2609,34 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
             end: 12,
             child: NewestButton(unseen: _unseen, onPressed: _toNewest),
           ),
+        // The four reactions float above the selected row (below it near the top), on its own side
+        if (selected != null && tools!.react) _picker(selected),
       ],
+    );
+  }
+
+  Widget _picker(ChatMessage m) {
+    final dir = Directionality.of(context);
+    final side = m.mine ? AlignmentDirectional.topEnd : AlignmentDirectional.topStart;
+    final bottomSide = m.mine ? AlignmentDirectional.bottomEnd : AlignmentDirectional.bottomStart;
+    return Positioned(
+      top: 0,
+      left: 0,
+      child: CompositedTransformFollower(
+        link: _pickerLink,
+        // Scrolled out of view: hidden with its row
+        showWhenUnlinked: false,
+        targetAnchor: (_pickerBelow ? bottomSide : side).resolve(dir),
+        followerAnchor: (_pickerBelow ? side : bottomSide).resolve(dir),
+        offset: Offset(0, _pickerBelow ? 4 : -4),
+        child: ReactionPicker(
+          mine: m.myReaction,
+          onPick: (emoji) {
+            _clearSelection();
+            _react(m.id, emoji);
+          },
+        ),
+      ),
     );
   }
 

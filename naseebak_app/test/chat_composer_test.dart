@@ -335,8 +335,7 @@ void main() {
       expect(r.sends.single.containsKey('replyToId'), isFalse);
     });
 
-    testWidgets('swipe a bubble towards the end side (left in Arabic) to reply; the other way does nothing',
-        (tester) async {
+    testWidgets('swipe the partner\'s bubble inward (left in Arabic) to reply; outward does nothing', (tester) async {
       final r = ChatTestRoom();
       await r.open(tester);
       await tester.drag(find.text('رسالة 1'), const Offset(90, 0));
@@ -401,7 +400,7 @@ void main() {
     });
   });
 
-  group('long-press menu and reactions', () {
+  group('selection and reactions', () {
     testWidgets('a reaction shows at once and goes to the server; tapping my chip removes it', (tester) async {
       final r = ChatTestRoom();
       await r.open(tester);
@@ -491,6 +490,8 @@ void main() {
       await tester.pumpAndSettle();
       await tester.longPress(find.text('رسالة 1'));
       await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('selection-more')));
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('menu-report')));
       await tester.pumpAndSettle();
       expect(find.text('إبلاغ عن الرسالة'), findsOneWidget);
@@ -515,14 +516,14 @@ void main() {
       await tester.pumpAndSettle();
       await tester.longPress(find.text('رسالة 1'));
       await tester.pumpAndSettle();
-      expect(find.byKey(const Key('menu-report')), findsNothing);
+      expect(find.byKey(const Key('selection-more')), findsNothing);
       expect(find.byKey(const Key('menu-copy')), findsOneWidget);
-      Navigator.of(tester.element(find.byKey(const Key('menu-copy')))).pop();
+      await tester.tap(find.byKey(const Key('selection-close')));
       await tester.pumpAndSettle();
       await tester.longPress(find.byKey(const Key('voice-waveform')));
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('menu-copy')), findsNothing);
-      expect(find.byKey(const Key('menu-report')), findsOneWidget);
+      expect(find.byKey(const Key('selection-more')), findsOneWidget);
     });
 
     testWidgets('an ended chat: no reply, no reactions, no swipe; copy and report stay', (tester) async {
@@ -534,7 +535,7 @@ void main() {
       expect(find.byKey(const Key('menu-reply')), findsNothing);
       expect(find.byKey(const Key('menu-react-❤️')), findsNothing);
       expect(find.byKey(const Key('menu-copy')), findsOneWidget);
-      expect(find.byKey(const Key('menu-report')), findsOneWidget);
+      expect(find.byKey(const Key('selection-more')), findsOneWidget);
     });
   });
 
@@ -792,6 +793,8 @@ void main() {
       await r.open(tester);
       await tester.longPress(find.text('رسالة 1'));
       await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('selection-more')));
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('menu-report')));
       await tester.pumpAndSettle();
       await tester.tap(find.text('إزعاج أو تحرش'));
@@ -810,6 +813,8 @@ void main() {
       final r = ChatTestRoom();
       await r.open(tester);
       await tester.longPress(find.text('رسالة 1'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('selection-more')));
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('menu-report')));
       await tester.pumpAndSettle();

@@ -16,7 +16,7 @@ import 'package:naseebak_app/features/chat/chat_cache.dart';
 import 'package:naseebak_app/features/chat/chat_live.dart';
 import 'package:naseebak_app/features/chat/chat_models.dart';
 import 'package:naseebak_app/features/chat/chat_room_screen.dart';
-import 'package:naseebak_app/features/chat/message_menu.dart';
+import 'package:naseebak_app/features/pro/pro_repository.dart';
 
 import 'helpers/chat_room_helpers.dart';
 import 'helpers/fake_api.dart';
@@ -158,6 +158,7 @@ class _Room {
       adapter.requests.where((r) => r.method == 'POST' && (r.path.endsWith('/delete') || r.path.endsWith('/clear'))).length;
 }
 
+final _delete = find.byKey(const Key('menu-delete'));
 final _deleteMe = find.byKey(const Key('menu-delete-me'));
 final _deleteAll = find.byKey(const Key('menu-delete-everyone'));
 
@@ -167,7 +168,15 @@ Map<String, dynamic> _quoting(int n, String id, String snippet) => {
       'replyTo': {'id': id, 'mine': true, 'kind': 'TEXT', 'snippet': snippet},
     };
 
+/// Selects the message, then the bar's «حذف»: the choice dialog (or, not Pro, the Pro screen)
 Future<void> _menuOn(WidgetTester tester, String text) async {
+  await _select(tester, text);
+  await tester.tap(_delete);
+  await tester.pumpAndSettle();
+}
+
+/// A long-press: the selection bar
+Future<void> _select(WidgetTester tester, String text) async {
   await tester.longPress(find.text(text));
   await tester.pumpAndSettle();
 }
@@ -237,33 +246,66 @@ void main() {
     });
   });
 
-  group('message menu', () {
+  group('selection bar delete', () {
+    testWidgets('delete from the bar: the choice dialog; «حذف لديّ» sends scope me; not Pro opens /pro', (tester) async {
+      final r = _Room();
+      await r.open(tester);
+      await _select(tester, 'رسالة 1');
+      expect(find.byKey(const Key('menu-delete-locked')), findsNothing);
+      await tester.tap(_delete);
+      await tester.pumpAndSettle();
+      expect(find.byType(AlertDialog), findsOneWidget);
+      expect(find.byKey(const Key('selection-close')), findsNothing);
+      await tester.tap(_deleteMe);
+      await tester.pumpAndSettle();
+      expect((r.deletes('m001').single.data as Map)['scope'], 'me');
+      expect(find.text('رسالة 1'), findsNothing);
+
+      r.isPro = false;
+      r.container.invalidate(proStateProvider);
+      await tester.pumpAndSettle();
+      await _select(tester, 'رسالة 2');
+      expect(find.byKey(const Key('menu-delete-locked')), findsOneWidget);
+      await tester.tap(_delete);
+      await tester.pumpAndSettle();
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(find.text('pro-screen'), findsOneWidget);
+      expect(r.deletes('m002'), isEmpty);
+    });
+
     testWidgets('Pro, my message: «حذف لديّ» and «حذف لدى الجميع»', (tester) async {
       final r = _Room();
       await r.open(tester);
       await _menuOn(tester, 'رسالة 2');
+      expect(find.text('حذف الرسالة؟'), findsOneWidget);
       expect(_deleteMe, findsOneWidget);
       expect(_deleteAll, findsOneWidget);
       expect(find.text('حذف لديّ'), findsOneWidget);
       expect(find.text('حذف لدى الجميع'), findsOneWidget);
+      // «إلغاء»: nothing sent, the selection already closed
+      await tester.tap(find.text('إلغاء'));
+      await tester.pumpAndSettle();
+      expect(r.deleteRequests, 0);
+      expect(find.byKey(const Key('selection-close')), findsNothing);
     });
 
     testWidgets('the other person\'s message: «حذف لديّ» only', (tester) async {
       final r = _Room();
       await r.open(tester);
-      await _menuOn(tester, 'رسالة 1');
+      await _select(tester, 'رسالة 1');
+      expect(find.byKey(const Key('selection-more')), findsOneWidget);
+      await tester.tap(_delete);
+      await tester.pumpAndSettle();
       expect(_deleteMe, findsOneWidget);
       expect(_deleteAll, findsNothing);
-      expect(find.byKey(const Key('menu-report')), findsOneWidget);
     });
 
     testWidgets('app payments off (test / review account): no delete entries and no «مسح المحادثة»', (tester) async {
       final r = _Room(appPayments: false);
       await r.open(tester);
-      await _menuOn(tester, 'رسالة 2');
-      expect(_deleteMe, findsNothing);
-      expect(_deleteAll, findsNothing);
-      await tester.tapAt(const Offset(10, 10));
+      await _select(tester, 'رسالة 2');
+      expect(_delete, findsNothing);
+      await tester.tap(find.byKey(const Key('selection-close')));
       await tester.pumpAndSettle();
       await tester.tap(find.byTooltip('خيارات'));
       await tester.pumpAndSettle();
@@ -273,16 +315,15 @@ void main() {
     testWidgets('not Pro and can\'t buy (Lebanon before sales): no delete entries', (tester) async {
       final r = _Room(isPro: false, canBuy: false);
       await r.open(tester);
-      await _menuOn(tester, 'رسالة 2');
-      expect(_deleteMe, findsNothing);
-      expect(_deleteAll, findsNothing);
+      await _select(tester, 'رسالة 2');
+      expect(_delete, findsNothing);
     });
 
     testWidgets('the switch off: no delete entries', (tester) async {
       final r = _Room(deleteEnabled: false);
       await r.open(tester);
-      await _menuOn(tester, 'رسالة 2');
-      expect(_deleteMe, findsNothing);
+      await _select(tester, 'رسالة 2');
+      expect(_delete, findsNothing);
     });
 
     testWidgets('a closed chat: «حذف لديّ» only, even on my message', (tester) async {
@@ -295,13 +336,14 @@ void main() {
   });
 
   group('upsell', () {
-    testWidgets('not Pro: «حذف لديّ» opens the Pro screen, no request', (tester) async {
+    testWidgets('not Pro: «حذف» carries the gold lock and opens the Pro screen, no dialog, no request', (tester) async {
       final r = _Room(isPro: false);
       await r.open(tester);
-      await _menuOn(tester, 'رسالة 1');
-      expect(find.byKey(const Key('menu-delete-locked')), findsWidgets);
-      await tester.tap(_deleteMe);
+      await _select(tester, 'رسالة 1');
+      expect(find.byKey(const Key('menu-delete-locked')), findsOneWidget);
+      await tester.tap(_delete);
       await tester.pumpAndSettle();
+      expect(_deleteMe, findsNothing);
       expect(find.text('pro-screen'), findsOneWidget);
       expect(r.deleteRequests, 0);
     });
@@ -438,7 +480,7 @@ void main() {
       });
       // A reply to message 1 that is still sending (kept through the clear, its quote rewritten meanwhile)
       r.adapter.hold('POST', '/api/chats/c1/messages', gate.future);
-      await _menuOn(tester, 'رسالة 1');
+      await _select(tester, 'رسالة 1');
       await tester.tap(find.byKey(const Key('menu-reply')));
       await tester.pumpAndSettle();
       await tester.enterText(find.byKey(const Key('chat-input')), 'ردّي');
@@ -535,14 +577,20 @@ void main() {
       ]);
       await r.open(tester);
       expect(find.byKey(const Key('chat-deleted-trace')), findsOneWidget);
-      await tester.longPress(find.text(deletedTrace));
-      await tester.pumpAndSettle();
-      expect(find.byKey(const Key('menu-report')), findsOneWidget);
-      expect(_deleteMe, findsOneWidget);
-      expect(_deleteAll, findsNothing);
+      await _select(tester, deletedTrace);
       expect(find.byKey(const Key('menu-reply')), findsNothing);
       expect(find.byKey(const Key('menu-copy')), findsNothing);
       expect(find.byKey(const Key('menu-react-❤️')), findsNothing);
+      await tester.tap(find.byKey(const Key('selection-more')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('menu-report')), findsOneWidget);
+      // Out of the ⋮ menu (it opens at the top-left corner in Arabic)
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      await tester.tap(_delete);
+      await tester.pumpAndSettle();
+      expect(_deleteMe, findsOneWidget);
+      expect(_deleteAll, findsNothing);
     });
 
     testWidgets('leaving mid-request (delete and clear) does not crash', (tester) async {
@@ -588,8 +636,4 @@ void main() {
     });
   });
 
-  test('the menu sheet is exported for the room', () {
-    expect(const MenuDeleteForMe(), isA<MessageMenuChoice>());
-    expect(const MenuDeleteForEveryone(), isA<MessageMenuChoice>());
-  });
 }

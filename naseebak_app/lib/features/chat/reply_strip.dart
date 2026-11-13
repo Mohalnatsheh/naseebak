@@ -140,12 +140,23 @@ class QuoteInBubble extends StatelessWidget {
   }
 }
 
-/// Swipe a bubble towards the end side (left in Arabic, right in English, like the chat apps members know) to reply.
-/// The bubble follows the finger up to [maxShift]; past [trigger] a tick of haptics, and letting go replies.
+/// The screen-x sign of an inward drag (towards the middle of the screen): my bubbles sit on the end side, so in
+/// Arabic mine go right (+1) and theirs left (-1); mirrored in a left-to-right layout
+double swipeInwardSign({required bool mine, required TextDirection direction}) {
+  final rtl = direction == TextDirection.rtl;
+  return mine == rtl ? 1 : -1;
+}
+
+/// Swipe a bubble inward (towards the middle of the screen, like WhatsApp) to reply: mine from the end side, theirs
+/// from the start side. The bubble follows the finger up to [maxShift]; past [trigger] a tick of haptics, and letting
+/// go replies. A drag the other way, or one the list takes as a scroll, does nothing.
 class SwipeToReply extends StatefulWidget {
-  const SwipeToReply({super.key, required this.child, required this.onReply, this.enabled = true});
+  const SwipeToReply({super.key, required this.child, required this.onReply, required this.mine, this.enabled = true});
   final Widget child;
   final VoidCallback onReply;
+
+  /// My message (end side) or theirs (start side): which way is inward
+  final bool mine;
   final bool enabled;
 
   static const trigger = 56.0;
@@ -160,10 +171,8 @@ class _SwipeToReplyState extends State<SwipeToReply> {
   bool _armed = false;
 
   void _update(DragUpdateDetails d) {
-    final rtl = Directionality.of(context) == TextDirection.rtl;
-    // Towards the end side only: left in RTL, right in LTR
-    final towardEnd = rtl ? -d.delta.dx : d.delta.dx;
-    final next = (_shift + towardEnd).clamp(0.0, SwipeToReply.maxShift);
+    final inward = d.delta.dx * swipeInwardSign(mine: widget.mine, direction: Directionality.of(context));
+    final next = (_shift + inward).clamp(0.0, SwipeToReply.maxShift);
     final armed = next >= SwipeToReply.trigger;
     if (armed && !_armed) HapticFeedback.selectionClick();
     setState(() {
@@ -191,8 +200,13 @@ class _SwipeToReplyState extends State<SwipeToReply> {
   @override
   Widget build(BuildContext context) {
     if (!widget.enabled) return widget.child;
-    final rtl = Directionality.of(context) == TextDirection.rtl;
+    final sign = swipeInwardSign(mine: widget.mine, direction: Directionality.of(context));
     final fade = (_shift / SwipeToReply.trigger).clamp(0.0, 1.0);
+    final icon = CircleAvatar(
+      radius: 15,
+      backgroundColor: Colors.white.withValues(alpha: fade),
+      child: Icon(Icons.reply_rounded, size: 18, color: AppColors.navy.withValues(alpha: fade)),
+    );
     // A cancelled pointer ends an accepted drag like a release would (onEnd): the listener, which sees the cancel
     // first, disarms it so only a real release replies
     return Listener(
@@ -204,18 +218,11 @@ class _SwipeToReplyState extends State<SwipeToReply> {
         child: Stack(
           alignment: Alignment.center,
           children: [
+            // Uncovered where the bubble left from: its own edge (fades in through its colours, no opacity layer,
+            // QA A-L10)
             if (_shift > 0)
-              // Uncovered where the bubble left from: the start side
-              PositionedDirectional(
-                start: 4,
-                // Fades in through its colours (no opacity layer, QA A-L10)
-                child: CircleAvatar(
-                  radius: 15,
-                  backgroundColor: Colors.white.withValues(alpha: fade),
-                  child: Icon(Icons.reply_rounded, size: 18, color: AppColors.navy.withValues(alpha: fade)),
-                ),
-              ),
-            Transform.translate(offset: Offset(rtl ? -_shift : _shift, 0), child: widget.child),
+              widget.mine ? PositionedDirectional(end: 4, child: icon) : PositionedDirectional(start: 4, child: icon),
+            Transform.translate(offset: Offset(sign * _shift, 0), child: widget.child),
           ],
         ),
       ),

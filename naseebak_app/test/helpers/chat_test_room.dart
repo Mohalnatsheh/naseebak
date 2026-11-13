@@ -49,6 +49,9 @@ class ChatTestRoom {
   bool partnerTyping;
   final Duration pollInterval;
 
+  /// The server's `deleteEnabled` (Pro chat delete; the test member is Pro with app payments)
+  bool deleteEnabled = true;
+
   /// The conversation's `expiresAt` (default: far ahead)
   final DateTime? expiresAt;
 
@@ -66,6 +69,12 @@ class ChatTestRoom {
   FakeLive? live;
   late ProviderContainer container;
   int picks = 0;
+
+  /// Every voice player the room made (a play shows in `plays`)
+  final players = <FakeVoicePlayer>[];
+
+  /// How a photo loads (null = the app's own network image)
+  ImageProvider Function(Uri uri, Map<String, String> headers)? image;
 
   late final Directory dir = () {
     final d = Directory.systemTemp.createTempSync('chat_test_room');
@@ -90,7 +99,7 @@ class ChatTestRoom {
           'hasMore': false,
           'chatEnabled': true,
           'partnerTyping': partnerTyping,
-          'deleteEnabled': true,
+          'deleteEnabled': deleteEnabled,
           'starters': starters,
           'polledAt': ?polledAt,
           if (req.queryParameters['reactionsSince'] != null) 'reactionUpdates': reactionUpdates,
@@ -152,7 +161,12 @@ class ChatTestRoom {
         recorders.add(r);
         return r;
       }),
-      voicePlayerFactoryProvider.overrideWithValue(FakeVoicePlayer.new),
+      voicePlayerFactoryProvider.overrideWithValue(() {
+        final p = FakeVoicePlayer();
+        players.add(p);
+        return p;
+      }),
+      if (image != null) mediaImageProvider.overrideWithValue(image!),
       voiceAudioSessionProvider.overrideWithValue(() async {}),
       chatPhotoPickerProvider.overrideWithValue(() async {
         picks++;

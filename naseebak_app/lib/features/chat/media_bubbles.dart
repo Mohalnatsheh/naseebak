@@ -737,12 +737,16 @@ class _VoiceBubbleState extends ConsumerState<VoiceBubble> {
                         padding: const EdgeInsets.all(12),
                         child: CircularProgressIndicator(strokeWidth: 2, color: c),
                       )
-                    : IconButton(
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
-                        tooltip: s.playing ? 'إيقاف مؤقت' : 'تشغيل',
-                        icon: Icon(s.playing ? Icons.pause_rounded : Icons.play_arrow_rounded, color: c, size: 30),
-                        onPressed: _toggle,
+                    // The tooltip never takes a long-press: a long-press on the button selects the message
+                    : TooltipTheme(
+                        data: TooltipTheme.of(context).copyWith(triggerMode: TooltipTriggerMode.manual),
+                        child: IconButton(
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+                          tooltip: s.playing ? 'إيقاف مؤقت' : 'تشغيل',
+                          icon: Icon(s.playing ? Icons.pause_rounded : Icons.play_arrow_rounded, color: c, size: 30),
+                          onPressed: _toggle,
+                        ),
                       ),
               ),
               const SizedBox(width: 4),

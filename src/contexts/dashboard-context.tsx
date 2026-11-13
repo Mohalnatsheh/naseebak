@@ -58,6 +58,8 @@ export interface CycleCounts {
   /** My own Pro state, for the badge (independent of the `pro_enabled` switch). `showPage`: link the Pro page
    * (plans I can buy right now, or my subscription) */
   pro?: { isPro: boolean; cancelAtPeriodEnd: boolean; showPage?: boolean };
+  /** The «الديانة» question is on (switch `religion_enabled`) */
+  religionEnabled?: boolean;
 }
 
 const EMPTY_COUNTS: CycleCounts = {
@@ -67,6 +69,7 @@ const EMPTY_COUNTS: CycleCounts = {
   hasChats: false,
   guardian: null,
   actionableMatches: 0,
+  religionEnabled: false,
 };
 
 interface DashboardData {

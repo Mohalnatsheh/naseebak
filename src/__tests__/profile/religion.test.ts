@@ -13,6 +13,7 @@ import {
   stripReligionUnlessEnabled,
 } from "@/lib/profile-religion";
 import { describeOption, OPTION_VALUES, religionFact, selfLabel } from "@/lib/profile-options";
+import { defaultCountrySettings, publicCountryDetail } from "@/lib/countries/settings";
 import { profileDraftSchema, profileSchema, profileUpdateRequestSchema } from "@/lib/validations/profile";
 
 const base = {
@@ -112,4 +113,19 @@ it("validation accepts the values and refuses others", () => {
   expect(profileSchema.safeParse({ ...base, religion: "يهودي" }).success).toBe(false);
   expect(profileDraftSchema.safeParse({ prefReligion: "كل الأديان" }).success).toBe(false);
   expect(profileUpdateRequestSchema.safeParse({ changes: { religion: "مسيحي" } }).success).toBe(true);
+});
+
+describe("country detail for the app", () => {
+  const content = { heroTitle: "", heroSubtitle: "", seoTitle: "", seoDescription: "" };
+  const url = "https://naseebak.com";
+
+  it("sends the religion lists to the app only while the switch is on", () => {
+    expect(publicCountryDetail(defaultCountrySettings("JO"), content, url).options).not.toHaveProperty("religion");
+    for (const code of ["JO", "SA", "LB"] as const) {
+      const off = publicCountryDetail(defaultCountrySettings(code), content, url, { religion: false });
+      expect(off.options).not.toHaveProperty("prefReligion");
+      const on = publicCountryDetail(defaultCountrySettings(code), content, url, { religion: true });
+      expect(on.options).toMatchObject({ religion: RELIGION_VALUES, prefReligion: PREF_RELIGION_VALUES });
+    }
+  });
 });

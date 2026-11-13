@@ -104,6 +104,11 @@ export async function getChatDeleteEnabled(): Promise<boolean> {
   return (await getSetting("chat_delete_enabled")) === "true";
 }
 
+/** «الديانة» question switch (`religion_enabled`, Admin → Settings). Default off: nothing asked, shown or stored */
+export async function getReligionEnabled(): Promise<boolean> {
+  return (await getSetting("religion_enabled")) === "true";
+}
+
 /** Whether a new purchase by a member of this country is charged in JOD (switch `jod_charging`, Jordan only) */
 export async function jodChargingFor(country: string | null | undefined): Promise<boolean> {
   return country === "JO" && (await getSetting("jod_charging")) === "true";

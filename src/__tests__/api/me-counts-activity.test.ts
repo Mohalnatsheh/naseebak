@@ -7,6 +7,7 @@ vi.mock("@/lib/activity", () => activity);
 vi.mock("@/lib/auth", () => ({ requireUser: vi.fn(async () => ({ session: { user: { id: "u1" } } })) }));
 vi.mock("@/lib/settings", () => ({
   getCycleFlags: vi.fn(async () => ({ introRequests: false, chat: false, mutualSuggestions: false })),
+  getReligionEnabled: vi.fn(async () => false),
 }));
 vi.mock("@/lib/chat/service", () => ({ chatHousekeepingForUser: vi.fn() }));
 vi.mock("@/lib/matches/state", () => ({

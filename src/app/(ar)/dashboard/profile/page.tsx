@@ -213,6 +213,8 @@ function SectionCard({
 export default function ProfilePage() {
   const { flags, pro, religionEnabled } = useDashboardData().counts;
   const introMode = flags.introRequests;
+  // The one-list edit (switch `auth_profile_redesign`): «تعديل», and links open a row by its key (?field=)
+  const editRedesign = flags.authRedesign === true;
   // Dates and wording follow the member's country
   const country = useCountry();
   const [user, setUser] = useState<any>(null);
@@ -408,7 +410,7 @@ export default function ProfilePage() {
           <Button asChild variant="neutral" className="h-11 rounded-xl font-semibold">
             <Link href="/dashboard/profile/edit">
               <Send className="h-4 w-4 me-2" />
-              طلب تعديل
+              {editRedesign ? "تعديل" : "طلب تعديل"}
             </Link>
           </Button>
         )}
@@ -494,7 +496,7 @@ export default function ProfilePage() {
               </div>
             </div>
             <Button asChild className="h-11 w-full rounded-xl sm:w-auto">
-              <Link href={`/dashboard/profile/edit?step=${emptyFilters[0].step}`}>
+              <Link href={editRedesign ? `/dashboard/profile/edit?field=${emptyFilters[0].key}` : `/dashboard/profile/edit?step=${emptyFilters[0].step}`}>
                 {isMale ? "أجب الآن" : "أجيبي الآن"}
                 <ChevronLeft className="h-4 w-4" />
               </Link>

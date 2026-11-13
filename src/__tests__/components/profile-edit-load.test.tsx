@@ -9,7 +9,7 @@ const dash = vi.hoisted(() => ({
 }));
 vi.mock("@/contexts/dashboard-context", () => ({ useDashboardData: () => dash }));
 
-import ProfileEditPage from "@/app/(ar)/dashboard/profile/edit/page";
+import ProfileEditPage from "@/app/(ar)/dashboard/profile/edit/legacy-edit-page";
 
 function json(body: unknown, ok = true) {
   return Promise.resolve({ ok, status: ok ? 200 : 500, json: async () => body } as Response);

@@ -1,0 +1,1794 @@
+"use client";
+
+import { useState, useEffect, useEffectEvent, useRef } from "react";
+import { useDashboardData } from "@/contexts/dashboard-context";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import {
+  Loader2,
+  Send,
+  ArrowLeft,
+  ArrowRight,
+  CheckCircle2,
+  AlertCircle,
+  Clock,
+  Shield,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { LoadError } from "@/components/shared/load-error";
+import { Input } from "@/components/ui/input";
+import { NumberInput } from "@/components/shared/number-input";
+import { Label } from "@/components/ui/label";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
+import { areasFor, citiesFor } from "@/lib/countries/places";
+import { COUNTRIES, toCountry, type CountryCode } from "@/lib/countries";
+import { OptionalTag, DealbreakerToggle } from "@/components/profile/form-fields";
+import { HOUSING_TYPES, OPTION_VALUES, SKIN_COLORS, jobValuesFor, skinColorLabel, selfLabel, describeOption, oppositeGender, defaultNationality, expenseRangesFor, incomeRangesFor, nationalityOptions, tribeLabel } from "@/lib/profile-options";
+import { activeDealbreakers } from "@/lib/matching/dealbreaker-summary";
+import type { DealbreakerKey } from "@/lib/matching/score";
+import { dateOfBirthError, parentInfoSchemaFor } from "@/lib/validations/profile";
+import { BirthDateSelect } from "@/components/profile/birth-date-select";
+import { normalizePhone } from "@/lib/phone";
+import { splitProfileEdit, buildFillBody } from "@/lib/profile-edit-split";
+import { forViewer } from "@/lib/gendered-copy";
+import { VEIL_CHOICES, veilChoice, veilFromChoice } from "@/lib/profile-veil";
+import { PREF_SECT_VALUES, SECT_VALUES } from "@/lib/profile-sect";
+import { dealbreakerPrefsFor, MUSLIM_ONLY_FIELDS, PREF_RELIGION_ANY, PREF_RELIGION_SAME, PREF_RELIGION_VALUES, RELIGION_CHRISTIAN, RELIGION_VALUES, religionOf, sectAsked, showsDealbreakerHint } from "@/lib/profile-religion";
+import { PageLoading } from "@/components/shared/page-loading";
+import { sharedGet } from "@/lib/shared-get";
+import { PageHeader } from "@/components/shared/page-header";
+import { UserPen } from "lucide-react";
+
+const educationLevels = [
+  "ثانوية عامة",
+  "دبلوم",
+  "بكالوريوس",
+  "ماجستير",
+  "دكتوراه",
+];
+const maritalStatuses = ["أعزب/عزباء", "مطلق/مطلقة", "أرمل/أرملة"];
+const religiosityLevels = ["ملتزم جداً", "ملتزم", "متوسط", "غير ملتزم"];
+const smokingStatuses = [
+  "لا أدخن",
+  "أدخن",
+  "أدخن أحياناً",
+  "تركت التدخين",
+];
+const cookingLevels = [
+  "لا أطبخ",
+  "أطبخ قليلاً",
+  "أطبخ جيداً",
+  "أطبخ ممتازاً",
+];
+const housingTypes = HOUSING_TYPES;
+const skinColors = SKIN_COLORS;
+const jobOptions: readonly string[] = OPTION_VALUES.job;
+const preferenceOptions = ["نعم", "لا", "لا يهم"];
+/** prefHijab: the stored values stay «نعم» / «لا» / «لا يهم»; «منتقبة» = wants niqab */
+const hijabPrefOptions = ["نعم", "منتقبة", "لا", "لا يهم"];
+const guardianRelationships = [
+  { value: "father", label: "الأب" },
+  { value: "mother", label: "الأم" },
+  { value: "brother", label: "الأخ" },
+  { value: "guardian", label: "قريب آخر" },
+];
+function RequiredLabel({ children, htmlFor }: { children: React.ReactNode; htmlFor?: string }) {
+  return (
+    <Label htmlFor={htmlFor}>
+      {children} <span className="text-destructive">*</span>
+    </Label>
+  );
+}
+const relocateOptions = [
+  { value: "yes", label: "نعم" },
+  { value: "no", label: "لا" },
+  { value: "maybe", label: "ربما" },
+];
+
+interface ProfileForm {
+  dateOfBirth: string;
+  city: string;
+  area: string;
+  nationality: string;
+  education: string;
+  job: string;
+  jobCustom: string;
+  height: string;
+  weight: string;
+  skinColor: string;
+  incomeRange: string;
+  childrenCount: string;
+  willingToRelocate: string;
+  maritalStatus: string;
+  religiosity: string;
+  /** «الديانة» (switch `religion_enabled`): a stored null reads «مسلم» */
+  religion: string;
+  /** «المذهب»: Lebanese members only (sectApplies) */
+  sect: string;
+  /** null = never answered (only «نعم» / «لا» fill it) */
+  hijab: boolean | null;
+  /** null = never answered; true only with hijab true (one question «الحجاب», three answers) */
+  niqab: boolean | null;
+  beard: boolean | null;
+  smokingStatus: string;
+  cookingAbility: string;
+  drivingLicense: boolean;
+  aboutMe: string;
+  partnerExpectations: string;
+  hobbies: string;
+  familyValues: string;
+  tribe: string;
+  familyOriginArea: string;
+  numberOfSiblings: string;
+  housingType: string;
+  monthlyExpenses: string;
+  healthConditions: string;
+  prefAgeMin: string;
+  prefAgeMax: string;
+  prefCity: string[];
+  prefEducation: string[];
+  prefMaritalStatus: string[];
+  prefHijab: string;
+  prefBeard: string;
+  prefReligiosity: string[];
+  prefSect: string[];
+  prefReligion: string;
+  prefSmokingStatus: string[];
+  prefChildrenAcceptance: string;
+  // Guardian fields
+  parentName: string;
+  parentPhone: string;
+  relationship: string;
+  parentAddress: string;
+}
+
+const emptyForm: ProfileForm = {
+  dateOfBirth: "",
+  city: "",
+  area: "",
+  nationality: "",
+  education: "",
+  job: "",
+  jobCustom: "",
+  height: "",
+  weight: "",
+  skinColor: "",
+  incomeRange: "",
+  childrenCount: "",
+  willingToRelocate: "",
+  maritalStatus: "",
+  religiosity: "",
+  religion: "",
+  sect: "",
+  hijab: null,
+  niqab: null,
+  beard: null,
+  smokingStatus: "",
+  cookingAbility: "",
+  drivingLicense: false,
+  aboutMe: "",
+  partnerExpectations: "",
+  hobbies: "",
+  familyValues: "",
+  tribe: "",
+  familyOriginArea: "",
+  numberOfSiblings: "",
+  housingType: "",
+  monthlyExpenses: "",
+  healthConditions: "",
+  prefAgeMin: "",
+  prefAgeMax: "",
+  prefCity: [],
+  prefEducation: [],
+  prefMaritalStatus: [],
+  prefHijab: "",
+  prefBeard: "",
+  prefReligiosity: [],
+  prefSect: [],
+  prefReligion: PREF_RELIGION_SAME,
+  prefSmokingStatus: [],
+  prefChildrenAcceptance: "",
+  parentName: "",
+  parentPhone: "",
+  relationship: "",
+  parentAddress: "",
+};
+
+function arraysEqual(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false;
+  const sorted1 = [...a].sort();
+  const sorted2 = [...b].sort();
+  return sorted1.every((v, i) => v === sorted2[i]);
+}
+
+/** A failed check: which field (for aria-invalid / aria-describedby) and what to say */
+interface FieldIssue {
+  field: string;
+  message: string;
+}
+
+/** The guardian schema's path → the edit form's field */
+function guardianField(path: PropertyKey | undefined): string {
+  return path === "parentPhone" ? "parentPhone" : path === "relationship" ? "relationship" : path === "address" ? "parentAddress" : "parentName";
+}
+
+export default function ProfileEditPage() {
+  const router = useRouter();
+  const [step, setStep] = useState(1);
+  const introMode = useDashboardData().counts.flags.introRequests;
+  const [reviewSent, setReviewSent] = useState(false);
+  // Start each step at the top of the page
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [step]);
+  const [loading, setLoading] = useState(true);
+  // The profile didn't load: never show (or save) a blank form built from nothing
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+  // The field the shown check is about (only while that message shows): aria-invalid + aria-describedby (QA PA-L9)
+  const [errorField, setErrorField] = useState<string | null>(null);
+  const invalidField = error ? errorField : null;
+  const inv = (field: string) =>
+    invalidField === field ? ({ "aria-invalid": true, "aria-describedby": "profile-edit-error" } as const) : {};
+  const [success, setSuccess] = useState(false);
+  const [gender, setGender] = useState<string>("");
+  const [hasPendingRequest, setHasPendingRequest] = useState(false);
+  const [withdrawing, setWithdrawing] = useState(false);
+  // Raw stored profile: tells an empty field (may be filled directly) from a stored value (review)
+  const [storedProfile, setStoredProfile] = useState<Record<string, unknown> | null>(null);
+  const errorRef = useRef<HTMLDivElement>(null);
+
+  // Original values from server — used to compute changes
+  const [originalForm, setOriginalForm] = useState<ProfileForm>(emptyForm);
+  const [form, setForm] = useState<ProfileForm>(emptyForm);
+  // Consent to share the guardian contact after an accepted family introduction
+  const [shareConsent, setShareConsent] = useState(false);
+  const [originalShareConsent, setOriginalShareConsent] = useState(false);
+  // "شرط أساسي" marks: saved directly (a private filter), not part of the review request
+  const [dealbreakers, setDealbreakers] = useState<string[]>([]);
+  const [originalDealbreakers, setOriginalDealbreakers] = useState<string[]>([]);
+  const { counts, profile: me, country: contextCountry } = useDashboardData();
+  // Places, money, wording and the guardian's phone follow the member's country (from the loaded profile)
+  const [loadedCountry, setLoadedCountry] = useState<CountryCode | null>(null);
+  const country = COUNTRIES[toCountry(loadedCountry ?? contextCountry)];
+  // «الديانة» shows only while the switch is on; a Christian is never asked the Muslim-only questions
+  const religionEnabled = counts.religionEnabled === true;
+  const christian = form.religion === RELIGION_CHRISTIAN;
+  // «المذهب» is asked of Lebanese members only, never of a Christian
+  const sectOn = sectAsked(country.code, form.religion);
+  const cities = citiesFor(country.code);
+  const incomeRanges = incomeRangesFor(country.code);
+  const expenseRanges = expenseRangesFor(country.code);
+  const showDealbreakers = counts.flags.mutualSuggestions;
+
+  // Deep link: /dashboard/profile/edit?step=5 opens the guardian step
+  useEffect(() => {
+    const s = Number(new URLSearchParams(window.location.search).get("step"));
+    if (s >= 1 && s <= 5) setStep(s);
+  }, []);
+
+  // Not an effect dependency: the load runs once per reloadKey. Keyed on the router's identity it ran again on every
+  // render where that identity changed, and each run set state (a render loop under an unstable router).
+  const toSetup = useEffectEvent(() => router.replace("/dashboard/profile/setup"));
+
+  useEffect(() => {
+    async function load() {
+      setLoadFailed(false);
+      try {
+        const [profileRes, requestsRes, parentRes] = await Promise.all([
+          sharedGet("/api/profile"),
+          fetch("/api/profile/update-request"),
+          fetch("/api/profile/parent-info"),
+        ]);
+        if (!profileRes.ok) throw new Error(`profile ${profileRes.status}`);
+        // The guardian and the pending request must load too (QA WA-05): blank guardian fields would overwrite the
+        // stored guardian on save, and a missed pending request would allow a second one
+        if (!requestsRes.ok) throw new Error(`update requests ${requestsRes.status}`);
+        if (!parentRes.ok) throw new Error(`parent info ${parentRes.status}`);
+        const profileData = await profileRes.json();
+        const requestsData = await requestsRes.json();
+        const parentData = await parentRes.json();
+
+        // Check for pending request
+        const pending = requestsData.requests?.find(
+          (r: { status: string }) => r.status === "PENDING"
+        );
+        if (pending) {
+          setHasPendingRequest(true);
+        }
+
+        const user = profileData.user;
+        // Setup not finished (no profile row yet, or the basics missing): the setup wizard saves each answer
+        // directly. Here the first answers would wait for an admin review — and with no profile row the save
+        // failed outright (P2025 in update-request).
+        if (!user?.profile?.isComplete) {
+          toSetup();
+          return;
+        }
+        if (user?.gender) setGender(user.gender);
+        const userCountry = toCountry(user?.country);
+        setLoadedCountry(userCountry);
+
+        if (user?.profile) {
+          const p = user.profile;
+          setStoredProfile(p);
+          const pi = parentData?.parentInfo;
+          const loaded: ProfileForm = {
+            dateOfBirth: p.dateOfBirth
+              ? new Date(p.dateOfBirth).toISOString().split("T")[0]
+              : "",
+            city: p.city || "",
+            area: p.area || "",
+            nationality: p.nationality || defaultNationality(user?.gender, userCountry),
+            education: p.education || "",
+            job: p.job && jobOptions.includes(p.job) ? p.job : p.job ? "أخرى" : "",
+            jobCustom: p.job && !jobOptions.includes(p.job) ? p.job : "",
+            height: p.height ? String(p.height) : "",
+            weight: p.weight ? String(p.weight) : "",
+            skinColor: p.skinColor || "",
+            incomeRange: p.incomeRange || "",
+            childrenCount: p.childrenCount != null ? String(p.childrenCount) : "",
+            willingToRelocate: p.willingToRelocate || "",
+            maritalStatus: p.maritalStatus || "",
+            religiosity: p.religiosity || "",
+            // A null column shows «مسلم» selected: a switch to «مسيحي» is a change (review), never a fill
+            religion: religionOf(p),
+            sect: p.sect || "",
+            hijab: typeof p.hijab === "boolean" ? p.hijab : null,
+            niqab: typeof p.niqab === "boolean" ? p.niqab : null,
+            beard: typeof p.beard === "boolean" ? p.beard : null,
+            smokingStatus: p.smokingStatus || "",
+            cookingAbility: p.cookingAbility || "",
+            drivingLicense: p.drivingLicense || false,
+            aboutMe: p.aboutMe || "",
+            partnerExpectations: p.partnerExpectations || "",
+            hobbies: p.hobbies || "",
+            familyValues: p.familyValues || "",
+            tribe: p.tribe || "",
+            familyOriginArea: p.familyOriginArea || "",
+            numberOfSiblings:
+              p.numberOfSiblings != null ? String(p.numberOfSiblings) : "",
+            housingType: p.housingType || "",
+            monthlyExpenses: p.monthlyExpenses || "",
+            healthConditions: p.healthConditions || "",
+            prefAgeMin: p.prefAgeMin != null ? String(p.prefAgeMin) : "",
+            prefAgeMax: p.prefAgeMax != null ? String(p.prefAgeMax) : "",
+            prefCity: Array.isArray(p.prefCity) ? p.prefCity : [],
+            prefEducation: Array.isArray(p.prefEducation) ? p.prefEducation : [],
+            prefMaritalStatus: Array.isArray(p.prefMaritalStatus) ? p.prefMaritalStatus : [],
+            prefHijab: p.prefHijab || "",
+            prefBeard: p.prefBeard || "",
+            prefReligiosity: Array.isArray(p.prefReligiosity) ? p.prefReligiosity : [],
+            prefSect: Array.isArray(p.prefSect) ? p.prefSect : [],
+            prefReligion: p.prefReligion || PREF_RELIGION_SAME,
+            prefSmokingStatus: Array.isArray(p.prefSmokingStatus) ? p.prefSmokingStatus : [],
+            prefChildrenAcceptance: p.prefChildrenAcceptance || "",
+            parentName: pi?.parentName || "",
+            parentPhone: pi?.parentPhone || "",
+            relationship: pi?.relationship || "",
+            parentAddress: pi?.address || "",
+          };
+          setOriginalForm(loaded);
+          setForm(loaded);
+          setShareConsent(!!pi?.shareConsentAt);
+          setOriginalShareConsent(!!pi?.shareConsentAt);
+          const db = Array.isArray(p.dealbreakers) ? p.dealbreakers : [];
+          setDealbreakers(db);
+          setOriginalDealbreakers(db);
+        }
+      } catch {
+        setLoadFailed(true);
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
+  }, [reloadKey]);
+
+  function update(field: string, value: string | boolean) {
+    setForm((prev) => ({ ...prev, [field]: value }));
+  }
+
+  function toggleArray(field: "prefCity" | "prefEducation" | "prefMaritalStatus" | "prefReligiosity" | "prefSect" | "prefSmokingStatus", value: string) {
+    setForm((prev) => {
+      const arr = prev[field];
+      if (arr.includes(value)) {
+        return { ...prev, [field]: arr.filter((v) => v !== value) };
+      } else {
+        return { ...prev, [field]: [...arr, value] };
+      }
+    });
+  }
+
+  function handleCityChange(city: string) {
+    update("city", city);
+    const areas = areasFor(country.code)[city] || [];
+    if (!areas.includes(form.area)) {
+      update("area", "");
+    }
+  }
+
+  // Short start: only the basics are required, the rest is optional
+  function validateIssue(s: number): FieldIssue | null {
+    if (s === 1) {
+      if (!form.dateOfBirth) return { field: "dateOfBirth", message: "يرجى إدخال تاريخ الميلاد" };
+      const dobErr = dateOfBirthError(form.dateOfBirth);
+      if (dobErr) return { field: "dateOfBirth", message: dobErr };
+      if (!form.nationality) return { field: "nationality", message: "يرجى إدخال الجنسية" };
+      if (!form.city) return { field: "city", message: "يرجى اختيار المدينة" };
+      if (form.height && (parseInt(form.height) < 100 || parseInt(form.height) > 250)) return { field: "height", message: "الطول يجب أن يكون بين 100 و 250 سم" };
+      if (form.weight && (parseInt(form.weight) < 30 || parseInt(form.weight) > 300)) return { field: "weight", message: `الوزن يجب أن يكون بين 30 و 300 ${country.words.kg}` };
+      if (!form.education) return { field: "education", message: "يرجى اختيار المستوى التعليمي" };
+      if (form.job === "أخرى" && !form.jobCustom) return { field: "job", message: "يرجى تحديد الوظيفة" };
+    }
+    if (s === 2) {
+      if (!form.maritalStatus) return { field: "maritalStatus", message: "يرجى اختيار الحالة الاجتماعية" };
+      if (form.maritalStatus !== "أعزب/عزباء" && !form.childrenCount) return { field: "childrenCount", message: "يرجى إدخال عدد الأبناء" };
+      if (!form.religiosity) return { field: "religiosity", message: "يرجى اختيار مستوى التدين" };
+      if (sectOn && !form.sect) return { field: "sect", message: "يرجى اختيار المذهب" };
+    }
+    if (s === 3) {
+      if (!form.prefAgeMin) return { field: "prefAgeMin", message: "يرجى إدخال العمر الأدنى المفضل" };
+      if (!form.prefAgeMax) return { field: "prefAgeMax", message: "يرجى إدخال العمر الأقصى المفضل" };
+      if (parseInt(form.prefAgeMin) > parseInt(form.prefAgeMax)) return { field: "prefAgeMin", message: "العمر الأدنى يجب أن يكون أقل من العمر الأقصى" };
+    }
+    if (s === 4) {
+      if (form.numberOfSiblings && (parseInt(form.numberOfSiblings) < 0 || parseInt(form.numberOfSiblings) > 20)) return { field: "numberOfSiblings", message: "عدد الإخوة يجب أن يكون بين 0 و 20" };
+    }
+    if (s === 5) {
+      const guardianTouched =
+        form.parentName !== originalForm.parentName ||
+        form.parentPhone !== originalForm.parentPhone ||
+        form.relationship !== originalForm.relationship ||
+        form.parentAddress !== originalForm.parentAddress;
+      // New cycle: no guardian at setup, so an empty guardian step must never block other edits —
+      // it is checked only once the member starts filling it in
+      if (introMode && !guardianTouched) return null;
+      if (!form.parentName) return { field: "parentName", message: "يرجى إدخال اسم ولي الأمر" };
+      if (!form.parentPhone) return { field: "parentPhone", message: `يرجى إدخال رقم ${country.words.phone} ولي الأمر` };
+      if (!form.relationship) return { field: "relationship", message: "يرجى اختيار صلة القرابة" };
+      if (!form.parentAddress) return { field: "parentAddress", message: "يرجى إدخال العنوان" };
+      // Same rules as the API (the other family sees this contact) — only when it is being changed,
+      // so an older entry never blocks an unrelated edit
+      const guardianEdited =
+        form.parentName !== originalForm.parentName ||
+        form.parentPhone !== originalForm.parentPhone ||
+        form.relationship !== originalForm.relationship ||
+        form.parentAddress !== originalForm.parentAddress;
+      const guardian = !guardianEdited ? { success: true as const } : parentInfoSchemaFor(country.code).safeParse({
+        parentName: form.parentName,
+        parentPhone: form.parentPhone,
+        relationship: form.relationship,
+        address: form.parentAddress,
+      });
+      if (!guardian.success) return { field: guardianField(guardian.error.issues[0]?.path[0]), message: guardian.error.issues[0]?.message ?? "بيانات وليّ الأمر غير صالحة" };
+      if (guardianEdited && me?.phone && normalizePhone(form.parentPhone, country.code) === me.phone) return { field: "parentPhone", message: `رقم وليّ الأمر يجب أن يختلف عن رقم ${country.words.phone}ك` };
+    }
+    return null;
+  }
+
+  /** Show a check's message and mark its field (aria-invalid + aria-describedby to the message, QA PA-L9) */
+  function showIssue(issue: FieldIssue) {
+    setError(issue.message);
+    setErrorField(issue.field);
+    scrollToError();
+  }
+
+  function scrollToError() {
+    setTimeout(() => {
+      errorRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      errorRef.current?.focus({ preventScroll: true });
+    }, 50);
+  }
+
+  function handleNextStep() {
+    const issue = validateIssue(step);
+    if (issue) {
+      showIssue(issue);
+      return;
+    }
+    setError("");
+    setStep(step + 1);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function getChangedFields(): Record<string, unknown> {
+    const changes: Record<string, unknown> = {};
+    const arrayFields = ["prefCity", "prefEducation", "prefMaritalStatus", "prefReligiosity", "prefSect", "prefSmokingStatus"] as const;
+    const guardianFields = ["parentName", "parentPhone", "relationship", "parentAddress"];
+
+    const muslimOnly: readonly string[] = MUSLIM_ONLY_FIELDS;
+    for (const key of Object.keys(form) as (keyof ProfileForm)[]) {
+      if (key === "jobCustom") continue;
+      if (!religionEnabled && (key === "religion" || key === "prefReligion")) continue;
+      // Hidden for a Christian (the server clears them when the change is approved)
+      if (christian && muslimOnly.includes(key)) continue;
+      if (guardianFields.includes(key)) continue;
+      if (arrayFields.includes(key as typeof arrayFields[number])) {
+        const formArr = form[key] as string[];
+        const origArr = originalForm[key] as string[];
+        if (!arraysEqual(formArr, origArr)) {
+          changes[key] = formArr;
+        }
+      } else if (key === "job") {
+        const resolvedJob = form.job === "أخرى" ? form.jobCustom : form.job;
+        const resolvedOrigJob = originalForm.job === "أخرى" ? originalForm.jobCustom : originalForm.job;
+        if (resolvedJob !== resolvedOrigJob) {
+          changes.job = resolvedJob;
+        }
+      } else if (form[key] !== originalForm[key]) {
+        const val = form[key];
+        if ((key === "numberOfSiblings" || key === "childrenCount") && typeof val === "string" && val) {
+          changes[key] = parseInt(val);
+        } else if (
+          (key === "prefAgeMin" || key === "prefAgeMax") &&
+          typeof val === "string" &&
+          val
+        ) {
+          changes[key] = parseInt(val);
+        } else {
+          changes[key] = val;
+        }
+      }
+    }
+    return changes;
+  }
+
+  function hasGuardianChanges(): boolean {
+    return (
+      form.parentName !== originalForm.parentName ||
+      form.parentPhone !== originalForm.parentPhone ||
+      form.relationship !== originalForm.relationship ||
+      form.parentAddress !== originalForm.parentAddress ||
+      shareConsent !== originalShareConsent
+    );
+  }
+
+  async function handleSubmit() {
+    // Never save a form that wasn't filled from the stored profile
+    if (loadFailed) return;
+    // Validate all steps before submitting
+    for (let s = 1; s <= totalSteps; s++) {
+      const issue = validateIssue(s);
+      if (issue) {
+        setStep(s);
+        showIssue(issue);
+        return;
+      }
+    }
+
+    const changes = getChangedFields();
+    const guardianChanged = hasGuardianChanges();
+    const dealbreakersChanged = showDealbreakers && !arraysEqual(dealbreakers, originalDealbreakers);
+
+    if (Object.keys(changes).length === 0 && !guardianChanged && !dealbreakersChanged) {
+      setError(gender === "FEMALE" ? "لم تُجري أي تعديلات بعد" : "لم تُجرِ أي تعديلات بعد");
+      scrollToError();
+      return;
+    }
+
+    // Empty fields are filled directly (PUT /api/profile), preferences save directly, and only
+    // changes to values already stored wait for review
+    const { fills, prefs, reviewed } = splitProfileEdit(changes, storedProfile ?? {});
+    const fillBody = Object.keys(fills).length > 0 ? buildFillBody(storedProfile ?? {}, fills) : null;
+    // Profile not finished yet (no base to send with the fills): let the review request carry them
+    const requestChanges = { ...prefs, ...reviewed, ...(fillBody ? {} : fills) };
+    const needsReview = Object.keys(requestChanges).some((k) => !k.startsWith("pref"));
+
+    if (hasPendingRequest && needsReview) {
+      setError("تغيير بيانات محفوظة سابقاً يحتاج مراجعة، ولديك طلب تعديل قيد المراجعة. يمكنك سحب الطلب الحالي أولاً أو إبقاء هذه البيانات كما هي.");
+      scrollToError();
+      return;
+    }
+
+    setSubmitting(true);
+    setError("");
+
+    try {
+      const promises: Promise<Response>[] = [];
+
+      // Fill empty fields first: the save resends the stored basics, so it must run before a
+      // preference change in the same submit (or it would write the old preference back)
+      if (fillBody) {
+        const fillRes = await fetch("/api/profile", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(fillBody),
+        });
+        if (!fillRes.ok) {
+          const data = await fillRes.json().catch(() => ({}));
+          setError(data.error || "تعذّر حفظ البيانات الجديدة");
+          scrollToError();
+          return;
+        }
+      }
+
+      // Preferences (saved directly) + changes to stored values (admin review)
+      if (Object.keys(requestChanges).length > 0) {
+        promises.push(
+          fetch("/api/profile/update-request", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ changes: requestChanges }),
+          })
+        );
+      }
+
+      // Save guardian info directly (admin-only data, no review needed)
+      if (guardianChanged) {
+        promises.push(
+          fetch("/api/profile/parent-info", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              parentName: form.parentName,
+              parentPhone: form.parentPhone,
+              relationship: form.relationship,
+              address: form.parentAddress,
+              shareConsent,
+            }),
+          })
+        );
+      }
+
+      // "شرط أساسي" marks: only for preferences that are filled in
+      if (dealbreakersChanged) {
+        promises.push(
+          fetch("/api/profile/dealbreakers", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ keys: activeDealbreakers(dealbreakers, savedDealbreakerPrefs, gender) }),
+          })
+        );
+      }
+
+      const results = await Promise.all(promises);
+      const allOk = results.every((r) => r.ok);
+
+      if (allOk) {
+        // Partner preferences save directly; only the other fields wait for review
+        setReviewSent(needsReview);
+        setSuccess(true);
+      } else {
+        const failedRes = results.find((r) => !r.ok);
+        if (failedRes) {
+          const data = await failedRes.json();
+          setError(data.error || "حدث خطأ أثناء إرسال طلب التعديل");
+          scrollToError();
+        }
+      }
+    } catch {
+      setError("حدث خطأ غير متوقع");
+      scrollToError();
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  const totalSteps = 5;
+  const availableAreas = form.city ? areasFor(country.code)[form.city] || [] : [];
+  // One answer is one change: «الحجاب» is stored as hijab + niqab but asked once (QA WM-09)
+  const fieldCount = (fields: Record<string, unknown>) => {
+    const keys = Object.keys(fields);
+    return keys.length - (keys.includes("hijab") && keys.includes("niqab") ? 1 : 0);
+  };
+  const currentChanges = getChangedFields();
+  const changedCount =
+    fieldCount(currentChanges) +
+    (hasGuardianChanges() ? 1 : 0) +
+    (showDealbreakers && !arraysEqual(dealbreakers, originalDealbreakers) ? 1 : 0);
+  const reviewedCount = fieldCount(splitProfileEdit(currentChanges, storedProfile ?? {}).reviewed);
+  const willNeedReview = reviewedCount > 0;
+  // The button counts what it sends for review when there is a review; the fills are saved with it
+  const buttonCount = willNeedReview ? reviewedCount : changedCount;
+  const partnerGender = oppositeGender(gender);
+  // A Christian's hidden Muslim-only preferences never count as «شرط أساسي» (what the toggles show)
+  const dealbreakerPrefs = dealbreakerPrefsFor(form.religion, form);
+  // What the save sends follows the STORED religion: a change to «مسيحي» waits for review, and the approval clears
+  // the Muslim-only keys; dropping them now would lose them even if the change is refused
+  const savedDealbreakerPrefs = dealbreakerPrefsFor(originalForm.religion, form);
+  /** "شرط أساسي" chip for one preference; disabled until that preference is filled in. */
+  const dealbreaker = (key: DealbreakerKey, fieldId: string) =>
+    showDealbreakers ? (
+      <DealbreakerToggle
+        id={fieldId}
+        checked={dealbreakers.includes(key)}
+        disabled={activeDealbreakers([key], dealbreakerPrefs, gender).length === 0}
+        onChange={(v) => setDealbreakers((prev) => (v ? [...new Set([...prev, key])] : prev.filter((k) => k !== key)))}
+      />
+    ) : null;
+
+  if (!loading && loadFailed) {
+    return (
+      <div className="py-8 space-y-4">
+        <LoadError
+          message="تعذّر تحميل بيانات ملفك، فلا يمكن التعديل الآن. يمكنك التحقق من الاتصال والمحاولة مرة أخرى."
+          onRetry={() => {
+            setLoading(true);
+            setReloadKey((k) => k + 1);
+          }}
+        />
+        <div className="text-center">
+          <Button asChild variant="outline" className="h-11 rounded-xl">
+            <Link href="/dashboard/profile">
+              <ArrowRight className="h-4 w-4 me-2" />
+              العودة للملف الشخصي
+            </Link>
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return <PageLoading width="max-w-2xl" label="جارٍ تحميل بيانات الملف الشخصي…" />;
+  }
+
+  async function withdrawRequest() {
+    setWithdrawing(true);
+    setError("");
+    try {
+      const res = await fetch("/api/profile/update-request/withdraw", { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok || res.status === 404) {
+        // 404: it was already reviewed or withdrawn — either way nothing is pending any more
+        setHasPendingRequest(false);
+      } else {
+        setError(data.error || "تعذّر سحب الطلب. يمكنك المحاولة مرة أخرى.");
+        scrollToError();
+      }
+    } catch {
+      setError("حدث خطأ في الاتصال. يمكنك المحاولة مرة أخرى.");
+      scrollToError();
+    } finally {
+      setWithdrawing(false);
+    }
+  }
+
+  // Success state
+  if (success) {
+    return (
+      <div className="space-y-6 pb-8">
+        <Card className="relative overflow-hidden border-emerald-200/60 bg-gradient-to-l from-emerald-50/80 to-emerald-50/30 shadow-md">
+          <div className="absolute top-0 right-0 h-32 w-32 rounded-full bg-emerald-200/20 blur-2xl translate-x-8 -translate-y-8" />
+          <CardContent className="pt-8 pb-8 text-center space-y-4">
+            <div className="flex h-16 w-16 mx-auto items-center justify-center rounded-2xl bg-emerald-100 border border-emerald-200/60">
+              <CheckCircle2 className="h-8 w-8 text-emerald-600" />
+            </div>
+            <div className="space-y-2">
+              <h2 className="text-lg font-bold text-emerald-900">
+                {reviewSent ? "تم إرسال طلب التعديل بنجاح" : "تم حفظ التعديلات"}
+              </h2>
+              <p className="text-sm text-emerald-700/80 max-w-sm mx-auto leading-relaxed">
+                {reviewSent
+                  ? "سيقوم فريق الإدارة بمراجعة التعديلات المطلوبة وسيتم إعلامك بالنتيجة عبر الإشعارات."
+                  : "حُفظت تعديلاتك مباشرة."}
+              </p>
+            </div>
+            <Button
+              asChild
+              className="bg-gradient-to-l from-primary to-primary/80 rounded-xl font-semibold"
+            >
+              <Link href="/dashboard/profile">
+                <ArrowRight className="h-4 w-4 me-2" />
+                العودة للملف الشخصي
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6 pb-8">
+      <PageHeader
+        icon={UserPen}
+        title="تعديل الملف الشخصي"
+        description={forViewer(gender, "عدّل البيانات التي تريد تغييرها.", "عدّلي البيانات التي تريدين تغييرها.")}
+        className="mb-0"
+      />
+
+      {/* Info banner */}
+      <div className="flex items-start gap-3 rounded-xl bg-primary/5 border border-primary/15 p-4">
+        <AlertCircle className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+        <p className="text-sm text-primary leading-relaxed">
+          تُحفظ تفضيلات الشريك وبيانات وليّ الأمر والحقول الفارغة مباشرة. أما تغيير
+          بيانات محفوظة سابقاً فيُرسل لفريق الإدارة لمراجعته قبل اعتماده.
+        </p>
+      </div>
+
+      {/* A pending review blocks only another change to stored values; everything else stays editable */}
+      {hasPendingRequest && (
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-xl bg-amber-50 border border-amber-200 p-4">
+          <Clock className="h-5 w-5 text-amber-600 shrink-0" />
+          <p className="text-sm text-amber-800 leading-relaxed flex-1">
+            لديك طلب تعديل قيد المراجعة. يمكنك تعديل تفضيلات الشريك وبيانات وليّ الأمر وتعبئة
+            الحقول الفارغة الآن، أما تغيير بيانات أخرى محفوظة فيكون بعد مراجعة الطلب أو سحبه.
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            className="rounded-xl font-semibold shrink-0"
+            disabled={withdrawing}
+            onClick={withdrawRequest}
+          >
+            {withdrawing ? <Loader2 className="h-4 w-4 animate-spin" /> : "سحب الطلب"}
+          </Button>
+        </div>
+      )}
+
+      {/* Progress */}
+      <div className="flex items-center gap-2">
+        {Array.from({ length: totalSteps }, (_, i) => (
+          <div key={i} className="flex-1 flex items-center gap-2">
+            <div
+              className={`h-2 flex-1 rounded-full transition-colors ${i < step ? "bg-primary" : "bg-muted"}`}
+            />
+          </div>
+        ))}
+        <span className="text-sm text-muted-foreground">
+          {step} من {totalSteps}
+        </span>
+      </div>
+
+      {error && (
+        // Read out and focused when it appears (QA PA-L9): the member hears what to fix
+        <div ref={errorRef} id="profile-edit-error" role="alert" tabIndex={-1} className="rounded-lg bg-destructive/10 border border-destructive/20 p-3 text-sm text-destructive outline-none">
+          {error}
+        </div>
+      )}
+
+      {/* Step 1: Personal Info */}
+      {step === 1 && (
+        <Card className="overflow-hidden">
+          <div className="h-1.5 bg-gradient-to-l from-primary via-primary/50 to-accent" />
+          <CardHeader>
+            <CardTitle>المعلومات الشخصية</CardTitle>
+            <CardDescription>البيانات الأساسية عنك</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <RequiredLabel htmlFor="edit-field-1">تاريخ الميلاد</RequiredLabel>
+                <BirthDateSelect id="edit-field-1" value={form.dateOfBirth} onChange={(v) => update("dateOfBirth", v)} invalid={invalidField === "dateOfBirth"} describedBy={invalidField === "dateOfBirth" ? "profile-edit-error" : undefined} />
+              </div>
+              <div className="space-y-2">
+                <RequiredLabel htmlFor="edit-field-2">الجنسية</RequiredLabel>
+                <Input
+                  id="edit-field-2" {...inv("nationality")}
+                  list="edit-nationality-options"
+                  value={form.nationality}
+                  onChange={(e) => update("nationality", e.target.value)}
+                />
+                <datalist id="edit-nationality-options">
+                  {nationalityOptions(gender, country.code).map((n) => <option key={n} value={n} />)}
+                </datalist>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <RequiredLabel>المدينة</RequiredLabel>
+              <div role="group" aria-label="المدينة" {...inv("city")} className="grid grid-cols-3 gap-2">
+                {cities.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => handleCityChange(c)}
+                    aria-pressed={form.city === c}
+                    className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.city === c ? "border-primary bg-primary/15 ring-1 ring-primary text-primary font-bold" : "border-border hover:border-primary/50"}`}
+                  >
+                    {c}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {form.city && availableAreas.length > 0 && (
+              <div className="space-y-2">
+                <Label htmlFor="edit-field-3">{country.words.area} <OptionalTag /></Label>
+                <select
+                  id="edit-field-3"
+                  value={form.area}
+                  onChange={(e) => update("area", e.target.value)}
+                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                >
+                  <option value="">اختر {country.words.area}...</option>
+                  {availableAreas.map((a) => (
+                    <option key={a} value={a}>
+                      {a}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-field-4">الطول (سم) <OptionalTag /></Label>
+                <NumberInput
+                  id="edit-field-4" {...inv("height")}
+                  value={form.height}
+                  onChange={(e) => update("height", e.target.value)}
+                  placeholder="170"
+                  dir="ltr"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-field-5">الوزن ({country.words.kg}) <OptionalTag /></Label>
+                <NumberInput
+                  id="edit-field-5" {...inv("weight")}
+                  value={form.weight}
+                  onChange={(e) => update("weight", e.target.value)}
+                  placeholder="70"
+                  dir="ltr"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>لون البشرة <OptionalTag /></Label>
+              <div role="group" aria-label="لون البشرة" className="grid grid-cols-4 gap-2">
+                {skinColors.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => update("skinColor", c)}
+                    aria-pressed={form.skinColor === c}
+                    className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.skinColor === c ? "border-primary bg-primary/15 ring-1 ring-primary text-primary font-bold" : "border-border hover:border-primary/50"}`}
+                  >
+                    {skinColorLabel(c, gender)}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <RequiredLabel>المستوى التعليمي</RequiredLabel>
+              <div role="group" aria-label="المستوى التعليمي" {...inv("education")} className="grid grid-cols-3 gap-2">
+                {educationLevels.map((e) => (
+                  <button
+                    key={e}
+                    type="button"
+                    onClick={() => update("education", e)}
+                    aria-pressed={form.education === e}
+                    className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.education === e ? "border-primary bg-primary/15 ring-1 ring-primary text-primary font-bold" : "border-border hover:border-primary/50"}`}
+                  >
+                    {e}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-field-6">الوظيفة <OptionalTag /></Label>
+              <select
+                id="edit-field-6" {...inv("job")}
+                value={form.job}
+                onChange={(e) => {
+                  update("job", e.target.value);
+                  if (e.target.value !== "أخرى") update("jobCustom", "");
+                }}
+                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                <option value="">اختر الوظيفة...</option>
+                {jobValuesFor(gender).concat(form.job && jobOptions.includes(form.job) && !jobValuesFor(gender).includes(form.job) ? [form.job] : []).map((j) => (
+                  <option key={j} value={j}>{selfLabel("job", j, gender)}</option>
+                ))}
+              </select>
+              {form.job === "أخرى" && (
+                <Input
+                  value={form.jobCustom}
+                  onChange={(e) => update("jobCustom", e.target.value)}
+                  placeholder={forViewer(gender, "حدّد وظيفتك...", "حدّدي وظيفتكِ...")}
+                  aria-label="الوظيفة (نص)"
+                  className="mt-2"
+                />
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label>مستوى الدخل <OptionalTag /></Label>
+              <div role="group" aria-label="مستوى الدخل" className="grid grid-cols-3 gap-2">
+                {incomeRanges.map((r) => (
+                  <button
+                    key={r}
+                    type="button"
+                    onClick={() => update("incomeRange", r)}
+                    aria-pressed={form.incomeRange === r}
+                    className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.incomeRange === r ? "border-primary bg-primary/15 ring-1 ring-primary text-primary font-bold" : "border-border hover:border-primary/50"}`}
+                  >
+                    {r}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Step 2: Lifestyle & Religion */}
+      {step === 2 && (
+        <Card className="overflow-hidden">
+          <div className="h-1.5 bg-gradient-to-l from-primary via-primary/50 to-accent" />
+          <CardHeader>
+            <CardTitle>نمط الحياة والدين</CardTitle>
+            <CardDescription>معلومات عن أسلوب حياتك</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {religionEnabled && (
+              <div className="space-y-2">
+                <RequiredLabel>الديانة</RequiredLabel>
+                <div role="group" aria-label="الديانة" {...inv("religion")} className="grid grid-cols-2 gap-2">
+                  {RELIGION_VALUES.map((r) => (
+                    <button
+                      key={r}
+                      aria-pressed={form.religion === r}
+                      type="button"
+                      onClick={() => update("religion", r)}
+                      className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.religion === r ? "border-primary bg-primary/15 ring-1 ring-primary text-primary font-bold" : "border-border hover:border-primary/50"}`}
+                    >
+                      {selfLabel("religion", r, gender)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <RequiredLabel>الحالة الاجتماعية</RequiredLabel>
+              <div role="group" aria-label="الحالة الاجتماعية" {...inv("maritalStatus")} className="grid grid-cols-3 gap-2">
+                {maritalStatuses.map((s) => (
+                  <button
+                    key={s}
+                    aria-pressed={form.maritalStatus === s}
+                    type="button"
+                    onClick={() => {
+                      update("maritalStatus", s);
+                      if (s === "أعزب/عزباء") update("childrenCount", "0");
+                    }}
+                    className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.maritalStatus === s ? "border-primary bg-primary/15 ring-1 ring-primary text-primary font-bold" : "border-border hover:border-primary/50"}`}
+                  >
+                    {selfLabel("maritalStatus", s, gender)}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {form.maritalStatus !== "أعزب/عزباء" && (
+              <div className="space-y-2">
+                <RequiredLabel htmlFor="edit-field-7">عدد الأبناء</RequiredLabel>
+                <NumberInput
+                  id="edit-field-7" {...inv("childrenCount")}
+                  value={form.childrenCount}
+                  onChange={(e) => update("childrenCount", e.target.value)}
+                  placeholder="0"
+                  min={0}
+                  max={20}
+                  dir="ltr"
+                />
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <RequiredLabel>مستوى التدين</RequiredLabel>
+              <div role="group" aria-label="مستوى التدين" {...inv("religiosity")} className="grid grid-cols-2 gap-2">
+                {religiosityLevels.map((r) => (
+                  <button
+                    key={r}
+                    aria-pressed={form.religiosity === r}
+                    type="button"
+                    onClick={() => update("religiosity", r)}
+                    className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.religiosity === r ? "border-primary bg-primary/15 ring-1 ring-primary text-primary font-bold" : "border-border hover:border-primary/50"}`}
+                  >
+                    {selfLabel("religiosity", r, gender)}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {sectOn && (
+              <div className="space-y-2">
+                <RequiredLabel>المذهب</RequiredLabel>
+                <div role="group" aria-label="المذهب" {...inv("sect")} className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  {SECT_VALUES.map((v) => (
+                    <button
+                      key={v}
+                      aria-pressed={form.sect === v}
+                      type="button"
+                      onClick={() => update("sect", v)}
+                      className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.sect === v ? "border-primary bg-primary/15 ring-1 ring-primary text-primary font-bold" : "border-border hover:border-primary/50"}`}
+                    >
+                      {selfLabel("sect", v, gender)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label>التدخين <OptionalTag /></Label>
+              <div role="group" aria-label="التدخين" className="grid grid-cols-2 gap-2">
+                {smokingStatuses.map((s) => (
+                  <button
+                    key={s}
+                    aria-pressed={form.smokingStatus === s}
+                    type="button"
+                    onClick={() => update("smokingStatus", s)}
+                    className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.smokingStatus === s ? "border-primary bg-primary/15 ring-1 ring-primary text-primary font-bold" : "border-border hover:border-primary/50"}`}
+                  >
+                    {selfLabel("smokingStatus", s, gender)}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {gender === "FEMALE" && !christian && (
+              <div className="space-y-2">
+                <Label>الحجاب <OptionalTag /></Label>
+                <div role="group" aria-label="الحجاب" className="grid grid-cols-3 gap-2">
+                  {VEIL_CHOICES.map((v) => {
+                    const on = veilChoice(form.hijab, form.niqab) === v;
+                    return (
+                      <button
+                        key={v}
+                        aria-pressed={on}
+                        type="button"
+                        // Only the columns whose meaning changes, so an empty niqab next to a stored
+                        // hijab stays a direct fill (see splitProfileEdit)
+                        onClick={() => {
+                          if (on) return;
+                          const next = veilFromChoice(v);
+                          setForm((prev) => ({
+                            ...prev,
+                            hijab: next.hijab,
+                            niqab: next.niqab || prev.niqab !== null || !next.hijab ? next.niqab : prev.niqab,
+                          }));
+                        }}
+                        className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${on ? "border-primary bg-primary/15 ring-1 ring-primary text-primary font-bold" : "border-border hover:border-primary/50"}`}
+                      >
+                        {v}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {gender === "MALE" && !christian && (
+              <div className="space-y-2">
+                <Label>اللحية <OptionalTag /></Label>
+                <div role="group" aria-label="اللحية" className="grid grid-cols-2 gap-2">
+                  {([true, false] as const).map((v) => (
+                    <button
+                      key={String(v)}
+                      aria-pressed={form.beard === v}
+                      type="button"
+                      onClick={() => update("beard", v)}
+                      className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.beard === v ? "border-primary bg-primary/15 ring-1 ring-primary text-primary font-bold" : "border-border hover:border-primary/50"}`}
+                    >
+                      {v ? "ملتحٍ" : "غير ملتحٍ"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label>مهارة الطبخ <OptionalTag /></Label>
+              <div role="group" aria-label="مهارة الطبخ" className="grid grid-cols-2 gap-2">
+                {cookingLevels.map((c) => (
+                  <button
+                    key={c}
+                    aria-pressed={form.cookingAbility === c}
+                    type="button"
+                    onClick={() => update("cookingAbility", c)}
+                    className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.cookingAbility === c ? "border-primary bg-primary/15 ring-1 ring-primary text-primary font-bold" : "border-border hover:border-primary/50"}`}
+                  >
+                    {selfLabel("cookingAbility", c, gender)}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>رخصة قيادة <OptionalTag /></Label>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={!!form.drivingLicense}
+                onClick={() => update("drivingLicense", !form.drivingLicense)}
+                className={`w-full rounded-xl border px-4 py-3 text-sm transition-all flex items-center justify-between ${form.drivingLicense ? "border-primary bg-primary/15 ring-1 ring-primary text-primary font-bold" : "border-border hover:border-primary/50"}`}
+              >
+                <span>لدي رخصة قيادة</span>
+                {/* Logical alignment: the knob sits at the start when off and moves to the end when on (RTL-safe) */}
+                  <div
+                    aria-hidden="true"
+                    className={`flex w-10 h-5 shrink-0 rounded-full p-0.5 transition-colors ${form.drivingLicense ? "bg-primary justify-end" : "bg-muted justify-start"}`}
+                  >
+                    <div className="w-4 h-4 rounded-full bg-white shadow-sm" />
+                  </div>
+              </button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Step 3: About Me & Preferences */}
+      {step === 3 && (
+        <Card className="overflow-hidden">
+          <div className="h-1.5 bg-gradient-to-l from-primary via-primary/50 to-accent" />
+          <CardHeader>
+            <CardTitle>نبذة عني وتفضيلات الشريك</CardTitle>
+            <CardDescription>
+              {forViewer(gender, "أخبرنا عنك وعن الشريك المثالي", "أخبرينا عنكِ وعن الشريك المثالي")}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-field-8">نبذة عني <OptionalTag /></Label>
+              <textarea
+                id="edit-field-8"
+                value={form.aboutMe}
+                onChange={(e) => update("aboutMe", e.target.value)}
+                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm min-h-[100px] resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+                placeholder={forViewer(gender, "تحدث عن نفسك واهتماماتك وطموحاتك...", "تحدثي عن نفسكِ واهتماماتكِ وطموحاتكِ...")}
+                maxLength={500}
+              />
+              <p className="text-xs text-muted-foreground text-left" dir="ltr">
+                {form.aboutMe.length}/500
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-field-9">مواصفات الشريك المطلوبة <OptionalTag /></Label>
+              <textarea
+                id="edit-field-9"
+                value={form.partnerExpectations}
+                onChange={(e) =>
+                  update("partnerExpectations", e.target.value)
+                }
+                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm min-h-[100px] resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+                placeholder={forViewer(gender, "صف المواصفات التي تبحث عنها في شريكة حياتك...", "صفي المواصفات التي تبحثين عنها في شريك حياتكِ...")}
+                maxLength={500}
+              />
+              <p className="text-xs text-muted-foreground text-left" dir="ltr">
+                {form.partnerExpectations.length}/500
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-field-10">الهوايات والاهتمامات <OptionalTag /></Label>
+              <Input
+                id="edit-field-10"
+                value={form.hobbies}
+                onChange={(e) => update("hobbies", e.target.value)}
+                placeholder="مثال: القراءة، الرياضة، السفر..."
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-field-11">القيم العائلية <OptionalTag /></Label>
+              <textarea
+                id="edit-field-11"
+                value={form.familyValues}
+                onChange={(e) => update("familyValues", e.target.value)}
+                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm min-h-[80px] resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+                placeholder={forViewer(gender, "ما هي القيم التي تعتز بها في الحياة الأسرية...", "ما هي القيم التي تعتزين بها في الحياة الأسرية...")}
+                maxLength={500}
+              />
+              <p className="text-xs text-muted-foreground text-left" dir="ltr">
+                {form.familyValues.length}/500
+              </p>
+            </div>
+
+            {/* Preferences section */}
+            <div className="pt-4 border-t">
+              <h2 className="text-base font-semibold mb-3">
+                تفضيلات الشريك
+              </h2>
+              {showDealbreakers && (
+                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                  {gender === "FEMALE"
+                    ? "ضعي علامة «شرط أساسي» على ما لا تقبلين التنازل عنه: لن نقترح عليكِ من لا يحققه. الشروط تُحفظ مباشرة دون مراجعة، ولا يراها أحد."
+                    : "ضع علامة «شرط أساسي» على ما لا تقبل التنازل عنه: لن نقترح عليك من لا يحققه. الشروط تُحفظ مباشرة دون مراجعة، ولا يراها أحد."}
+                </p>
+              )}
+            </div>
+
+            {religionEnabled && (
+              <div className="space-y-2">
+                <Label className="block leading-relaxed">الديانة</Label>
+                <div role="group" aria-label="الديانة لدى الشريك" className="grid grid-cols-2 gap-2">
+                  {PREF_RELIGION_VALUES.map((o) => (
+                    <button key={o} type="button" onClick={() => update("prefReligion", o)}
+                      aria-pressed={form.prefReligion === o}
+                      className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.prefReligion === o ? "border-primary bg-primary/15 ring-1 ring-primary text-primary font-bold" : "border-border hover:border-primary/50"}`}
+                    >{o}</button>
+                  ))}
+                </div>
+                {form.prefReligion === PREF_RELIGION_ANY && (
+                  <p className="text-xs leading-relaxed text-muted-foreground">ستظهر لك اقتراحات من الديانة الأخرى ممن اختاروا ذلك أيضاً</p>
+                )}
+                {showsDealbreakerHint(form.religion, form.prefReligion, activeDealbreakers(dealbreakers, dealbreakerPrefs, gender)) && (
+                  <p className="text-xs leading-relaxed text-muted-foreground">شروطك الأساسية مثل الحجاب تبقى سارية</p>
+                )}
+              </div>
+            )}
+
+            <div className="flex items-start justify-between gap-3">
+              <span className="min-w-0 flex-1 text-sm font-medium leading-relaxed">العمر المفضل</span>
+              {dealbreaker("age", "prefAge")}
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <RequiredLabel htmlFor="edit-field-12">العمر الأدنى</RequiredLabel>
+                <NumberInput
+                  id="edit-field-12" {...inv("prefAgeMin")}
+                  value={form.prefAgeMin}
+                  onChange={(e) => update("prefAgeMin", e.target.value)}
+                  placeholder="18"
+                  min={18}
+                  max={70}
+                  dir="ltr"
+                />
+              </div>
+              <div className="space-y-2">
+                <RequiredLabel htmlFor="edit-field-13">العمر الأقصى</RequiredLabel>
+                <NumberInput
+                  id="edit-field-13" {...inv("prefAgeMax")}
+                  value={form.prefAgeMax}
+                  onChange={(e) => update("prefAgeMax", e.target.value)}
+                  placeholder="40"
+                  min={18}
+                  max={70}
+                  dir="ltr"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-start justify-between gap-3">
+                <Label className="block min-w-0 flex-1 leading-relaxed">المدن المفضلة <span className="text-xs text-muted-foreground">(يمكن اختيار أكثر من مدينة)</span> <OptionalTag /></Label>
+                {dealbreaker("city", "prefCity")}
+              </div>
+              <div role="group" aria-label="المدن المفضلة" className="grid grid-cols-3 gap-2">
+                {cities.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => toggleArray("prefCity", c)}
+                    aria-pressed={form.prefCity.includes(c)}
+                    className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.prefCity.includes(c) ? "border-primary bg-primary/15 ring-1 ring-primary text-primary font-bold" : "border-border hover:border-primary/50"}`}
+                  >
+                    {c}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-start justify-between gap-3">
+                <Label className="block min-w-0 flex-1 leading-relaxed">المستوى التعليمي المفضل <span className="text-xs text-muted-foreground">(كل مستوى يشمل ما فوقه)</span> <OptionalTag /></Label>
+                {dealbreaker("education", "prefEducation")}
+              </div>
+              <div role="group" aria-label="المستوى التعليمي المفضل" className="grid grid-cols-3 gap-2">
+                {educationLevels.map((e) => (
+                  <button
+                    key={e}
+                    type="button"
+                    onClick={() => toggleArray("prefEducation", e)}
+                    aria-pressed={form.prefEducation.includes(e)}
+                    className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.prefEducation.includes(e) ? "border-primary bg-primary/15 ring-1 ring-primary text-primary font-bold" : "border-border hover:border-primary/50"}`}
+                  >
+                    {e}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-start justify-between gap-3">
+                <Label className="block min-w-0 flex-1 leading-relaxed">الحالة الاجتماعية المفضلة <span className="text-xs text-muted-foreground">(يمكن اختيار أكثر من حالة)</span> <OptionalTag /></Label>
+                {dealbreaker("maritalStatus", "prefMaritalStatus")}
+              </div>
+              <div role="group" aria-label="الحالة الاجتماعية المفضلة" className="grid grid-cols-3 gap-2">
+                {maritalStatuses.map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => toggleArray("prefMaritalStatus", s)}
+                    aria-pressed={form.prefMaritalStatus.includes(s)}
+                    className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.prefMaritalStatus.includes(s) ? "border-primary bg-primary/15 ring-1 ring-primary text-primary font-bold" : "border-border hover:border-primary/50"}`}
+                  >
+                    {describeOption("maritalStatus", s, partnerGender)}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {gender === "MALE" && !christian && (
+              <div className="space-y-2">
+                <div className="flex items-start justify-between gap-3">
+                <Label className="block min-w-0 flex-1 leading-relaxed">هل تفضل محجبة؟ <OptionalTag /></Label>
+                {dealbreaker("hijab", "prefHijab")}
+              </div>
+                <div role="group" aria-label="هل تفضل محجبة؟" className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  {hijabPrefOptions.map((o) => (
+                    <button key={o} type="button" onClick={() => update("prefHijab", o)}
+                      aria-pressed={form.prefHijab === o}
+                      className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.prefHijab === o ? "border-primary bg-primary/15 ring-1 ring-primary text-primary font-bold" : "border-border hover:border-primary/50"}`}
+                    >{o}</button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {gender === "FEMALE" && !christian && (
+              <div className="space-y-2">
+                <div className="flex items-start justify-between gap-3">
+                <Label className="block min-w-0 flex-1 leading-relaxed">هل تفضلين ملتحياً؟ <OptionalTag /></Label>
+                {dealbreaker("beard", "prefBeard")}
+              </div>
+                <div role="group" aria-label="هل تفضلين ملتحياً؟" className="grid grid-cols-3 gap-2">
+                  {preferenceOptions.map((o) => (
+                    <button key={o} type="button" onClick={() => update("prefBeard", o)}
+                      aria-pressed={form.prefBeard === o}
+                      className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.prefBeard === o ? "border-primary bg-primary/15 ring-1 ring-primary text-primary font-bold" : "border-border hover:border-primary/50"}`}
+                    >{o}</button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <div className="flex items-start justify-between gap-3">
+                <Label className="block min-w-0 flex-1 leading-relaxed">مستوى التدين المفضل <span className="text-xs text-muted-foreground">(يمكن اختيار أكثر من مستوى)</span> <OptionalTag /></Label>
+                {dealbreaker("religiosity", "prefReligiosity")}
+              </div>
+              <div role="group" aria-label="مستوى التدين المفضل" className="grid grid-cols-2 gap-2">
+                {religiosityLevels.map((r) => (
+                  <button key={r} type="button" onClick={() => toggleArray("prefReligiosity", r)}
+                    aria-pressed={form.prefReligiosity.includes(r)}
+                    className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.prefReligiosity.includes(r) ? "border-primary bg-primary/15 ring-1 ring-primary text-primary font-bold" : "border-border hover:border-primary/50"}`}
+                  >{describeOption("religiosity", r, partnerGender)}</button>
+                ))}
+              </div>
+            </div>
+
+            {sectOn && (
+              <div className="space-y-2">
+                <div className="flex items-start justify-between gap-3">
+                  <Label className="block min-w-0 flex-1 leading-relaxed">المذهب لدى الشريك <span className="text-xs text-muted-foreground">(يمكن اختيار أكثر من مذهب)</span> <OptionalTag /></Label>
+                  {dealbreaker("sect", "prefSect")}
+                </div>
+                <div role="group" aria-label="المذهب لدى الشريك" className="grid grid-cols-2 gap-2">
+                  {PREF_SECT_VALUES.map((v) => (
+                    <button key={v} type="button" onClick={() => toggleArray("prefSect", v)}
+                      aria-pressed={form.prefSect.includes(v)}
+                      className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.prefSect.includes(v) ? "border-primary bg-primary/15 ring-1 ring-primary text-primary font-bold" : "border-border hover:border-primary/50"}`}
+                    >{describeOption("sect", v, partnerGender)}</button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <div className="flex items-start justify-between gap-3">
+                <Label className="block min-w-0 flex-1 leading-relaxed">التدخين لدى الشريك <span className="text-xs text-muted-foreground">(يمكن اختيار أكثر من حالة)</span> <OptionalTag /></Label>
+                {dealbreaker("smokingStatus", "prefSmokingStatus")}
+              </div>
+              <div role="group" aria-label="التدخين لدى الشريك" className="grid grid-cols-2 gap-2">
+                {smokingStatuses.map((s) => (
+                  <button key={s} type="button" onClick={() => toggleArray("prefSmokingStatus", s)}
+                    aria-pressed={form.prefSmokingStatus.includes(s)}
+                    className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.prefSmokingStatus.includes(s) ? "border-primary bg-primary/15 ring-1 ring-primary text-primary font-bold" : "border-border hover:border-primary/50"}`}
+                  >{describeOption("smokingStatus", s, partnerGender)}</button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-start justify-between gap-3">
+                <Label className="block min-w-0 flex-1 leading-relaxed">قبول وجود أبناء من زواج سابق <OptionalTag /></Label>
+                {dealbreaker("children", "prefChildrenAcceptance")}
+              </div>
+              <div role="group" aria-label="قبول وجود أبناء من زواج سابق" className="grid grid-cols-3 gap-2">
+                {preferenceOptions.map((o) => (
+                  <button key={o} type="button" onClick={() => update("prefChildrenAcceptance", o)}
+                    aria-pressed={form.prefChildrenAcceptance === o}
+                    className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.prefChildrenAcceptance === o ? "border-primary bg-primary/15 ring-1 ring-primary text-primary font-bold" : "border-border hover:border-primary/50"}`}
+                  >{o}</button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>الاستعداد للانتقال <OptionalTag /></Label>
+              <div role="group" aria-label="الاستعداد للانتقال" className="grid grid-cols-3 gap-2">
+                {relocateOptions.map((r) => (
+                  <button
+                    key={r.value}
+                    type="button"
+                    onClick={() => update("willingToRelocate", r.value)}
+                    aria-pressed={form.willingToRelocate === r.value}
+                    className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.willingToRelocate === r.value ? "border-primary bg-primary/15 ring-1 ring-primary text-primary font-bold" : "border-border hover:border-primary/50"}`}
+                  >
+                    {r.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Step 4: Family Info */}
+      {step === 4 && (
+        <Card className="overflow-hidden">
+          <div className="h-1.5 bg-gradient-to-l from-primary via-primary/50 to-accent" />
+          <CardHeader>
+            <CardTitle>معلومات عائلية</CardTitle>
+            <CardDescription>
+              بيانات إضافية عن العائلة والسكن
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-field-14">{tribeLabel(country.code)} <OptionalTag /></Label>
+              <Input
+                id="edit-field-14"
+                value={form.tribe}
+                onChange={(e) => update("tribe", e.target.value)}
+                placeholder={`اسم ${tribeLabel(country.code)}`}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-field-15">منطقة أصل العائلة <OptionalTag /></Label>
+              <Input
+                id="edit-field-15"
+                value={form.familyOriginArea}
+                onChange={(e) =>
+                  update("familyOriginArea", e.target.value)
+                }
+                placeholder="منطقة أصل العائلة"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-field-16">عدد الإخوة والأخوات <OptionalTag /></Label>
+              <NumberInput
+                id="edit-field-16" {...inv("numberOfSiblings")}
+                value={form.numberOfSiblings}
+                onChange={(e) =>
+                  update("numberOfSiblings", e.target.value)
+                }
+                placeholder="0"
+                min={0}
+                max={20}
+                dir="ltr"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>نوع السكن <OptionalTag /></Label>
+              <div role="group" aria-label="نوع السكن" className="grid grid-cols-3 gap-2">
+                {housingTypes.map((h) => (
+                  <button
+                    key={h}
+                    type="button"
+                    onClick={() => update("housingType", h)}
+                    aria-pressed={form.housingType === h}
+                    className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.housingType === h ? "border-primary bg-primary/15 ring-1 ring-primary text-primary font-bold" : "border-border hover:border-primary/50"}`}
+                  >
+                    {h}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>المصاريف الشهرية <OptionalTag /></Label>
+              <div role="group" aria-label="المصاريف الشهرية" className="grid grid-cols-2 gap-2">
+                {expenseRanges.map((e) => (
+                  <button
+                    key={e}
+                    type="button"
+                    onClick={() => update("monthlyExpenses", e)}
+                    aria-pressed={form.monthlyExpenses === e}
+                    className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.monthlyExpenses === e ? "border-primary bg-primary/15 ring-1 ring-primary text-primary font-bold" : "border-border hover:border-primary/50"}`}
+                  >
+                    {e}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-field-17">حالات صحية <OptionalTag /></Label>
+              <textarea
+                id="edit-field-17"
+                value={form.healthConditions}
+                onChange={(e) =>
+                  update("healthConditions", e.target.value)
+                }
+                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm min-h-[80px] resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+                placeholder={forViewer(gender, "أي حالات صحية تود الإفصاح عنها...", "أي حالات صحية تودين الإفصاح عنها...")}
+                maxLength={500}
+              />
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Step 5: Guardian Info */}
+      {step === 5 && (
+        <Card className="overflow-hidden">
+          <div className="h-1.5 bg-gradient-to-l from-primary via-primary/50 to-accent" />
+          <CardHeader>
+            <CardTitle>معلومات ولي الأمر</CardTitle>
+            <CardDescription>
+              {introMode ? "بيانات وليّ الأمر للتعارف العائلي" : "بيانات ولي الأمر لتنسيق الزيارات العائلية"}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-start gap-3 rounded-xl bg-primary/5 border border-primary/15 p-4">
+              <Shield className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+              <p className="text-sm text-primary leading-relaxed">
+                {introMode
+                  ? "بيانات وليّ الأمر سرية، ولا تظهر لأي مستخدم إلا لعائلة الطرف الآخر عند بدء تعارف عائلي على توافق متبادل وبموافقتك. يتم حفظها مباشرة دون الحاجة لمراجعة الإدارة."
+                  : "هذه البيانات سرية وتستخدم فقط من قبل الإدارة لتنسيق الزيارات العائلية ولن تظهر للمستخدمين الآخرين. يتم حفظها مباشرة دون الحاجة لمراجعة الإدارة."}
+              </p>
+            </div>
+            {/* New cycle with no guardian yet: the step is optional until it is started (QA WA-15) */}
+            {introMode && !originalForm.parentName && (
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                يُطلب وليّ الأمر عند أول تعارف عائلي فقط. يمكنك تركه فارغاً الآن، وإذا بدأت بتعبئته فالحقول المعلَّمة بـ * مطلوبة.
+              </p>
+            )}
+
+            <div className="space-y-2">
+              <RequiredLabel htmlFor="edit-field-18">اسم ولي الأمر</RequiredLabel>
+              <Input
+                id="edit-field-18" {...inv("parentName")}
+                value={form.parentName}
+                onChange={(e) => update("parentName", e.target.value)}
+                placeholder="الاسم الكامل لولي الأمر"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <RequiredLabel htmlFor="edit-field-19">رقم {country.words.phone} ولي الأمر</RequiredLabel>
+              <Input
+                id="edit-field-19" {...inv("parentPhone")}
+                type="tel"
+                value={form.parentPhone}
+                onChange={(e) => update("parentPhone", e.target.value)}
+                placeholder={`0${country.phone.placeholder}`}
+                dir="ltr"
+                className="text-left"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <RequiredLabel>صلة القرابة</RequiredLabel>
+              <div role="group" aria-label="صلة القرابة" {...inv("relationship")} className="grid grid-cols-2 gap-2">
+                {guardianRelationships.map((r) => (
+                  <button
+                    key={r.value}
+                    type="button"
+                    onClick={() => update("relationship", r.value)}
+                    aria-pressed={form.relationship === r.value}
+                    className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.relationship === r.value ? "border-primary bg-primary/15 ring-1 ring-primary text-primary font-bold" : "border-border hover:border-primary/50"}`}
+                  >
+                    {r.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <RequiredLabel htmlFor="edit-field-20">العنوان</RequiredLabel>
+              <textarea
+                id="edit-field-20" {...inv("parentAddress")}
+                value={form.parentAddress}
+                onChange={(e) => update("parentAddress", e.target.value)}
+                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm min-h-[80px] resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+                placeholder="العنوان التفصيلي (المدينة، الحي، الشارع...)"
+                maxLength={500}
+              />
+            </div>
+            <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-border/60 bg-muted/20 p-3 text-sm hover:bg-muted/40">
+              <input
+                type="checkbox"
+                checked={shareConsent}
+                onChange={(e) => setShareConsent(e.target.checked)}
+                className="mt-0.5 h-4 w-4 flex-shrink-0 accent-[var(--primary)]"
+              />
+              <span className="leading-relaxed text-foreground/80">
+                أوافق على مشاركة اسم ورقم وليّ الأمر مع عائلة الطرف الآخر فقط عند بدء تعارف عائلي على توافق متبادل.
+              </span>
+            </label>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Changes indicator */}
+      {changedCount > 0 && (
+        <div className="flex items-center gap-2 rounded-xl bg-accent/10 border border-accent/30 p-3 text-sm text-accent-foreground">
+          <CheckCircle2 className="h-4 w-4 text-accent-ink shrink-0" />
+          <span>
+            {changedCount === 1 ? (
+              <>تم تعديل <strong>حقل واحد</strong></>
+            ) : changedCount === 2 ? (
+              <>تم تعديل <strong>حقلين</strong></>
+            ) : (
+              <>تم تعديل <strong>{changedCount}</strong> {changedCount % 100 >= 3 && changedCount % 100 <= 10 ? "حقول" : "حقلاً"}</>
+            )}
+          </span>
+        </div>
+      )}
+
+      {/* Navigation Buttons */}
+      <div className="flex items-center justify-between">
+        {step > 1 ? (
+          <Button variant="outline" onClick={() => setStep(step - 1)}>
+            <ArrowRight className="h-4 w-4 me-2" />
+            السابق
+          </Button>
+        ) : (
+          <Button variant="outline" asChild>
+            <Link href="/dashboard/profile">
+              <ArrowRight className="h-4 w-4 me-2" />
+              إلغاء
+            </Link>
+          </Button>
+        )}
+
+        {step < totalSteps ? (
+          <div className="flex flex-wrap justify-end gap-2">
+            {/* One small change shouldn't need four "next" clicks: send from any step */}
+            {changedCount > 0 && (
+              <Button variant="outline" onClick={handleSubmit} disabled={submitting}>
+                {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4 me-2" />}
+                إرسال الآن ({changedCount})
+              </Button>
+            )}
+            <Button
+              onClick={handleNextStep}
+              className="bg-gradient-to-l from-primary to-primary/80"
+            >
+              التالي
+              <ArrowLeft className="h-4 w-4 ms-2" />
+            </Button>
+          </div>
+        ) : (
+          <Button
+            onClick={handleSubmit}
+            disabled={submitting || changedCount === 0}
+            className="bg-gradient-to-l from-primary to-accent"
+          >
+            {submitting ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <>
+                <Send className="h-4 w-4 me-2" />
+                {willNeedReview ? "إرسال طلب التعديل" : "حفظ التعديلات"} ({buttonCount})
+              </>
+            )}
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}

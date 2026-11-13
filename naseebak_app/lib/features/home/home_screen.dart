@@ -7,7 +7,6 @@ import '../../core/auth/auth_controller.dart';
 import '../../core/localization/arabic_count.dart';
 import '../../core/push/push_permission.dart';
 import '../../core/theme/app_theme.dart';
-import '../../shared/widgets/brand_kit.dart';
 import '../../shared/widgets/common.dart';
 import '../discovery/suggestion_models.dart';
 import '../discovery/suggestions_repository.dart';
@@ -17,7 +16,15 @@ import '../profile/profile_repository.dart';
 import 'counts.dart';
 import 'gendered_copy.dart';
 import 'poll_card.dart';
-import 'profile_strength_card.dart' show strengthSubtitle;
+import '../chat/chat_models.dart';
+import 'widgets/home_block_header.dart';
+import 'widgets/home_chats_block.dart';
+import 'widgets/home_interested_card.dart';
+import 'widgets/home_load_error_row.dart';
+import 'widgets/home_suggestion_card.dart';
+import 'widgets/home_tiles.dart';
+import 'widgets/home_tips.dart';
+import 'widgets/next_step_card.dart';
 
 /// «صباح الخير» from 04:00 to noon in Amman, «مساء الخير» otherwise, whatever the phone's clock or zone says (Jordan
 /// and Saudi Arabia are UTC+3 all year; the website's home uses the same rule).
@@ -26,9 +33,8 @@ String greetingWord(DateTime instant) {
   return h >= 4 && h < 12 ? 'صباح الخير' : 'مساء الخير';
 }
 
-/// The new suggestions, read without the top-up the suggestions screen runs. Home no longer shows them (spec
-/// 2026-11-13: «اقتراحات جديدة» in «اليوم» replaced the strip), but still reads them so the counts re-read below keeps
-/// running. Reloads with the counts.
+/// The new suggestions, read without the top-up the suggestions screen runs: «اقتراحات اليوم» (spec 2026-11-14). Also
+/// runs the counts re-read below. Reloads with the counts.
 final homeSuggestionsProvider = FutureProvider<List<FeedItem>>((ref) async {
   final counts = await ref.watch(countsProvider.future);
   final page = await ref.watch(suggestionsRepositoryProvider).feed(FeedTab.newTab);
@@ -56,25 +62,23 @@ final _homeCountsResync = Provider<_Once>((ref) {
 /// The space under each home block
 const _gap = SizedBox(height: AppSpace.xl);
 
-/// How many people «مهتمون بك» shows on home
-const homeInterestedShown = 3;
-
 /// «مهتمون بك» on home: the first people of the «interested» tab (shared suggestions only). Reloads with the counts,
 /// so an answer given on the suggestions tab (which refreshes them) shows here too.
 final homeInterestedProvider = FutureProvider<List<FeedItem>>((ref) async {
   final counts = await ref.watch(countsProvider.future);
   if (!counts.flags.mutualSuggestions) return const [];
   final page = await ref.watch(suggestionsRepositoryProvider).feed(FeedTab.interested);
-  return page.items.take(homeInterestedShown).toList();
+  return page.items.take(homeInterestedCardsShown).toList();
 });
 
 /// «طلب تعارف» counted the Arabic way (the website's `requestsWaiting`)
 String requestsWaiting(int n) =>
     arabicCount(n, one: 'طلب تعارف', two: 'طلبا تعارف', few: 'طلبات تعارف', many: 'طلباً للتعارف');
 
-/// Member home (spec 2026-11-13 "Home (both)", the website's `HomeV2`): one calm column, what needs me now first.
-/// Light header → the banner slot → «بانتظار ردّك» → «مهتمون بك» → «اليوم» → «المزيد». A block with nothing in it is
-/// not shown; a failed load says so with a retry. Read-only: the answers live on the suggestions tab.
+/// Member home (spec 2026-11-14 "richer app home", on 2026-11-13's light home): header → the banner slot → the navy
+/// «خطوتك التالية» → «بانتظار ردّك» → «اقتراحات اليوم» → «مهتمون بك» → «المحادثات» → («نصائح لك» for a quiet member)
+/// → «حسابي» → «سؤال الأسبوع». A block with nothing in it is not shown; a failed load says so with a retry.
+/// Read-only: the answers live on the suggestions tab.
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
@@ -93,24 +97,53 @@ class HomeScreen extends ConsumerWidget {
     String g(String m, String f) => forViewer(female, m, f);
     final counts = ref.watch(countsProvider);
     final c = counts.valueOrNull;
-    // Not shown any more; read for the counts re-read after setup (QA A-L01, spec call 7)
-    ref.watch(homeSuggestionsProvider);
+    // Watched even when hidden: it runs the counts re-read after setup (QA A-L01)
+    final suggestions = ref.watch(homeSuggestionsProvider);
+    // Known only once loaded: a profile still loading or failed is never taken as complete
+    final profile = ref.watch(myProfileProvider).valueOrNull;
 
     final sections = <Widget>[];
     if (c != null) {
+      sections.addAll([NextStepCard(counts: c, female: female, profile: profile), _gap]);
       final waiting = _waitingRows(context, c, g);
       if (waiting.isNotEmpty) {
+        sections.addAll([
+          Column(
+            key: const Key('home-waiting'),
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              HomeBlockHeader(title: g('بانتظار ردّك', 'بانتظار ردّكِ')),
+              _Group(waiting),
+            ],
+          ),
+          _gap,
+        ]);
+      }
+      final mutual = c.flags.mutualSuggestions;
+      final interested = ref.watch(homeInterestedProvider);
+      if (mutual) {
         sections.add(
-          _Section(key: const Key('home-waiting'), title: g('بانتظار ردّك', 'بانتظار ردّكِ'), child: _Group(waiting)),
+          HomeSuggestionsCarousel(items: suggestions, onRetry: () => ref.invalidate(homeSuggestionsProvider)),
         );
-        sections.add(_gap);
+        sections.add(
+          HomeInterestedCards(
+            items: interested,
+            onRetry: () => ref.invalidate(homeInterestedProvider),
+            female: female,
+            freeReply: c.flags.freeInterestReply,
+          ),
+        );
       }
-      sections.add(_InterestedSection(female: female, freeReply: c.flags.freeInterestReply));
-      final today = _todayRows(context, c);
-      if (today.isNotEmpty) {
-        sections.addAll([_Section(key: const Key('home-today'), title: 'اليوم', child: _Group(today)), _gap]);
-      }
-      sections.add(_MoreSection(counts: c, female: female, pollsOn: me?.country.pollsEnabled ?? true));
+      final chatOn = c.flags.chat || c.hasChats;
+      final chats = chatOn ? ref.watch(chatListProvider) : null;
+      sections.add(HomeChatsBlock(show: chatOn));
+      // Quiet: every people block known empty (not loading, not failed), so the page offers tips instead
+      bool none<T>(AsyncValue<List<T>> a) => a.hasValue && !a.hasError && !a.isLoading && a.value!.isEmpty;
+      final quiet =
+          waiting.isEmpty && (!mutual || (none(suggestions) && none(interested))) && (chats == null || none(chats));
+      if (quiet) sections.add(HomeTips(female: female, profile: profile));
+      sections.add(HomeTiles(counts: c, female: female, profile: profile));
+      sections.add(_PollBlock(pollsOn: me?.country.pollsEnabled ?? true));
     } else if (counts.isLoading) {
       sections.addAll(const [
         SkeletonBox(height: 120, radius: AppRadius.md),
@@ -180,33 +213,6 @@ class HomeScreen extends ConsumerWidget {
               '${arabicCount(c.actionableMatches, one: 'توافق ينتظر', two: 'توافقان ينتظران', few: 'توافقات تنتظر', many: 'توافقاً ينتظر')}$yours',
           subtitle: g('يمكنك طلب تعارف عائلي أو محادثة.', 'يمكنكِ طلب تعارف عائلي أو محادثة.'),
           onTap: () => context.go('/matches'),
-        ),
-    ];
-  }
-
-  /// «اقتراحات جديدة» with the count (shared suggestions), «المحادثات» with the unread chats (chat on)
-  List<Widget> _todayRows(BuildContext context, Counts c) {
-    final fresh = c.flags.mutualSuggestions ? c.newSuggestions : null;
-    final chatOn = c.flags.chat || c.hasChats;
-    return [
-      if (fresh != null)
-        _Row(
-          key: const Key('home-today-new'),
-          icon: Icons.auto_awesome_rounded,
-          title: 'اقتراحات جديدة',
-          trailing: Text(
-            '$fresh',
-            style: AppText.label.copyWith(color: AppColors.ink, fontFeatures: AppText.tabular),
-          ),
-          onTap: () => openAppRoute(GoRouter.of(context), '/suggestions?tab=new'),
-        ),
-      if (chatOn)
-        _Row(
-          key: const Key('home-today-chats'),
-          icon: Icons.chat_bubble_outline_rounded,
-          title: 'المحادثات',
-          trailing: c.unreadChats > 0 ? _CountChip(c.unreadChats, label: 'محادثات غير مقروءة') : null,
-          onTap: () => openAppRoute(GoRouter.of(context), '/chats'),
         ),
     ];
   }
@@ -311,46 +317,6 @@ class _CreditsPill extends StatelessWidget {
   }
 }
 
-/// A heading over a block, with an optional action at the end
-class _Section extends StatelessWidget {
-  const _Section({super.key, required this.title, required this.child, this.action, this.small = false});
-  final String title;
-  final Widget child;
-  final Widget? action;
-
-  /// «المزيد»: a small grey heading
-  final bool small;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Padding(
-          padding: const EdgeInsetsDirectional.only(start: AppSpace.xs, bottom: AppSpace.sm),
-          child: Row(
-            children: [
-              Expanded(
-                child: Semantics(
-                  header: true,
-                  child: Text(
-                    title,
-                    style: small
-                        ? AppText.label.copyWith(color: AppColors.muted)
-                        : AppText.headline.copyWith(color: AppColors.ink),
-                  ),
-                ),
-              ),
-              ?action,
-            ],
-          ),
-        ),
-        child,
-      ],
-    );
-  }
-}
-
 /// One white grouped list: radius 12, hairlines between the rows
 class _Group extends StatelessWidget {
   const _Group(this.rows);
@@ -392,26 +358,22 @@ class _Row extends StatelessWidget {
     required this.title,
     required this.onTap,
     this.subtitle,
-    this.trailing,
     this.urgent = false,
-    this.minHeight = 52,
   });
   final IconData icon;
   final String title;
   final String? subtitle;
-  final Widget? trailing;
   final VoidCallback onTap;
 
   /// Act now (a family request): the icon in red
   final bool urgent;
-  final double minHeight;
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
       child: ConstrainedBox(
-        constraints: BoxConstraints(minHeight: minHeight),
+        constraints: const BoxConstraints(minHeight: 52),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: AppSpace.lg, vertical: AppSpace.sm),
           child: Row(
@@ -441,7 +403,6 @@ class _Row extends StatelessWidget {
                   ],
                 ),
               ),
-              if (trailing != null) ...[const SizedBox(width: AppSpace.sm), trailing!],
               const SizedBox(width: AppSpace.xs),
               const Icon(Icons.chevron_right, size: 20, color: AppColors.muted),
             ],
@@ -452,306 +413,26 @@ class _Row extends StatelessWidget {
   }
 }
 
-/// A navy count (badges by meaning: navy = a count)
-class _CountChip extends StatelessWidget {
-  const _CountChip(this.n, {required this.label});
-  final int n;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      label: '$n $label',
-      excludeSemantics: true,
-      child: Container(
-        constraints: const BoxConstraints(minWidth: 24),
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-        decoration: BoxDecoration(
-          color: BadgeTone.count.background,
-          borderRadius: BorderRadius.circular(AppRadius.full),
-        ),
-        child: Text(
-          n > 99 ? '99+' : '$n',
-          textAlign: TextAlign.center,
-          style: AppText.caption.copyWith(color: BadgeTone.count.foreground, fontWeight: FontWeight.w700),
-        ),
-      ),
-    );
-  }
-}
-
-/// A failed block: one line with a retry (never a fake empty state)
-class _LoadErrorRow extends StatelessWidget {
-  const _LoadErrorRow({super.key, required this.text, required this.onRetry});
-  final String text;
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      margin: EdgeInsets.zero,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppRadius.md),
-        side: const BorderSide(color: AppColors.line),
-      ),
-      // Wraps at large text: the retry drops under the line instead of squeezing it (QA A-M05)
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: AppSpace.lg, vertical: AppSpace.sm),
-        child: Wrap(
-          crossAxisAlignment: WrapCrossAlignment.center,
-          alignment: WrapAlignment.spaceBetween,
-          spacing: AppSpace.sm,
-          children: [
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.wifi_off_rounded, color: AppColors.muted),
-                const SizedBox(width: AppSpace.md),
-                Flexible(
-                  child: Text(text, style: AppText.labelRegular.copyWith(color: AppColors.ink)),
-                ),
-              ],
-            ),
-            TextButton(onPressed: onRetry, child: const Text('إعادة المحاولة')),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// «مهتمون بك»: up to 3 people (locked avatar, «الاسم، العمر», city); every tap opens the «مهتمون بك» tab
-class _InterestedSection extends ConsumerWidget {
-  const _InterestedSection({required this.female, required this.freeReply});
-  final bool female;
-  final bool freeReply;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final async = ref.watch(homeInterestedProvider);
-    void open() => openAppRoute(GoRouter.of(context), '/suggestions?tab=interested');
-    if (async.hasError && !async.isLoading) {
-      return Padding(
-        padding: const EdgeInsets.only(bottom: AppSpace.xl),
-        child: _LoadErrorRow(
-          key: const Key('home-interested-error'),
-          text: 'تعذّر تحميل من اهتم بك.',
-          onRetry: () => ref.invalidate(homeInterestedProvider),
-        ),
-      );
-    }
-    final people = async.valueOrNull ?? const <FeedItem>[];
-    if (people.isEmpty) return const SizedBox.shrink();
-    return Padding(
-      padding: const EdgeInsets.only(bottom: AppSpace.xl),
-      child: _Section(
-        key: const Key('home-interested'),
-        title: forViewer(female, 'مهتمون بك', 'مهتمون بكِ'),
-        action: TextButton(
-          onPressed: open,
-          style: TextButton.styleFrom(minimumSize: const Size(44, 44)),
-          child: const Text('عرض الكل'),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Material(
-              color: AppColors.surface,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppRadius.md),
-                side: const BorderSide(color: AppColors.line, width: 0.5),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: AppSpace.sm, vertical: AppSpace.md),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    for (var i = 0; i < homeInterestedShown; i++)
-                      Expanded(
-                        child: i < people.length ? _InterestedPerson(item: people[i], onTap: open) : const SizedBox(),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-            if (freeReply)
-              Padding(
-                padding: const EdgeInsetsDirectional.only(start: AppSpace.xs, top: AppSpace.sm),
-                child: Text(
-                  forViewer(female, 'ردّك بـ«مهتم» على من اهتم بك مجاني.', 'ردّكِ بـ«مهتم» على من اهتم بكِ مجاني.'),
-                  style: AppText.caption.copyWith(color: AppColors.muted),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _InterestedPerson extends StatelessWidget {
-  const _InterestedPerson({required this.item, required this.onTap});
-  final FeedItem item;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final p = item.candidate;
-    return InkWell(
-      key: Key('home-interested-${item.id}'),
-      borderRadius: BorderRadius.circular(AppRadius.md),
-      onTap: onTap,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(minHeight: 44),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: AppSpace.xs, vertical: AppSpace.xs),
-          child: Column(
-            children: [
-              // Never a photo before a mutual «مهتم»: the veil with its lock
-              MemberAvatar(name: p.firstName, size: 56, locked: true, pro: item.isPro),
-              const SizedBox(height: AppSpace.xs),
-              Text(
-                p.age != null ? '${p.firstName}، ${p.age}' : p.firstName,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                style: AppText.label.copyWith(color: AppColors.ink),
-              ),
-              if (p.city != null)
-                Text(
-                  p.city!,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                  style: AppText.caption.copyWith(color: AppColors.muted),
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// «المزيد»: the week's question, the profile while unfinished, Pro where it can be bought. 44 px rows.
-class _MoreSection extends ConsumerWidget {
-  const _MoreSection({required this.counts, required this.female, required this.pollsOn});
-  final Counts counts;
-  final bool female;
+/// «سؤال الأسبوع» inline: the poll card (its own title, no block heading), only with an active question in a country with polls; a failed load says so
+class _PollBlock extends ConsumerWidget {
+  const _PollBlock({required this.pollsOn});
   final bool pollsOn;
 
-  Future<void> _openPoll(BuildContext context) async {
-    final container = ProviderScope.containerOf(context, listen: false);
-    await showModalBottomSheet<void>(
-      context: context,
-      useRootNavigator: true,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (_) => const SafeArea(
-        child: SingleChildScrollView(
-          padding: EdgeInsets.fromLTRB(AppSpace.lg, 0, AppSpace.lg, AppSpace.lg),
-          child: PollCard(),
-        ),
-      ),
-    );
-    // «جديد» follows a vote given in the sheet
-    container.invalidate(currentPollProvider);
-  }
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final pollAsync = pollsOn ? ref.watch(currentPollProvider) : null;
-    final poll = pollAsync?.valueOrNull;
-    final showPoll = poll != null && poll.status == 'ACTIVE';
-    final pollFailed = pollAsync != null && pollAsync.hasError && !pollAsync.isLoading;
-
-    final profile = ref.watch(myProfileProvider).valueOrNull;
-    final showProfile = profile != null && profile.completeness < 100;
-    final payments = ref.watch(appPaymentsProvider);
-    // The Pro page link: the server's rule, never for a test or review account (app payments off), not once Pro
-    final showPro = counts.proShowPage && !counts.isPro && payments;
-
-    final rows = <Widget>[
-      if (showPoll)
-        _Row(
-          key: const Key('home-more-poll'),
-          icon: Icons.help_outline_rounded,
-          title: 'سؤال الأسبوع',
-          subtitle: poll.question,
-          minHeight: 44,
-          trailing: poll.myVote == null
-              ? Container(
-                  padding: const EdgeInsets.symmetric(horizontal: AppSpace.sm, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: AppColors.goldSoft,
-                    borderRadius: BorderRadius.circular(AppRadius.full),
-                  ),
-                  child: Text(
-                    'جديد',
-                    style: AppText.caption.copyWith(color: AppColors.goldText, fontWeight: FontWeight.w700),
-                  ),
-                )
-              : null,
-          onTap: () => _openPoll(context),
-        ),
-      if (showProfile) _profileRow(context, profile),
-      if (showPro)
-        _Row(
-          key: const Key('home-more-pro'),
-          icon: Icons.workspace_premium_rounded,
-          title: 'عضوية Pro',
-          subtitle: counts.flags.chat ? 'صور ورسائل صوتية في المحادثة، وشارة Pro على بطاقتك.' : 'شارة Pro على بطاقتك.',
-          minHeight: 44,
-          onTap: () => context.push('/pro'),
-        ),
-    ];
-    if (rows.isEmpty && !pollFailed) return const SizedBox.shrink();
-    return _Section(
-      key: const Key('home-more'),
-      title: 'المزيد',
-      small: true,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (rows.isNotEmpty) _Group(rows),
-          if (pollFailed) ...[
-            if (rows.isNotEmpty) const SizedBox(height: AppSpace.sm),
-            _LoadErrorRow(
-              key: const Key('home-poll-error'),
-              text: 'تعذّر تحميل سؤال الأسبوع.',
-              onRetry: () => ref.invalidate(currentPollProvider),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  /// «ملفك مكتمل N%» with a small bar; opens the first unfinished section, as «قوة ملفك» did
-  Widget _profileRow(BuildContext context, MyProfile p) {
-    final open = p.sections.where((s) => s.percentage < 100).firstOrNull;
-    return _Row(
-      key: const Key('home-more-profile'),
-      icon: Icons.person_outline_rounded,
-      title: '${forViewer(female, 'ملفك', 'ملفكِ')} مكتمل ${p.completeness}%',
-      subtitle: open == null ? null : strengthSubtitle(open) ?? open.label,
-      minHeight: 44,
-      trailing: SizedBox(
-        width: 56,
-        child: LinearProgressIndicator(
-          value: p.completeness / 100,
-          minHeight: 6,
-          borderRadius: BorderRadius.circular(AppRadius.full),
-          color: AppColors.gold,
-          backgroundColor: AppColors.line,
-        ),
-      ),
-      onTap: () async {
-        final container = ProviderScope.containerOf(context, listen: false);
-        await context.push(open?.route ?? '/profile/edit');
-        container.invalidate(myProfileProvider);
-      },
-    );
+    if (!pollsOn) return const SizedBox.shrink();
+    final async = ref.watch(currentPollProvider);
+    if (async.hasError && !async.isLoading) {
+      return HomeLoadErrorRow(
+        key: const Key('home-poll-error'),
+        text: 'تعذّر تحميل سؤال الأسبوع.',
+        onRetry: () => ref.invalidate(currentPollProvider),
+      );
+    }
+    final poll = async.valueOrNull;
+    if (poll == null || poll.status != 'ACTIVE') return const SizedBox.shrink();
+    // The card's own title names it: no second heading over it
+    return const PollCard(key: Key('home-poll'));
   }
 }
 

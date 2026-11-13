@@ -51,8 +51,8 @@ void homeLayoutTests() {
     ));
     await tester.pumpAndSettle();
     expect(countsReads, 2);
-    // «اقتراحات جديدة» in «اليوم» (it replaced the status chip) shows the re-read count
-    expect(find.descendant(of: find.byKey(const Key('home-today-new')), matching: find.text('1')), findsOneWidget);
+    // The navy card's «اقتراحات جديدة» shows the re-read count
+    expect(find.descendant(of: find.byKey(const Key('next-step-stat-new')), matching: find.text('1')), findsOneWidget);
   });
 
   testWidgets('home at 2× text on a 360 dp phone lays out without overflow (QA A-M05, A-L14)', (tester) async {
@@ -79,10 +79,13 @@ void homeLayoutTests() {
     ));
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
-    await tester.scrollUntilVisible(find.text('اقتراحات جديدة'), 200);
+    await tester.scrollUntilVisible(find.byKey(const Key('home-waiting')), 200);
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
-    expect(find.text('طلبا تعارف بانتظار ردّك'), findsOneWidget);
+    expect(
+      find.descendant(of: find.byKey(const Key('home-waiting')), matching: find.text('طلبا تعارف بانتظار ردّك')),
+      findsOneWidget,
+    );
   });
 
   test('one banner slot: 0 credits with someone waiting beats the push nudge (design P1-5)', () {

@@ -56,7 +56,6 @@ describe("sale offer at checkout", () => {
 
 describe("mock checkout (local) with a bonus", () => {
   it("pays the package plus the bonus recorded on the row", async () => {
-    process.env.NODE_ENV = "test";
     db.payment.findFirst.mockResolvedValue({ id: "p1", status: "PENDING", stripeSessionId: "mock_cs_p1", planName: "launch_10", amount: 3, currency: "JOD", createdAt: new Date(), bonusCredits: 5 });
     fulfil.fulfilCheckoutSession.mockResolvedValue("fulfilled");
     process.env.PAYMENTS_MOCK = "true";
@@ -69,7 +68,7 @@ describe("mock checkout (local) with a bonus", () => {
 describe("Arabic payment page intent with a bonus", () => {
   it("puts package + bonus in the intent metadata", async () => {
     const { paymentIntentParams } = await import("@/lib/payments/intent");
-    const pkg = { id: "launch_10", name: "10 أرصدة", credits: 10, chargeCurrency: "usd", chargeAmount: 423 };
+    const pkg = { id: "launch_10", name: "10 أرصدة", credits: 10, chargeCurrency: "usd" as const, chargeAmount: 423 };
     expect(paymentIntentParams(pkg, { paymentId: "p1", userId: "u1" }, 5).metadata).toMatchObject({ credits: "15", bonusCredits: "5" });
     const plain = paymentIntentParams(pkg, { paymentId: "p1", userId: "u1" }).metadata!;
     expect(plain.credits).toBe("10");

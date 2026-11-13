@@ -18,6 +18,7 @@ vi.mock("@/lib/auth", () => ({ requireUser: async () => ({ session: { user: { id
 vi.mock("@/lib/settings", () => ({
   getSetting: async (k: string) => (k === "arabic_checkout" ? setting.arabic : ""),
   jodChargingFor: async (c: string | null | undefined) => setting.jod && c === "JO",
+  activeOfferFor: async () => null,
 }));
 vi.mock("@/lib/credits", () => ({ recordCredit: sideEffects.recordCredit }));
 vi.mock("@/lib/notify", () => ({ notify: sideEffects.notify }));

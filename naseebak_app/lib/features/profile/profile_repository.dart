@@ -146,8 +146,7 @@ class PartnerPrefs {
       };
 
   /// The ticked keys whose preference is filled in (the website's `activeDealbreakers`): an emptied preference never
-  /// keeps a lock that would filter on nothing
-  /// A Christian ([christian]) never keeps a Muslim-only key.
+  /// keeps a lock that would filter on nothing. A Christian ([christian]) never keeps a Muslim-only key.
   List<String> activeDealbreakers({required bool female, bool christian = false}) => [
         for (final k in dealbreakers)
           if (dealbreakerFilled(k, female: female) && !(christian && muslimOnlyDealbreakers.contains(k))) k,

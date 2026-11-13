@@ -304,6 +304,72 @@ void main() {
       expect(changes.containsKey('prefReligion'), isFalse);
     });
 
+    group('the screen', () {
+      // PreferencesScreen with the real providers: a woman in Lebanon, stored religion «مسلم»
+      Future<FakeAdapter> openScreen(
+        WidgetTester tester, {
+        bool lists = true,
+        int profileStatus = 200,
+        bool pendingChristian = false,
+      }) async {
+        tester.view.physicalSize = const Size(1080, 2400);
+        tester.view.devicePixelRatio = 3;
+        addTearDown(tester.view.reset);
+        final (adapter, overrides) = await religionSetupWith({'religion': 'مسلم', ...lbBasics});
+        if (!lists) {
+          final d = lbDetails();
+          adapter.on('GET', '/api/countries/LB', FakeResponse(200, d));
+        }
+        adapter
+          ..on('GET', '/api/profile/dealbreakers', const FakeResponse(200, {
+            'profile': {'prefAgeMin': 24, 'prefAgeMax': 34, 'prefBeard': 'نعم', 'dealbreakers': ['beard', 'age']},
+          }))
+          ..on('PUT', '/api/profile/dealbreakers', const FakeResponse(200, {'keys': []}))
+          ..on('POST', '/api/profile/update-request', const FakeResponse(200, {'message': 'ok', 'requested': false}))
+          ..on('GET', '/api/profile/update-request', FakeResponse(200, {
+            'requests': [
+              if (pendingChristian)
+                {'id': 'r1', 'status': 'PENDING', 'changes': {'religion': 'مسيحي'}},
+            ],
+          }));
+        if (profileStatus != 200) adapter.on('GET', '/api/profile', FakeResponse(profileStatus, {'error': 'x'}));
+        await tester.pumpWidget(ProviderScope(overrides: overrides, child: rtlApp(const PreferencesScreen())));
+        await tester.pumpAndSettle();
+        return adapter;
+      }
+
+      testWidgets('stored مسلم with a pending change to مسيحي keeps the beard row and its «شرط أساسي»', (tester) async {
+        final adapter = await openScreen(tester, pendingChristian: true);
+        final scroll = find.byType(Scrollable).first;
+        await tester.scrollUntilVisible(find.text('هل تفضلين ملتحياً؟'), 300, scrollable: scroll);
+        expect(find.text('هل تفضلين ملتحياً؟'), findsOneWidget);
+        await tester.scrollUntilVisible(find.byKey(const Key('save-prefs')), 300, scrollable: scroll);
+        await tester.tap(find.byKey(const Key('save-prefs')));
+        await tester.pumpAndSettle();
+        expect(bodyOf(adapter.to('PUT', '/api/profile/dealbreakers').single)['keys'], contains('beard'));
+      });
+
+      testWidgets('no religion lists + /api/profile failing: the form still shows, never waits for it', (tester) async {
+        await openScreen(tester, lists: false, profileStatus: 500);
+        expect(find.byKey(const Key('save-prefs')), findsNothing); // below the fold, lazy list
+        expect(find.text('العمر المفضل'), findsOneWidget);
+        expect(find.text('الديانة لدى الشريك'), findsNothing);
+      });
+
+      testWidgets('religion lists + /api/profile failing: ErrorView with retry, and retry recovers', (tester) async {
+        final adapter = await openScreen(tester, profileStatus: 500);
+        expect(find.text('العمر المفضل'), findsNothing);
+        expect(find.text('إعادة المحاولة'), findsOneWidget);
+        adapter.on('GET', '/api/profile', FakeResponse(200, {
+          'user': {'firstName': 'ريم', 'lastName': 'س', 'gender': 'FEMALE', 'profile': {'religion': 'مسلم'}},
+          'completeness': {'total': 0},
+        }));
+        await tester.tap(find.text('إعادة المحاولة'));
+        await tester.pumpAndSettle();
+        expect(find.text('الديانة لدى الشريك'), findsOneWidget);
+      });
+    });
+
     test('PartnerPrefs: prefReligion read; a Christian keeps no Muslim-only lock', () {
       expect(PartnerPrefs.fromJson({'prefReligion': 'لا مانع'}).prefReligion, 'لا مانع');
       expect(

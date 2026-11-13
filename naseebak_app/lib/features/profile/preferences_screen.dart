@@ -35,22 +35,26 @@ class PreferencesScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final prefs = ref.watch(partnerPrefsProvider);
-    final mine = ref.watch(myProfileProvider);
     final counts = ref.watch(countsProvider);
     final me = ref.watch(authControllerProvider).me;
-    final details = ref.watch(countryDetailsProvider(me?.country.code ?? 'JO'));
+    final code = me?.country.code ?? 'JO';
+    final details = ref.watch(countryDetailsProvider(code));
+    // «الديانة» needs my stored religion, so `/api/profile` is waited for only when the server sends the religion
+    // lists (fail closed: never show a Christian the Muslim-only questions). Without lists the form builds as before.
+    final religionOptions = details.valueOrNull?.lists.option('prefReligion') ?? const <String>[];
+    final mine = religionOptions.isEmpty ? null : ref.watch(myProfileProvider);
     Widget body;
-    if (prefs.hasError || mine.hasError || counts.hasError || details.hasError) {
+    if (prefs.hasError || counts.hasError || details.hasError || (mine?.hasError ?? false)) {
       body = ErrorView(
-        error: prefs.error ?? mine.error ?? counts.error ?? details.error!,
+        error: prefs.error ?? counts.error ?? details.error ?? mine!.error!,
         onRetry: () {
           ref.invalidate(partnerPrefsProvider);
           ref.invalidate(myProfileProvider);
           ref.invalidate(countsProvider);
-          ref.invalidate(countryDetailsProvider(me?.country.code ?? 'JO'));
+          ref.invalidate(countryDetailsProvider(code));
         },
       );
-    } else if (!prefs.hasValue || !mine.hasValue || !counts.hasValue || !details.hasValue) {
+    } else if (!prefs.hasValue || !counts.hasValue || !details.hasValue || (mine != null && !mine.hasValue)) {
       body = const SkeletonList(count: 5, itemHeight: 70);
     } else {
       body = PreferencesForm(
@@ -59,9 +63,9 @@ class PreferencesScreen extends ConsumerWidget {
         female: me?.isFemale ?? false,
         withDealbreakers: counts.requireValue.flags.mutualSuggestions,
         sectOptions: details.requireValue.lists.option('prefSect'),
-        religionOptions: details.requireValue.lists.option('prefReligion'),
-        religion: asString(mine.requireValue.field('religion')),
-        initialPrefReligion: asString(mine.requireValue.field('prefReligion')),
+        religionOptions: religionOptions,
+        religion: asString(mine?.requireValue.field('religion')),
+        initialPrefReligion: asString(mine?.requireValue.field('prefReligion')),
       );
     }
     return Scaffold(appBar: AppBar(title: const Text('تفضيلات الشريك')), body: body);

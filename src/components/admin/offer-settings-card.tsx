@@ -45,6 +45,10 @@ export function OfferSettingsCard() {
   const [error, setError] = useState("");
 
   function load(d: OfferState) {
+    if (!d || !(d.status in STATUS)) {
+      setError("Couldn't load the offer settings");
+      return;
+    }
     setState(d);
     setPercent(String(d.percent));
     setStartsAt(toAmmanInput(d.startsAt));

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:naseebak_app/core/auth/auth_controller.dart';
 import 'package:naseebak_app/core/storage/token_store.dart';
 import 'package:naseebak_app/features/chat/chat_models.dart';
@@ -245,6 +246,71 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('عمر'), findsOneWidget);
       expect(find.text('خالد'), findsNothing);
+    });
+
+    group('in the real tab shell', () {
+      Future<GoRouter> openShell(WidgetTester tester) async {
+        final adapter = FakeAdapter()
+          ..on('GET', '/api/chats', FakeResponse(200, {
+            'conversations': [...mixed(), chat(id: 'u', name: 'يوسف', last: 'هلا', unread: 4)],
+          }));
+        adapter.on('GET', '/api/mobile/me', FakeResponse(200, {'user': meJson()}));
+        final overrides = await testOverrides(adapter, store: MemoryTokenStore('t1'));
+        final container = ProviderContainer(overrides: overrides);
+        addTearDown(container.dispose);
+        container.read(authControllerProvider);
+        await tester.pumpWidget(const SizedBox());
+        for (var i = 0; i < 50 && !container.read(authControllerProvider).isSignedIn; i++) {
+          await tester.pump(const Duration(milliseconds: 10));
+        }
+        final root = GlobalKey<NavigatorState>();
+        final router = GoRouter(
+          navigatorKey: root,
+          initialLocation: '/chats',
+          routes: [
+            StatefulShellRoute.indexedStack(
+              builder: (_, _, shell) => Scaffold(body: shell),
+              branches: [
+                StatefulShellBranch(routes: [GoRoute(path: '/home', builder: (_, _) => const Text('home-tab'))]),
+                StatefulShellBranch(routes: [GoRoute(path: '/chats', builder: (_, _) => const ChatsScreen())]),
+              ],
+            ),
+            GoRoute(
+              path: '/chats/:id',
+              parentNavigatorKey: root,
+              builder: (_, _) => const Scaffold(body: Text('chat-room')),
+            ),
+          ],
+        );
+        addTearDown(router.dispose);
+        await tester.pumpWidget(UncontrolledProviderScope(container: container, child: rtlRouterApp(router)));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('chats-chip-unread')));
+        await tester.pumpAndSettle();
+        expect(find.text('يوسف'), findsOneWidget);
+        expect(find.text('عمر'), findsNothing);
+        return router;
+      }
+
+      testWidgets('back from a chat keeps «غير مقروءة»', (tester) async {
+        final router = await openShell(tester);
+        router.push('/chats/u');
+        await tester.pumpAndSettle();
+        expect(find.text('chat-room'), findsOneWidget);
+        router.pop();
+        await tester.pumpAndSettle();
+        expect(find.text('يوسف'), findsOneWidget);
+        expect(find.text('عمر'), findsNothing);
+      });
+
+      testWidgets('another bottom tab and back opens on «الكل» again', (tester) async {
+        final router = await openShell(tester);
+        router.go('/home');
+        await tester.pumpAndSettle();
+        router.go('/chats');
+        await tester.pumpAndSettle();
+        expect(find.text('عمر'), findsOneWidget);
+      });
     });
 
     testWidgets('the days-left line shows only in the last 3 days', (tester) async {

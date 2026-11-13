@@ -73,15 +73,25 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> with WidgetsBindingOb
   /// to it reloads the list at once instead of showing what it had when the member left.
   bool? _shown;
 
+  /// The shell's tab while this list was shown, and whether it was left for another tab (not covered by a chat)
+  int? _shownTab;
+  bool _leftForTab = false;
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     final shown = TickerMode.valuesOf(context).enabled;
+    final tab = StatefulNavigationShell.maybeOf(context)?.currentIndex;
+    if (_shown != false && !shown) {
+      // Hidden: by another bottom tab (the shell's tab changed), or by a chat opened on top (it didn't)
+      _leftForTab = tab == null || tab != _shownTab;
+    }
     if (_shown == false && shown) {
-      // Back on Chats: it opens on «الكل» again
-      setState(() => _chip = ChatsChip.all);
+      // Back on Chats from another tab: it opens on «الكل» again. Back from a chat keeps the chip.
+      if (_leftForTab) setState(() => _chip = ChatsChip.all);
       WidgetsBinding.instance.addPostFrameCallback((_) => _refresh());
     }
+    if (shown) _shownTab = tab;
     _shown = shown;
   }
 

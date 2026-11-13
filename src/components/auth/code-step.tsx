@@ -178,7 +178,7 @@ export function CodeStep({
           <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-700">
             <Check className="size-4" aria-hidden />
           </span>
-          وصل الرمز عبر واتساب
+          أرسلنا الرمز عبر واتساب. افتح المحادثة من «نصيبك».
         </p>
       )}
 

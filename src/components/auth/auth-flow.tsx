@@ -149,7 +149,8 @@ export function AuthFlow({
       // `userExists` in this answer is ignored: only a verified code says whether the number is a member
       setWhatsapp(data.channel === "whatsapp");
       setResendIn(RESEND_SECONDS);
-      trackEvent("otp_requested", { context: "login" });
+      // The API context stays "login" (nothing says whether the number is registered); the event reports the page
+      trackEvent("otp_requested", { context: mode === "register" ? "register" : "login" });
       return null;
     } catch {
       return UNEXPECTED;

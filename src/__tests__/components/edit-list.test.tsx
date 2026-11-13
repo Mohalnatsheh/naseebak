@@ -59,6 +59,10 @@ interface MockOpts {
   guardianPut?: { status: number; body: unknown };
   /** PUT /api/profile waits for this */
   putGate?: Promise<void>;
+  /** POST /api/profile/update-request/withdraw answers this */
+  withdraw?: { status: number; body: unknown };
+  /** GET /api/profile answers after the first one: a stored value changed by a review, or a failed reload */
+  reloaded?: { profile?: Values; pending?: Values | null; fail?: boolean };
 }
 
 function mockApi({
@@ -70,16 +74,24 @@ function mockApi({
   guardian = null,
   guardianPut = { status: 200, body: { message: "ok" } },
   putGate,
+  withdraw = { status: 200, body: { success: true } },
+  reloaded,
 }: MockOpts = {}) {
+  let profileGets = 0;
+  let requestGets = 0;
   fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
     const url = String(input);
     const method = init?.method ?? "GET";
     if (url === "/api/profile" && method === "GET") {
-      return failProfile ? json({ error: "x" }, 500) : json({ user: { id: "u1", gender, country: "JO", profile } });
+      const later = profileGets++ > 0 && reloaded;
+      if (failProfile || (later && reloaded.fail)) return json({ error: "x" }, 500);
+      return json({ user: { id: "u1", gender, country: "JO", profile: (later && reloaded.profile) || profile } });
     }
     if (url === "/api/profile/update-request" && method === "GET") {
-      return json({ requests: pending ? [{ status: "PENDING", changes: pending }] : [] });
+      const now = requestGets++ > 0 && reloaded && "pending" in reloaded ? reloaded.pending : pending;
+      return json({ requests: now ? [{ status: "PENDING", changes: now }] : [] });
     }
+    if (url === "/api/profile/update-request/withdraw") return json(withdraw.body, withdraw.status);
     if (url === "/api/profile/update-request" && method === "POST") {
       const body = JSON.parse(String(init?.body));
       const prefsOnly = Object.keys(body.changes).every((k) => k.startsWith("pref"));
@@ -336,6 +348,50 @@ describe("EditList (auth_profile_redesign)", () => {
     await waitFor(() => expect(screen.getByRole("alert").textContent).toContain("فلا يمكن التعديل الآن"));
     expect(row("city")).toBeNull();
     expect(screen.queryByRole("region", { name: "شريط الحفظ" })).toBeNull();
+  });
+});
+
+describe("final fix wave", () => {
+  it("«سحب الطلب» on a request already reviewed (404) reloads the profile and says so, never «سُحب»", async () => {
+    mockApi({
+      pending: { city: "إربد" },
+      withdraw: { status: 404, body: { error: "لا يوجد طلب" } },
+      reloaded: { profile: { ...STORED, city: "إربد" }, pending: null },
+    });
+    render(<EditList />);
+    await ready();
+    fireEvent.click(screen.getByRole("button", { name: "سحب الطلب" }));
+    await waitFor(() => expect(screen.queryByText(/طلبك قيد المراجعة/)).toBeNull());
+    expect(screen.getByRole("status").textContent).toBe("تمت مراجعة طلبك بالفعل.");
+    expect(screen.queryByText("سُحب طلب التعديل.")).toBeNull();
+    // The approved value comes from the reload
+    expect(within(row("city")).getByText("إربد")).toBeTruthy();
+    expect(row("city").dataset.state).toBe("idle");
+    expect(fetchSpy.mock.calls.filter(([u, i]) => String(u) === "/api/profile" && !i?.method).length).toBe(2);
+  });
+
+  it("«سحب الطلب» failing (500) shows the server's error and keeps the request", async () => {
+    mockApi({ pending: { city: "إربد" }, withdraw: { status: 500, body: { error: "خطأ في الخادم" } } });
+    render(<EditList />);
+    await ready();
+    fireEvent.click(screen.getByRole("button", { name: "سحب الطلب" }));
+    await waitFor(() => expect(screen.getByText("خطأ في الخادم")).toBeTruthy());
+    expect(screen.getByText(/طلبك قيد المراجعة/)).toBeTruthy();
+    expect(screen.queryByText("سُحب طلب التعديل.")).toBeNull();
+  });
+
+  it("a failed reload after a save keeps the save's banner above LoadError", async () => {
+    mockApi({ reloaded: { fail: true } });
+    render(<EditList />);
+    await ready();
+    await editTwoRows();
+    save();
+    await waitFor(() => expect(screen.getByRole("alert").textContent).toContain("فلا يمكن التعديل الآن"));
+    const banner = screen.getByRole("status");
+    expect(banner.textContent).toContain("حُفظ التخصص.");
+    expect(banner.textContent).toContain("المدينة الجديدة أُرسلت للمراجعة");
+    // Above the LoadError
+    expect(banner.compareDocumentPosition(screen.getByRole("alert")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });
 

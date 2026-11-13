@@ -140,7 +140,7 @@ The server allows one `PENDING` review request at a time (`/api/profile/update-r
 **Code screen**
 - Six boxes, LTR; Arabic-Indic digits accepted; auto-submit at 6.
 - Line «أرسلنا رمزاً من 6 أرقام {عبر واتساب|برسالة نصية} إلى {masked phone}».
-- Website, WhatsApp countries: a small «وصل الرمز عبر واتساب» note.
+- Website, WhatsApp countries: a small «أرسلنا الرمز عبر واتساب. افتح المحادثة من «نصيبك».» note (it is shown as soon as the code is sent, so it never says the code arrived).
 - Row: «إعادة الإرسال بعد 0:42», which becomes the link «إعادة إرسال الرمز», plus «تغيير الرقم».
 - Wrong code:
   - boxes turn red and clear;

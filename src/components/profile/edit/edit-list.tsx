@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, ChevronLeft, ChevronRight, Clock, Loader2, Lock, UserPen, AlertCircle } from "lucide-react";
+import { CheckCircle2, ChevronLeft, ChevronRight, Clock, Info, Loader2, Lock, UserPen, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { LoadError } from "@/components/shared/load-error";
@@ -187,9 +187,37 @@ export function EditList() {
   }, [s.result]);
 
 
+  // The last save's (or withdrawal's) outcome: also above a failed reload, so the member knows what was saved or sent
+  const resultBanner = s.result && (
+    <div
+      ref={bannerRef}
+      tabIndex={-1}
+      role="status"
+      className={cn(
+        "outline-none",
+        "flex items-start gap-3 rounded-xl p-4 text-label font-normal leading-relaxed",
+        s.result.partial
+          ? "bg-amber-50 text-amber-800"
+          : s.result.neutral
+            ? "bg-muted text-foreground"
+            : "bg-emerald-50 text-emerald-800",
+      )}
+    >
+      {s.result.partial ? (
+        <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" aria-hidden />
+      ) : s.result.neutral ? (
+        <Info className="mt-0.5 h-5 w-5 shrink-0" aria-hidden />
+      ) : (
+        <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" aria-hidden />
+      )}
+      <span>{s.result.summary}</span>
+    </div>
+  );
+
   if (status === "failed") {
     return (
       <div className="space-y-4 py-8">
+        {resultBanner}
         <LoadError message="تعذّر تحميل بيانات ملفك، فلا يمكن التعديل الآن. يمكنك التحقق من الاتصال والمحاولة مرة أخرى." onRetry={s.reload} />
         <div className="text-center">
           <Button asChild variant="outline" className="h-11 rounded-xl">
@@ -231,21 +259,7 @@ export function EditList() {
         className="mb-2"
       />
 
-      {s.result && (
-        <div
-          ref={bannerRef}
-          tabIndex={-1}
-          role="status"
-          className={cn(
-            "outline-none",
-            "flex items-start gap-3 rounded-xl p-4 text-label font-normal leading-relaxed",
-            s.result.partial ? "bg-amber-50 text-amber-800" : "bg-emerald-50 text-emerald-800",
-          )}
-        >
-          {s.result.partial ? <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" aria-hidden /> : <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" aria-hidden />}
-          <span>{s.result.summary}</span>
-        </div>
-      )}
+      {resultBanner}
 
       {pendingKeys && (
         <div className="flex flex-col gap-3 rounded-xl bg-amber-50 p-4 text-amber-800 sm:flex-row sm:items-center">

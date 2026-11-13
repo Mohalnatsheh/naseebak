@@ -12,6 +12,7 @@ vi.mock("next-auth/react", () => ({ signIn }));
 vi.mock("@/lib/analytics", () => ({ trackEvent: vi.fn(), trackMetaEvent: vi.fn() }));
 
 import { AuthFlow } from "@/components/auth/auth-flow";
+import { trackEvent } from "@/lib/analytics";
 
 type Reply = { status?: number; body: unknown };
 type Routes = Record<string, Reply | Reply[]>;
@@ -80,6 +81,19 @@ describe("AuthFlow phone step", () => {
     expect(body.phone).toBe("962791234567");
   });
 
+  it("otp_requested reports the page (register or login) while send-otp keeps the login context", async () => {
+    const f = mockFetch({ "/api/auth/send-otp": SENT });
+    const { unmount } = render(<AuthFlow mode="register" />);
+    await sendCode();
+    expect(vi.mocked(trackEvent)).toHaveBeenCalledWith("otp_requested", { context: "register" });
+    unmount();
+    vi.mocked(trackEvent).mockClear();
+    render(<AuthFlow mode="login" />);
+    await sendCode();
+    expect(vi.mocked(trackEvent)).toHaveBeenCalledWith("otp_requested", { context: "login" });
+    expect(f.bodiesFor("/api/auth/send-otp").map((b) => b.context)).toEqual(["login", "login"]);
+  });
+
   it("send-otp 403 shows the server error under the phone field", async () => {
     mockFetch({ "/api/auth/send-otp": { status: 403, body: { error: "التسجيل مغلق حالياً. يرجى المحاولة لاحقاً." } } });
     render(<AuthFlow mode="login" />);
@@ -113,7 +127,7 @@ describe("AuthFlow phone step", () => {
 
 describe("AuthFlow code step", () => {
   it("pasting 6 digits into the first code box submits verify-otp", async () => {
-    const f = mockFetch({ "/api/auth/send-otp": SENT, "/api/auth/verify-otp": { body: { success: true, userExists: true } } });
+    const f = mockFetch({ "/api/auth/send-otp": SENT, "/api/auth/verify-otp": { body: { verified: true, userExists: true } } });
     render(<AuthFlow mode="login" />);
     await sendCode();
     await pasteCode("١٢٣٤٥٦");
@@ -121,7 +135,7 @@ describe("AuthFlow code step", () => {
   });
 
   it("typing the sixth digit submits once", async () => {
-    const f = mockFetch({ "/api/auth/send-otp": SENT, "/api/auth/verify-otp": { body: { success: true, userExists: true } } });
+    const f = mockFetch({ "/api/auth/send-otp": SENT, "/api/auth/verify-otp": { body: { verified: true, userExists: true } } });
     render(<AuthFlow mode="login" />);
     await sendCode();
     for (const [i, d] of ["1", "2", "3", "4", "5", "6"].entries()) {
@@ -151,6 +165,15 @@ describe("AuthFlow code step", () => {
     render(<AuthFlow mode="login" />);
     await sendCode();
     expect(screen.getByText(/أرسلنا رمزاً من 6 أرقام عبر واتساب إلى/)).toBeTruthy();
+    expect(screen.getByText("أرسلنا الرمز عبر واتساب. افتح المحادثة من «نصيبك».")).toBeTruthy();
+    expect(screen.queryByText(/وصل الرمز/)).toBeNull();
+  });
+
+  it("an SMS code shows no WhatsApp note", async () => {
+    mockFetch({ "/api/auth/send-otp": SENT });
+    render(<AuthFlow mode="login" />);
+    await sendCode();
+    expect(screen.queryByText(/افتح المحادثة من «نصيبك»/)).toBeNull();
   });
 
   it("the resend wait shows as m:ss", async () => {
@@ -161,7 +184,7 @@ describe("AuthFlow code step", () => {
   });
 
   it("existing member signs in and goes to callbackUrl", async () => {
-    mockFetch({ "/api/auth/send-otp": SENT, "/api/auth/verify-otp": { body: { success: true, userExists: true } } });
+    mockFetch({ "/api/auth/send-otp": SENT, "/api/auth/verify-otp": { body: { verified: true, userExists: true } } });
     render(<AuthFlow mode="login" callbackUrl="/dashboard/chats" />);
     await sendCode();
     await pasteCode("111111");
@@ -170,7 +193,7 @@ describe("AuthFlow code step", () => {
   });
 
   it("a failed sign-in after a verified code offers a new code at once, not the wrong-code line", async () => {
-    mockFetch({ "/api/auth/send-otp": SENT, "/api/auth/verify-otp": { body: { success: true, userExists: true } } });
+    mockFetch({ "/api/auth/send-otp": SENT, "/api/auth/verify-otp": { body: { verified: true, userExists: true } } });
     signIn.mockResolvedValue({ error: "CredentialsSignin" });
     render(<AuthFlow mode="login" />);
     await sendCode();
@@ -183,7 +206,7 @@ describe("AuthFlow code step", () => {
   });
 
   it("an outside callbackUrl falls back to the dashboard", async () => {
-    mockFetch({ "/api/auth/send-otp": SENT, "/api/auth/verify-otp": { body: { success: true, userExists: true } } });
+    mockFetch({ "/api/auth/send-otp": SENT, "/api/auth/verify-otp": { body: { verified: true, userExists: true } } });
     render(<AuthFlow mode="login" callbackUrl="https://evil.example/x" />);
     await sendCode();
     await pasteCode("111111");
@@ -194,7 +217,7 @@ describe("AuthFlow code step", () => {
 async function reachRegisterCard(props: { inviteCode?: string } = {}, extra: Routes = {}) {
   const f = mockFetch({
     "/api/auth/send-otp": SENT,
-    "/api/auth/verify-otp": { body: { success: true, userExists: false } },
+    "/api/auth/verify-otp": { body: { verified: true, userExists: false } },
     "/api/auth/register": { body: { message: "ok" } },
     "/api/referral/apply": { body: { ok: true } },
     ...extra,
@@ -313,6 +336,24 @@ describe("AuthFlow register card", () => {
     fireEvent.click(screen.getByRole("button", { name: "تغيير الرقم" }));
     expect(screen.getByRole("heading", { name: "ما رقم هاتفك؟" })).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "بياناتك الأساسية" })).toBeNull();
+  });
+
+  it("«تغيير الرقم» is disabled while the account is being created", async () => {
+    const f = await reachRegisterCard();
+    fireEvent.change(screen.getByLabelText("الاسم الأول"), { target: { value: "سامي" } });
+    fireEvent.change(screen.getByLabelText("اسم العائلة"), { target: { value: "خالد" } });
+    fireEvent.click(screen.getByRole("button", { name: /رجل/ }));
+    fireEvent.click(screen.getByRole("checkbox"));
+    // The register request never answers: the account is still being created
+    f.spy.mockImplementation(() => new Promise<Response>(() => {}));
+    expect((screen.getByRole("button", { name: "تغيير الرقم" }) as HTMLButtonElement).disabled).toBe(false);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "إنشاء الحساب" }));
+    });
+    const change = screen.getByRole("button", { name: "تغيير الرقم" }) as HTMLButtonElement;
+    expect(change.disabled).toBe(true);
+    fireEvent.click(change);
+    expect(screen.getByRole("heading", { name: "بياناتك الأساسية" })).toBeTruthy();
   });
 
   it("the old login page's handoff opens the register card (old links)", async () => {

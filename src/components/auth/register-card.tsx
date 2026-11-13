@@ -280,7 +280,8 @@ export function RegisterCard({
         <button
           type="button"
           onClick={onChangeNumber}
-          className="inline-flex min-h-11 items-center text-label font-bold text-primary hover:underline underline-offset-4"
+          disabled={submitting}
+          className="inline-flex min-h-11 items-center text-label font-bold text-primary hover:underline underline-offset-4 disabled:pointer-events-none disabled:opacity-50"
         >
           تغيير الرقم
         </button>

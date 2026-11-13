@@ -27,6 +27,8 @@ export interface EditSaveOutcome {
   summary: string;
   /** Something failed: the banner reads as a warning */
   partial: boolean;
+  /** Neither a success nor a warning (the request was already reviewed): a plain line */
+  neutral?: boolean;
 }
 
 const json = (body: unknown) => ({ headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -55,6 +57,7 @@ export type GuardianBody = Omit<StoredGuardian, "shareConsent"> & { shareConsent
 const SINGLE = "أعزب/عزباء";
 const GUARDIAN_SAVED = "حُفظت بيانات وليّ الأمر.";
 const WITHDRAWN = "سُحب طلب التعديل.";
+const ALREADY_REVIEWED = "تمت مراجعة طلبك بالفعل.";
 
 const listOf = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []);
 
@@ -238,10 +241,15 @@ export function useEditSession({ religionEnabled, showDealbreakers }: { religion
     setResult(null);
     try {
       const res = await fetch("/api/profile/update-request/withdraw", { method: "POST" });
-      // 404: already reviewed or withdrawn; either way nothing is pending any more
-      if (res.ok || res.status === 404) {
+      if (res.ok) {
         setPendingChanges(null);
         setResult({ summary: WITHDRAWN, partial: false });
+      } else if (res.status === 404) {
+        // Nothing pending any more: the request was reviewed (or withdrawn elsewhere), so the stored values may have
+        // changed. Reload them and the pending state; the unsaved ticks stay, as the other unsaved changes do
+        setResult({ summary: ALREADY_REVIEWED, partial: false, neutral: true });
+        await load({ dealbreakers: true });
+        void refreshProfile();
       } else {
         const data = await res.json().catch(() => ({}));
         setWithdrawError(typeof data.error === "string" && data.error ? data.error : "تعذّر سحب الطلب. يمكنك المحاولة مرة أخرى.");
@@ -251,7 +259,7 @@ export function useEditSession({ religionEnabled, showDealbreakers }: { religion
     } finally {
       setWithdrawing(false);
     }
-  }, []);
+  }, [load, refreshProfile]);
 
   /** Saves the guardian at once (as the legacy edit page's step 5). Returns the server's refusal, or null */
   const saveGuardian = useCallback(async (body: GuardianBody): Promise<string | null> => {

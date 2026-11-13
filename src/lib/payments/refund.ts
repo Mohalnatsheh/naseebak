@@ -30,7 +30,7 @@ export async function applyRefund(args: {
 }): Promise<RefundResult> {
   const payment = await db.payment.findUnique({
     where: { id: args.paymentId },
-    select: { id: true, status: true, userId: true, planName: true, amount: true, currency: true, chargeCurrency: true, proSubscriptionId: true },
+    select: { id: true, status: true, userId: true, planName: true, amount: true, currency: true, chargeCurrency: true, proSubscriptionId: true, bonusCredits: true },
   });
   if (!payment) return "not_found";
   if (payment.status === "REFUNDED") return "already";
@@ -58,7 +58,8 @@ export async function applyRefund(args: {
     });
     if (claimed.count !== 1) return null;
 
-    let creditsToDeduct = pkg?.credits ?? 0;
+    // A sale offer's bonus (Payment.bonusCredits) goes back with the package
+    let creditsToDeduct = (pkg?.credits ?? 0) + (payment.bonusCredits ?? 0);
     if (proPlan) {
       // Every grant made from this payment and not taken back yet, in the same transaction as the claim
       const grants = await tx.proCreditGrant.findMany({

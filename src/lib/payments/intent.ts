@@ -57,6 +57,8 @@ export function payPagePath(paymentId: string, token: string, from: "app" | "web
 export function paymentIntentParams(
   pkg: Pick<CreditPackage, "id" | "name" | "credits" | "chargeCurrency" | "chargeAmount">,
   ids: { paymentId: string; userId: string },
+  /** Sale offer bonus fixed at checkout (lib/payments/offer); metadata credits = package + bonus */
+  bonus = 0,
 ): Stripe.PaymentIntentCreateParams {
   return {
     amount: pkg.chargeAmount,
@@ -64,7 +66,14 @@ export function paymentIntentParams(
     automatic_payment_methods: { enabled: true },
     description: productName(pkg),
     statement_descriptor_suffix: STATEMENT_SUFFIX,
-    metadata: { app: CHECKOUT_APP, paymentId: ids.paymentId, userId: ids.userId, packageId: pkg.id, credits: String(pkg.credits) },
+    metadata: {
+      app: CHECKOUT_APP,
+      paymentId: ids.paymentId,
+      userId: ids.userId,
+      packageId: pkg.id,
+      credits: String(pkg.credits + bonus),
+      ...(bonus > 0 && { bonusCredits: String(bonus) }),
+    },
   };
 }
 

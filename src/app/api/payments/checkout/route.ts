@@ -11,7 +11,8 @@ import { newPayToken, payPagePath, paymentIntentParams, usesArabicCheckout } fro
 import { MOCK_SESSION_PREFIX, paymentsMockEnabled } from "@/lib/payments/mock";
 import { toCountry } from "@/lib/countries";
 import { getCountrySettings, purchasesAvailable } from "@/lib/countries/settings";
-import { jodChargingFor } from "@/lib/settings";
+import { activeOfferFor, jodChargingFor } from "@/lib/settings";
+import { bonusFor } from "@/lib/payments/offer";
 
 /** Stripe's error fields worth logging (never the full request) */
 function stripeErrorInfo(error: unknown) {
@@ -57,7 +58,17 @@ export async function POST(request: Request) {
     // returned a session: a failed Stripe call never leaves a "pending" checkout behind
     const paymentId = randomUUID();
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-    const metadata = { app: CHECKOUT_APP, paymentId, userId: session.user.id, packageId: pkg.id, credits: String(pkg.credits) };
+    // Sale offer (lib/payments/offer): fixed now, so a checkout opened inside the window keeps its bonus
+    const offer = await activeOfferFor(true);
+    const bonus = offer ? bonusFor(pkg.credits, offer.percent) : 0;
+    const metadata = {
+      app: CHECKOUT_APP,
+      paymentId,
+      userId: session.user.id,
+      packageId: pkg.id,
+      credits: String(pkg.credits + bonus),
+      ...(bonus > 0 && { bonusCredits: String(bonus) }),
+    };
 
     let sessionId: string | null = null;
     let intentId: string | null = null;
@@ -67,7 +78,7 @@ export async function POST(request: Request) {
     // If Stripe refuses it, the member gets the usual checkout below instead — never an error.
     if (!paymentsMockEnabled() && (await usesArabicCheckout(me?.phone))) {
       try {
-        const intent = await getStripe().paymentIntents.create(paymentIntentParams(pkg, { paymentId, userId: session.user.id }));
+        const intent = await getStripe().paymentIntents.create(paymentIntentParams(pkg, { paymentId, userId: session.user.id }, bonus));
         intentId = intent.id;
         payToken = newPayToken();
         const path = payPagePath(paymentId, payToken, hosted ? "app" : "web");
@@ -141,7 +152,8 @@ export async function POST(request: Request) {
         stripeSessionId: sessionId,
         stripePaymentIntentId: intentId,
         payToken,
-        description: `${sessionId?.startsWith(MOCK_SESSION_PREFIX) ? "[MOCK] " : ""}${packPurchaseDescription(pkg.credits)}`,
+        bonusCredits: bonus > 0 ? bonus : null,
+        description: `${sessionId?.startsWith(MOCK_SESSION_PREFIX) ? "[MOCK] " : ""}${packPurchaseDescription(pkg.credits + bonus)}`,
       },
     });
 

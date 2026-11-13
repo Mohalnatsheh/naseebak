@@ -31,7 +31,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const payment = await db.payment.findFirst({
     where: { id, userId },
-    select: { id: true, status: true, stripeSessionId: true, planName: true, amount: true, currency: true, createdAt: true },
+    select: { id: true, status: true, stripeSessionId: true, planName: true, amount: true, currency: true, createdAt: true, bonusCredits: true },
   });
   if (!payment || !payment.stripeSessionId?.startsWith(MOCK_SESSION_PREFIX)) return NextResponse.json({ error: "Not a mock checkout" }, { status: 404 });
 
@@ -51,7 +51,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     id: payment.stripeSessionId,
     payment_status: "paid",
     payment_intent: null,
-    metadata: { app: CHECKOUT_APP, paymentId: payment.id, userId, packageId: pkg.id, credits: String(pkg.credits) },
+    metadata: {
+      app: CHECKOUT_APP,
+      paymentId: payment.id,
+      userId,
+      packageId: pkg.id,
+      credits: String(pkg.credits + (payment.bonusCredits ?? 0)),
+      ...(payment.bonusCredits ? { bonusCredits: String(payment.bonusCredits) } : {}),
+    },
   } as unknown as Stripe.Checkout.Session;
   return NextResponse.json({ result: await fulfilCheckoutSession(session) });
 }

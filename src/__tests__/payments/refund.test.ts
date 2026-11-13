@@ -63,6 +63,21 @@ describe("applyRefund", () => {
     expect(credits.recordCredit).toHaveBeenCalledWith(expect.objectContaining({ delta: -2 }), db);
   });
 
+  it("a purchase made during a sale offer gives back the package and its bonus", async () => {
+    db.payment.findUnique.mockResolvedValue({ id: "p1", status: "COMPLETED", userId: "u1", planName: "launch_10", amount: 3, currency: "JOD", bonusCredits: 5 });
+    db.user.findUnique.mockResolvedValue({ matchCredits: 20 });
+    await applyRefund({ paymentId: "p1" });
+    expect(db.user.update).toHaveBeenCalledWith({ where: { id: "u1" }, data: { matchCredits: 5 } });
+    expect(db.payment.findUnique.mock.calls[0][0].select).toMatchObject({ bonusCredits: true });
+  });
+
+  it("a bonus purchase refunded from a small balance floors at 0", async () => {
+    db.payment.findUnique.mockResolvedValue({ id: "p1", status: "COMPLETED", userId: "u1", planName: "launch_10", amount: 3, currency: "JOD", bonusCredits: 5 });
+    db.user.findUnique.mockResolvedValue({ matchCredits: 12 });
+    await applyRefund({ paymentId: "p1" });
+    expect(db.user.update).toHaveBeenCalledWith({ where: { id: "u1" }, data: { matchCredits: 0 } });
+  });
+
   it("deducts once when admin route and webhook both arrive", async () => {
     db.payment.updateMany.mockResolvedValue({ count: 0 });
     expect(await applyRefund({ paymentId: "p1" })).toBe("already");

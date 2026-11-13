@@ -15,6 +15,7 @@ import { PRO_PAGE_PATH } from "@/lib/pro/plans";
 import { LoadError } from "@/components/shared/load-error";
 import { PageHeader } from "@/components/shared/page-header";
 import { MemberAvatar } from "@/components/shared/member-avatar";
+import { SignOutDialog } from "@/components/shared/sign-out-dialog";
 
 interface Row {
   href: string;
@@ -41,15 +42,23 @@ function ageFrom(dob: unknown): number | null {
 export default function AccountPage() {
   const { profile, completeness, counts, unreadCount, loading, country, refreshProfile } = useDashboardData();
   const [signingOut, setSigningOut] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  // Redesign on: ask first. Off (or no counts): sign out at once, as before
+  const confirmSignOut = counts?.dashboardRedesign === true;
   const [retrying, setRetrying] = useState(false);
   const female = profile?.gender === "FEMALE";
   const g = (masculine: string, feminine: string) => (female ? feminine : masculine);
 
   const signOutButton = (
+    <>
     <button
       type="button"
       disabled={signingOut}
       onClick={() => {
+        if (confirmSignOut) {
+          setConfirmOpen(true);
+          return;
+        }
         setSigningOut(true);
         // A failed sign-out (offline) gives the button back instead of a spinner that never ends
         signOutAndUnlinkPush("/login").catch(() => setSigningOut(false));
@@ -62,6 +71,8 @@ export default function AccountPage() {
       {signingOut ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <LogOut className="h-4 w-4" aria-hidden />}
       تسجيل الخروج
     </button>
+    {confirmSignOut && <SignOutDialog open={confirmOpen} onOpenChange={setConfirmOpen} />}
+    </>
   );
 
   // Same width as the loaded page, so nothing jumps when it fills in (QA WA-06)

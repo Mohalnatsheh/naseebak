@@ -32,6 +32,7 @@ import { useDashboardData } from "@/contexts/dashboard-context";
 import { PRO_PAGE_PATH } from "@/lib/pro/plans";
 import { matchesHref } from "@/lib/matches/links";
 import { MemberAvatar } from "@/components/shared/member-avatar";
+import { SignOutDialog } from "@/components/shared/sign-out-dialog";
 import { navBadges, type BadgeTone } from "@/lib/nav-badges";
 
 /** Badge colours (design review P2-4 / DS-16): red only for "act now", navy for plain counts, gold for good news */
@@ -143,6 +144,7 @@ export function DashboardSidebar() {
   const pathname = usePathname();
   const matchesTab = useSearchParams()?.get("tab") === "matches";
   const [collapsed, setCollapsed] = useState(false);
+  const [signOutOpen, setSignOutOpen] = useState(false);
   const { profile, unreadCount, counts, loading } = useDashboardData();
 
   const userData = profile ? {
@@ -196,7 +198,12 @@ export function DashboardSidebar() {
   // A chat room is full screen on phones
   const hideBottomBar = /^\/dashboard\/chats\/[^/]+/.test(pathname);
 
+  const confirmSignOut = counts?.dashboardRedesign === true;
   const handleSignOut = () => {
+    if (confirmSignOut) {
+      setSignOutOpen(true);
+      return;
+    }
     void signOutAndUnlinkPush("/login");
   };
 
@@ -304,6 +311,7 @@ export function DashboardSidebar() {
           </div>
           {!collapsed && <span>تسجيل الخروج</span>}
         </button>
+        {confirmSignOut && <SignOutDialog open={signOutOpen} onOpenChange={setSignOutOpen} />}
       </div>
     </>
   );

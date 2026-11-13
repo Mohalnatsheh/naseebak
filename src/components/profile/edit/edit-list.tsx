@@ -83,6 +83,13 @@ function inAppLink(e: MouseEvent): { anchor: HTMLAnchorElement; href: string } |
   return { anchor, href: `${url.pathname}${url.search}${url.hash}` };
 }
 
+/** The row a deep link asks for: `?field=KEY`, or the old wizard's `?step=N` */
+function linkedRowKey(): string | null {
+  const params = new URLSearchParams(window.location.search);
+  const step = Number(params.get("step"));
+  return params.get("field") ?? (step ? fieldForOldStep(step) : null);
+}
+
 /**
  * The profile edit list (`/dashboard/profile/edit`, switch `auth_profile_redesign`): every field in grouped rows,
  * one editor per row, one «حفظ» for all. Empty fields save at once, changes to stored values go to review, partner
@@ -98,10 +105,10 @@ export function EditList() {
   const showDealbreakers = counts?.flags?.mutualSuggestions === true;
   const s = useEditSession({ religionEnabled, showDealbreakers });
   const { status, gender, country, stored, changes, shown, pendingKeys, pendingChanges, dirty, plan } = s;
-  const [editing, setEditing] = useState<string | null>(null);
+  // The open editor: a row key, GUARDIAN_ROW_KEY, or null. Undefined until the member opens or closes one: the
+  // deep link decides meanwhile
+  const [opened, setOpened] = useState<string | null | undefined>(undefined);
   const [leaveTo, setLeaveTo] = useState<string | null>(null);
-  const [guardianOpen, setGuardianOpen] = useState(false);
-  const deepLinked = useRef(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const bannerRef = useRef<HTMLDivElement>(null);
 
@@ -112,6 +119,17 @@ export function EditList() {
   );
   const visible = useMemo(() => new Set(sections.flatMap((sec) => sec.fields.map((f) => f.key))), [sections]);
   const stateOf = (field: EditField) => combinedState(field, stored, changes, pendingKeys);
+  // ?field=KEY (or the old ?step=N) opens that row's editor once the profile is loaded, unless it is hidden or locked
+  const linkedKey = useMemo(() => (status === "ready" ? linkedRowKey() : null), [status]);
+  const linkedField = linkedKey ? editField(linkedKey) : undefined;
+  const linkedOpen =
+    linkedKey === GUARDIAN_ROW_KEY
+      ? GUARDIAN_ROW_KEY
+      : linkedField && visible.has(linkedField.key) && !["pending", "locked"].includes(stateOf(linkedField))
+        ? linkedField.key
+        : null;
+  const editing = opened === undefined ? linkedOpen : opened;
+  const setEditing = setOpened;
   const activeShown = activeDealbreakers(s.dealbreakers, dealbreakerPrefsFor(shown.religion as string | null | undefined, shown), gender);
 
   // The bar counts rows (city + area is one), each once: review wins over «فوراً»; hidden rows (children of a
@@ -163,23 +181,6 @@ export function EditList() {
     bannerRef.current?.focus({ preventScroll: true });
   }, [s.result]);
 
-  // ?field=KEY (or the old ?step=N) opens that row's editor once the profile is loaded
-  useEffect(() => {
-    if (status !== "ready" || deepLinked.current) return;
-    deepLinked.current = true;
-    const params = new URLSearchParams(window.location.search);
-    const step = Number(params.get("step"));
-    const key = params.get("field") ?? (step ? fieldForOldStep(step) : null);
-    if (key === GUARDIAN_ROW_KEY) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- opens the linked editor once, after the load
-      setGuardianOpen(true);
-      return;
-    }
-    const field = key ? editField(key) : undefined;
-    if (!field || !visible.has(field.key)) return;
-    const state = combinedState(field, stored, changes, pendingKeys);
-    if (state !== "pending" && state !== "locked") setEditing(field.key);
-  }, [status, visible, stored, changes, pendingKeys]);
 
   if (status === "failed") {
     return (
@@ -198,7 +199,7 @@ export function EditList() {
   }
   if (status === "loading") return <PageLoading width="max-w-2xl" label="جارٍ تحميل بيانات الملف الشخصي…" />;
 
-  const editingField = editing ? editField(editing) : undefined;
+  const editingField = editing && editing !== GUARDIAN_ROW_KEY ? editField(editing) : undefined;
   const pendingLabels = [...new Set((pendingKeys ?? []).map(rowKeyOf))]
     .map((k) => editField(k)?.label(gender, country))
     .filter(Boolean)
@@ -321,7 +322,7 @@ export function EditList() {
             <button
               type="button"
               className="relative flex min-h-14 w-full items-center gap-3 px-4 py-3 text-start transition-colors hover:bg-muted/50"
-              onClick={() => setGuardianOpen(true)}
+              onClick={() => setEditing(GUARDIAN_ROW_KEY)}
             >
               <span className="min-w-0 flex-1 text-body text-ink">بيانات وليّ الأمر</span>
               <span className={cn("max-w-[45%] truncate text-label font-normal", s.guardian?.parentName ? "text-ink" : "font-semibold text-primary")}>
@@ -357,14 +358,14 @@ export function EditList() {
         />
       )}
 
-      {guardianOpen && (
+      {editing === GUARDIAN_ROW_KEY && (
         <GuardianEditor
           stored={s.guardian}
           country={country}
           introMode={introMode}
           myPhone={me?.phone}
           onSave={s.saveGuardian}
-          onClose={() => setGuardianOpen(false)}
+          onClose={() => setEditing(null)}
         />
       )}
 

@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, type MockInstance } from "vitest"
 import { render, screen, waitFor, fireEvent, within } from "@testing-library/react";
 
 const router = vi.hoisted(() => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }));
-const ctx = vi.hoisted(() => ({ refreshProfile: vi.fn(async () => {}) }));
+const ctx = vi.hoisted(() => ({ refreshProfile: vi.fn(async () => {}), religionEnabled: false }));
 const settings = vi.hoisted(() => ({ redesign: false }));
 
 vi.mock("next/navigation", () => ({ useRouter: () => router, usePathname: () => "/dashboard/profile/edit" }));
@@ -11,7 +11,7 @@ vi.mock("@/contexts/dashboard-context", () => ({
     refreshProfile: ctx.refreshProfile,
     profile: { phone: "962777000001" },
     country: "JO",
-    counts: { religionEnabled: false, flags: { introRequests: true, chat: true, mutualSuggestions: true, authRedesign: true } },
+    counts: { religionEnabled: ctx.religionEnabled, flags: { introRequests: true, chat: true, mutualSuggestions: true, authRedesign: true } },
   }),
 }));
 vi.mock("@/lib/settings", () => ({ getAuthRedesignEnabled: async () => settings.redesign }));
@@ -121,6 +121,7 @@ beforeEach(() => {
   router.push.mockClear();
   router.replace.mockClear();
   ctx.refreshProfile.mockClear();
+  ctx.religionEnabled = false;
   settings.redesign = false;
   window.history.replaceState(null, "", "/dashboard/profile/edit");
 });
@@ -450,6 +451,63 @@ describe("EditList fix round 1", () => {
     expect(within(dialog).getByText("تجاهل التعديلات؟")).toBeTruthy();
     fireEvent.click(within(dialog).getByRole("button", { name: "تجاهل" }));
     expect(router.push).toHaveBeenCalledWith("/dashboard/suggestions");
+  });
+});
+
+describe("fix round 2", () => {
+  it("a Muslim-only change dropped for a Christian doesn't linger after the save", async () => {
+    ctx.religionEnabled = true;
+    mockApi({ profile: { ...STORED, religion: "مسلم", beard: null } });
+    render(<EditList />);
+    await ready();
+    openRow("beard");
+    pick("غير ملتحٍ");
+    done();
+    expect(row("beard").dataset.state).toBe("fill");
+    openRow("religion");
+    pick("مسيحي");
+    done();
+    // Hidden for a Christian, and never sent
+    expect(row("beard")).toBeNull();
+    save();
+    await waitFor(() => expect(screen.getByRole("status").textContent).toContain("الديانة الجديدة أُرسلت للمراجعة"));
+    expect(calls()).toEqual(["POST /api/profile/update-request"]);
+    expect(bodyOf("/api/profile/update-request", "POST")).toEqual({ changes: { religion: "مسيحي" } });
+    // The reloaded profile shows: the dropped beard answer is gone
+    expect(row("beard").dataset.state).toBe("idle");
+    expect(within(row("beard")).getByText("إضافة")).toBeTruthy();
+    expect(screen.queryByRole("region", { name: "شريط الحفظ" })).toBeNull();
+  });
+
+  it.each([
+    ["normalized here when the server sends no row", { message: "ok" }, "962791234567"],
+    ["as the server stored it", { parentInfo: { parentPhone: "+962791234567" } }, "+962791234567"],
+  ])("after a guardian save the phone is kept %s, so a consent-only save sends the stored contact", async (_l, putBody, phone) => {
+    mockApi({ guardianPut: { status: 200, body: putBody } });
+    render(<EditList />);
+    await ready();
+    openRow("parentName");
+    let dialog = screen.getByRole("dialog");
+    fireEvent.change(within(dialog).getByLabelText("اسم ولي الأمر"), { target: { value: "خالد الخطيب" } });
+    fireEvent.change(within(dialog).getByLabelText("رقم هاتف ولي الأمر"), { target: { value: "0791234567" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "الأب" }));
+    fireEvent.change(within(dialog).getByLabelText("العنوان"), { target: { value: "عمّان، الجبيهة" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "حفظ" }));
+    await waitFor(() => expect(screen.getByRole("status").textContent).toContain("حُفظت بيانات وليّ الأمر."));
+    openRow("parentName");
+    dialog = screen.getByRole("dialog");
+    expect((within(dialog).getByLabelText("رقم هاتف ولي الأمر") as HTMLInputElement).value).toBe(phone);
+    fireEvent.click(within(dialog).getByRole("checkbox"));
+    fireEvent.click(within(dialog).getByRole("button", { name: "حفظ" }));
+    await waitFor(() => expect(fetchSpy.mock.calls.filter(([u, i]) => String(u) === "/api/profile/parent-info" && i?.method === "PUT")).toHaveLength(2));
+    const second = fetchSpy.mock.calls.filter(([u, i]) => String(u) === "/api/profile/parent-info" && i?.method === "PUT")[1];
+    expect(JSON.parse(String(second[1]?.body))).toEqual({
+      parentName: "خالد الخطيب",
+      parentPhone: phone,
+      relationship: "father",
+      address: "عمّان، الجبيهة",
+      shareConsent: true,
+    });
   });
 });
 

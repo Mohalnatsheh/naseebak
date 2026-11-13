@@ -17,6 +17,7 @@ import {
 } from "@/lib/profile-edit-state";
 import type { DealbreakerPrefs } from "@/lib/matching/dealbreaker-summary";
 import { sharedGet } from "@/lib/shared-get";
+import { normalizePhone } from "@/lib/phone";
 
 type Gender = "MALE" | "FEMALE";
 type Values = Record<string, unknown>;
@@ -77,7 +78,13 @@ export function useEditSession({ religionEnabled, showDealbreakers }: { religion
   const [stored, setStored] = useState<Values>({});
   const [gender, setGender] = useState<Gender>("MALE");
   const [country, setCountry] = useState<CountryCode>("JO");
-  const [changes, setChangesState] = useState<Values>({});
+  // The unsaved changes, and the children count «أعزب/عزباء» replaced (whether the member had changed it, and to
+  // what): one state, so every update is a pure function of the previous one
+  const [edit, setEdit] = useState<{ changes: Values; autoChildren: { had: boolean; value: unknown } | null }>({
+    changes: {},
+    autoChildren: null,
+  });
+  const changes = edit.changes;
   const [storedDealbreakers, setStoredDealbreakers] = useState<string[]>([]);
   const [dealbreakers, setDealbreakers] = useState<string[]>([]);
   const [pendingChanges, setPendingChanges] = useState<Values | null>(null);
@@ -86,8 +93,6 @@ export function useEditSession({ religionEnabled, showDealbreakers }: { religion
   const [withdrawing, setWithdrawing] = useState(false);
   const [withdrawError, setWithdrawError] = useState("");
   const [guardian, setGuardian] = useState<StoredGuardian | null>(null);
-  // The children count «أعزب/عزباء» replaced: whether the member had changed it, and to what
-  const autoChildren = useRef<{ had: boolean; value: unknown } | null>(null);
   // The ticks right now, for a save that ends after they changed
   const ticksRef = useRef<string[]>([]);
   useEffect(() => {
@@ -154,30 +159,28 @@ export function useEditSession({ religionEnabled, showDealbreakers }: { religion
     setReloadKey((k) => k + 1);
   }, []);
 
-  const setChanges = useCallback(
-    (patch: Values) => {
-      setResult(null);
-      const next = { ...changes, ...patch };
+  const setChanges = useCallback((patch: Values) => {
+    setResult(null);
+    setEdit((prev) => {
+      const next = { ...prev.changes, ...patch };
+      let autoChildren = prev.autoChildren;
       if ("maritalStatus" in patch) {
         if (patch.maritalStatus === SINGLE) {
-          autoChildren.current ??= { had: "childrenCount" in changes, value: changes.childrenCount };
+          autoChildren ??= { had: "childrenCount" in prev.changes, value: prev.changes.childrenCount };
           next.childrenCount = 0;
-        } else if (autoChildren.current) {
-          const { had, value } = autoChildren.current;
-          if (had) next.childrenCount = value;
+        } else if (autoChildren) {
+          if (autoChildren.had) next.childrenCount = autoChildren.value;
           else delete next.childrenCount;
-          autoChildren.current = null;
+          autoChildren = null;
         }
       }
-      setChangesState(next);
-    },
-    [changes],
-  );
+      return { changes: next, autoChildren };
+    });
+  }, []);
   const setChange = useCallback((key: string, value: unknown) => setChanges({ [key]: value }), [setChanges]);
 
   const revert = useCallback(() => {
-    autoChildren.current = null;
-    setChangesState({});
+    setEdit({ changes: {}, autoChildren: null });
     setDealbreakers(storedDealbreakers);
   }, [storedDealbreakers]);
 
@@ -209,10 +212,15 @@ export function useEditSession({ religionEnabled, showDealbreakers }: { religion
         const r = await runSave(plan, SAVE_API, note?.trim() || undefined);
         const labelOf = (key: string) => editField(key)?.label(gender, country) ?? key;
         setResult({ summary: saveSummary(r, labelOf), partial: r.failed.length > 0 || !!r.error });
-        // Only what the server took leaves `changes`: a failed change, or one made while the save ran, stays
-        const taken = new Set([...r.saved, ...r.sentForReview]);
-        setChangesState((prev) => Object.fromEntries(Object.entries(prev).filter(([k, v]) => !taken.has(k) || v !== sentChanges[k])));
-        if (taken.has("maritalStatus")) autoChildren.current = null;
+        // Only a failed change, or one made while the save ran, stays. The rest leaves `changes`, also what the
+        // plan never sent (set back to stored, or dropped by `sendableChanges`), so the reloaded values show
+        const failed = new Set(r.failed);
+        setEdit((prev) => {
+          const kept = Object.fromEntries(
+            Object.entries(prev.changes).filter(([k, v]) => failed.has(k) || !(k in sentChanges) || v !== sentChanges[k]),
+          );
+          return { changes: kept, autoChildren: "maritalStatus" in kept ? prev.autoChildren : null };
+        });
         await load({ dealbreakers: r.failed.includes(DEALBREAKERS_KEY) || ticksRef.current !== sentTicks });
         void refreshProfile();
       } finally {
@@ -249,14 +257,20 @@ export function useEditSession({ religionEnabled, showDealbreakers }: { religion
         const data = await res.json().catch(() => ({}));
         return typeof data.error === "string" && data.error ? data.error : "تعذّر حفظ بيانات وليّ الأمر. يمكنك المحاولة مرة أخرى.";
       }
-      setGuardian({ ...body });
+      // As the server stored it (the phone normalized), so a later consent-only save matches «contact unchanged»
+      const data = await res.json().catch(() => ({}));
+      const pi = data?.parentInfo;
+      setGuardian({
+        ...body,
+        parentPhone: typeof pi?.parentPhone === "string" && pi.parentPhone ? pi.parentPhone : normalizePhone(body.parentPhone, country),
+      });
       setResult({ summary: GUARDIAN_SAVED, partial: false });
       void refreshProfile();
       return null;
     } catch {
       return "حدث خطأ في الاتصال. يمكنك المحاولة مرة أخرى.";
     }
-  }, [refreshProfile]);
+  }, [refreshProfile, country]);
 
   return {
     status,

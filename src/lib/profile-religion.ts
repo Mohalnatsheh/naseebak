@@ -73,6 +73,44 @@ export function muslimOnlyClears(dealbreakers: readonly string[] | null | undefi
   };
 }
 
+type StoredMuslimOnly = {
+  hijab?: boolean | null;
+  niqab?: boolean | null;
+  beard?: boolean | null;
+  sect?: string | null;
+  prefSect?: string[] | null;
+  prefHijab?: string | null;
+  prefBeard?: string | null;
+  dealbreakers?: string[] | null;
+};
+
+/**
+ * Only the clears a stored profile actually needs: a field already empty is left out, and `dealbreakers` only when
+ * the stored list holds a Muslim-only key. Autosaves use it so they never rewrite a field another save may be
+ * writing at the same time (the final `PUT /api/profile` sets the dealbreakers).
+ */
+export function neededMuslimOnlyClears(stored: Maybe<StoredMuslimOnly>): Partial<ReturnType<typeof muslimOnlyClears>> {
+  if (!stored) return {};
+  const all = muslimOnlyClears(stored.dealbreakers);
+  const out: Partial<ReturnType<typeof muslimOnlyClears>> = {};
+  for (const key of ["hijab", "niqab", "beard", "sect", "prefHijab", "prefBeard"] as const) {
+    if (stored[key] != null) out[key] = null;
+  }
+  if ((stored.prefSect ?? []).length > 0) out.prefSect = all.prefSect;
+  if ((stored.dealbreakers ?? []).length !== all.dealbreakers.length) out.dealbreakers = all.dealbreakers;
+  return out;
+}
+
+/**
+ * The preferences a «شرط أساسي» is checked against. For a Christian the Muslim-only ones read as empty, so their
+ * conditions never count. Pass the STORED religion when saving: a pending change to «مسيحي» must not drop the stored
+ * keys before it is approved (approval's `muslimOnlyClears` removes them).
+ */
+export function dealbreakerPrefsFor<T extends object>(religion: string | null | undefined, prefs: T): T {
+  if (religion !== RELIGION_CHRISTIAN) return prefs;
+  return { ...prefs, prefHijab: "", prefBeard: "", prefSect: [] };
+}
+
 /** Drops `religion` and `prefReligion` from a write while the switch is off. */
 export function stripReligionUnlessEnabled<T>(enabled: boolean, data: T): T {
   if (enabled || !isPlainObject(data)) return data;

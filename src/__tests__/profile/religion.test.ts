@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  dealbreakerPrefsFor,
   PREF_RELIGION_VALUES,
   RELIGION_VALUES,
   muslimOnlyClears,
@@ -12,6 +13,7 @@ import {
   stripMuslimOnlyForChristian,
   stripReligionUnlessEnabled,
 } from "@/lib/profile-religion";
+import { activeDealbreakers } from "@/lib/matching/dealbreaker-summary";
 import { describeOption, OPTION_VALUES, religionFact, selfLabel } from "@/lib/profile-options";
 import { defaultCountrySettings, publicCountryDetail } from "@/lib/countries/settings";
 import { profileDraftSchema, profileSchema, profileUpdateRequestSchema } from "@/lib/validations/profile";
@@ -113,6 +115,31 @@ it("validation accepts the values and refuses others", () => {
   expect(profileSchema.safeParse({ ...base, religion: "يهودي" }).success).toBe(false);
   expect(profileDraftSchema.safeParse({ prefReligion: "كل الأديان" }).success).toBe(false);
   expect(profileUpdateRequestSchema.safeParse({ changes: { religion: "مسيحي" } }).success).toBe(true);
+});
+it("an update request can't clear «الديانة», but can clear the preference", () => {
+  expect(profileUpdateRequestSchema.safeParse({ changes: { religion: "" } }).success).toBe(false);
+  expect(profileUpdateRequestSchema.safeParse({ changes: { religion: null } }).success).toBe(false);
+  expect(profileUpdateRequestSchema.safeParse({ changes: { religion: "يهودي" } }).success).toBe(false);
+  expect(profileUpdateRequestSchema.safeParse({ changes: {} }).success).toBe(true);
+  expect(profileUpdateRequestSchema.safeParse({ changes: { prefReligion: null } }).success).toBe(true);
+  // still strict: unknown keys are refused
+  expect(profileUpdateRequestSchema.safeParse({ changes: { religion: "مسلم", nope: 1 } }).success).toBe(false);
+});
+
+describe("dealbreakerPrefsFor", () => {
+  const form = { prefHijab: "نعم", prefBeard: "", prefSect: ["سني"], prefCity: ["عمّان"] };
+  it("masks the Muslim-only preferences only for a Christian", () => {
+    expect(dealbreakerPrefsFor("مسيحي", form)).toEqual({ prefHijab: "", prefBeard: "", prefSect: [], prefCity: ["عمّان"] });
+    expect(dealbreakerPrefsFor("مسلم", form)).toBe(form);
+    expect(dealbreakerPrefsFor(null, form)).toBe(form);
+  });
+  it("a Muslim with a pending change to «مسيحي» still saves the hijab key (masked by the stored religion)", () => {
+    const stored = "مسلم";
+    const formReligion = "مسيحي";
+    expect(activeDealbreakers(["hijab", "city"], dealbreakerPrefsFor(stored, form), "MALE")).toEqual(["city", "hijab"]);
+    // what the hidden toggles see once «مسيحي» is picked
+    expect(activeDealbreakers(["hijab", "city"], dealbreakerPrefsFor(formReligion, form), "MALE")).toEqual(["city"]);
+  });
 });
 
 describe("country detail for the app", () => {

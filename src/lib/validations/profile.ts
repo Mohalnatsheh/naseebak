@@ -258,7 +258,6 @@ const updateChangeFields = profileDraftFields
     religiosity: religiosityEnum,
     smokingStatus: smokingEnum.or(z.literal("")),
     sect: sectEnum.or(z.literal("")),
-    religion: religionEnum.or(z.literal("")),
     cookingAbility: cookingEnum.or(z.literal("")),
     height: numberField(100, 250, "الطول يجب أن يكون بين 100 و250 سم"),
     weight: numberField(30, 300, "الوزن يجب أن يكون بين 30 و300 كغ"),
@@ -278,7 +277,8 @@ export const profileUpdateChangesSchema = z.strictObject(
   Object.fromEntries(
     Object.entries(updateChangeFields).map(([key, field]) => [key, (field as z.ZodType).nullable().optional()]),
   ) as { [K in keyof typeof updateChangeFields]: z.ZodOptional<z.ZodNullable<(typeof updateChangeFields)[K]>> },
-);
+  // «الديانة» can be changed but never cleared: no "" and no null (a null would read «مسلم» behind the team's back)
+).extend({ religion: religionEnum.optional() });
 
 /** POST /api/profile/update-request body */
 export const profileUpdateRequestSchema = z.object({

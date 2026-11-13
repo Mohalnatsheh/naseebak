@@ -8,7 +8,7 @@ import { applyNiqabRule } from "@/lib/profile-veil";
 import { stripSectUnlessLebanon } from "@/lib/profile-sect";
 import { getReligionEnabled } from "@/lib/settings";
 import {
-  RELIGION_CHRISTIAN, muslimOnlyClears, religionOf, stripMuslimOnlyForChristian, stripReligionUnlessEnabled,
+  RELIGION_CHRISTIAN, neededMuslimOnlyClears, religionOf, stripMuslimOnlyForChristian, stripReligionUnlessEnabled,
 } from "@/lib/profile-religion";
 
 export async function PATCH(request: Request) {
@@ -108,8 +108,10 @@ export async function PATCH(request: Request) {
       if (changed.length > 0) return NextResponse.json(needsReviewBody(changed), { status: 409 });
       if (Object.keys(updateData).length === 0) return NextResponse.json({ message: "تم حفظ المسودة" });
     } else if (effectiveReligion === RELIGION_CHRISTIAN) {
-      // A Christian during the setup: clear the Muslim-only answers saved before (dealbreaker checks read them)
-      Object.assign(updateData, muslimOnlyClears(existing?.dealbreakers));
+      // A Christian during the setup: clear the Muslim-only answers saved before (dealbreaker checks read them).
+      // Only what is actually set: every autosave read is a little stale, and rewriting `dealbreakers` from it
+      // could overwrite the final PUT /api/profile's list
+      Object.assign(updateData, neededMuslimOnlyClears(existing));
     }
 
     await db.profile.upsert({

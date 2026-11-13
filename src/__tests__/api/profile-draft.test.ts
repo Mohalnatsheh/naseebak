@@ -140,12 +140,32 @@ describe("PATCH /api/profile/draft: «الديانة»", () => {
     const res = await patch({ religion: "مسيحي", beard: true, prefHijab: "نعم", prefReligion: "لا مانع" });
     expect(res.status).toBe(200);
     const { create, update } = db.profile.upsert.mock.calls[0][0];
-    const cleared = {
-      religion: "مسيحي", prefReligion: "لا مانع", hijab: null, niqab: null, beard: null, prefHijab: null, prefSect: [],
-      dealbreakers: ["age"],
-    };
-    expect(update).toMatchObject(cleared);
+    // Only what is stored gets cleared: hijab and the hijab condition
+    const cleared = { religion: "مسيحي", prefReligion: "لا مانع", hijab: null, dealbreakers: ["age"] };
+    expect(update).toEqual(cleared);
     expect(create).toMatchObject(cleared);
+  });
+
+  it("clears every stored Muslim-only answer, and nothing that is already empty", async () => {
+    flags.religion = true;
+    db.profile.findUnique.mockResolvedValue({
+      ...stored, isComplete: false, hijab: false, niqab: false, beard: null, sect: "سني", prefSect: ["سني"],
+      prefHijab: "لا", prefBeard: null, dealbreakers: ["sect", "age"],
+    });
+    expect((await patch({ religion: "مسيحي" })).status).toBe(200);
+    expect(db.profile.upsert.mock.calls[0][0].update).toEqual({
+      religion: "مسيحي", hijab: null, niqab: null, sect: null, prefSect: [], prefHijab: null, dealbreakers: ["age"],
+    });
+  });
+
+  it("a Christian's autosave with nothing left to clear never writes dealbreakers (no race with the final save)", async () => {
+    flags.religion = true;
+    db.profile.findUnique.mockResolvedValue({
+      ...stored, isComplete: false, religion: "مسيحي", hijab: null, niqab: null, beard: null, sect: null, prefSect: [],
+      prefHijab: null, prefBeard: null, dealbreakers: ["age", "city"],
+    });
+    expect((await patch({ job: "مهندس" })).status).toBe(200);
+    expect(db.profile.upsert.mock.calls[0][0].update).toEqual({ job: "مهندس" });
   });
 
   it("drops religion while the switch is off", async () => {

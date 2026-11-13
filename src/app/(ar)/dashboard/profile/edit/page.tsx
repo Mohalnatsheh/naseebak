@@ -39,7 +39,7 @@ import { splitProfileEdit, buildFillBody } from "@/lib/profile-edit-split";
 import { forViewer } from "@/lib/gendered-copy";
 import { VEIL_CHOICES, veilChoice, veilFromChoice } from "@/lib/profile-veil";
 import { PREF_SECT_VALUES, SECT_VALUES } from "@/lib/profile-sect";
-import { MUSLIM_ONLY_FIELDS, PREF_RELIGION_ANY, PREF_RELIGION_SAME, PREF_RELIGION_VALUES, RELIGION_CHRISTIAN, RELIGION_VALUES, religionOf, sectAsked, showsDealbreakerHint } from "@/lib/profile-religion";
+import { dealbreakerPrefsFor, MUSLIM_ONLY_FIELDS, PREF_RELIGION_ANY, PREF_RELIGION_SAME, PREF_RELIGION_VALUES, RELIGION_CHRISTIAN, RELIGION_VALUES, religionOf, sectAsked, showsDealbreakerHint } from "@/lib/profile-religion";
 import { PageLoading } from "@/components/shared/page-loading";
 import { sharedGet } from "@/lib/shared-get";
 import { PageHeader } from "@/components/shared/page-header";
@@ -645,7 +645,7 @@ export default function ProfileEditPage() {
           fetch("/api/profile/dealbreakers", {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ keys: activeDealbreakers(dealbreakers, dealbreakerPrefs, gender) }),
+            body: JSON.stringify({ keys: activeDealbreakers(dealbreakers, savedDealbreakerPrefs, gender) }),
           })
         );
       }
@@ -690,8 +690,11 @@ export default function ProfileEditPage() {
   // The button counts what it sends for review when there is a review; the fills are saved with it
   const buttonCount = willNeedReview ? reviewedCount : changedCount;
   const partnerGender = oppositeGender(gender);
-  // A Christian's hidden Muslim-only preferences never count as «شرط أساسي»
-  const dealbreakerPrefs = christian ? { ...form, prefHijab: "", prefBeard: "", prefSect: [] } : form;
+  // A Christian's hidden Muslim-only preferences never count as «شرط أساسي» (what the toggles show)
+  const dealbreakerPrefs = dealbreakerPrefsFor(form.religion, form);
+  // What the save sends follows the STORED religion: a change to «مسيحي» waits for review, and the approval clears
+  // the Muslim-only keys; dropping them now would lose them even if the change is refused
+  const savedDealbreakerPrefs = dealbreakerPrefsFor(originalForm.religion, form);
   /** "شرط أساسي" chip for one preference; disabled until that preference is filled in. */
   const dealbreaker = (key: DealbreakerKey, fieldId: string) =>
     showDealbreakers ? (

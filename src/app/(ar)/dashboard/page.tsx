@@ -20,6 +20,7 @@ import { ProBadge } from "@/components/shared/pro-badge";
 import { ProIntroCard, proIntroShown } from "@/components/payments/pro-intro-card";
 import { MemberAvatar } from "@/components/shared/member-avatar";
 import { BannerSlot, requestsWaiting } from "@/components/shared/banner-slot";
+import { HomeV2 } from "@/components/dashboard/home-v2";
 
 /** Local time in Jordan and Saudi Arabia (both UTC+3 all year), whatever the device clock says */
 function ammanHour(): number {
@@ -41,6 +42,15 @@ function getArabicDate(country: CountryCode) {
  * guardian consent → profile strength (only while it's not complete). Phones: one column. Every number comes from the server (/api/me/counts, /api/chats).
  */
 export default function DashboardPage() {
+  const { loading, counts } = useDashboardData();
+  // Switch dashboard_redesign (2026-11-13): only one of the two homes mounts, so the top-up runs once. While the
+  // switches load, today's home shows its skeleton (its effects wait for `loading`)
+  if (!loading && counts?.dashboardRedesign) return <HomeV2 />;
+  return <LegacyHome />;
+}
+
+/** Today's home, unchanged (the switch off) */
+function LegacyHome() {
   const { profile, completeness, counts, unreadCount, loading, profileFailed, countsFailed, refreshProfile, refreshUnread, country } = useDashboardData();
   const [retrying, setRetrying] = useState(false);
   // Why nothing new came ("weekly_cap" | "no_candidates" | "pending" | null), from page 1 of /api/suggestions

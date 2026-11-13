@@ -31,7 +31,10 @@ export type DeleteEntryMode = "use" | "upsell" | null;
 /** What a chat GET answer says about deletions (any of it may be absent: older pages, older servers) */
 export type DeleteFields = { hiddenIds?: string[]; deletedIds?: string[]; clearedBefore?: string | null };
 
-type Ask = { kind: "message"; message: UiMessage } | { kind: "clear"; scope: DeleteScope | null };
+type Ask =
+  | { kind: "message"; message: UiMessage }
+  | { kind: "clear"; scope: DeleteScope | null }
+  | { kind: "choice"; message: UiMessage };
 
 /** The later of two ISO times (either may be null) */
 function laterOf(a: string | null, b: string | null | undefined): string | null {
@@ -172,6 +175,15 @@ export function useChatDelete({
     else void deleteMessage(m, "me");
   }
 
+  /**
+   * From the WhatsApp-style selection bar: the offer (non-Pro), or one dialog «حذف الرسالة؟» whose choice deletes at
+   * once (no second confirm). «حذف لدى الجميع» only on my own live message in a chat I can still write in.
+   */
+  function requestDeleteChoice(m: UiMessage) {
+    if (mode === "upsell") return setUpsell(DELETE_PRO_ONLY);
+    if (mode === "use") setAsk({ kind: "choice", message: m });
+  }
+
   /** From the header: the offer (non-Pro), or the choice «مسح لديّ» / «مسح لدى الجميع» */
   function requestClear() {
     if (mode === "upsell") return setUpsell(DELETE_PRO_ONLY);
@@ -205,11 +217,22 @@ export function useChatDelete({
           void clearChat(scope);
         }}
       />
+      <DeleteMessageChoiceDialog
+        open={ask?.kind === "choice"}
+        // Read when shown: a chat that closed meanwhile drops «لدى الجميع» (as «مسح المحادثة» does)
+        canEveryone={ask?.kind === "choice" && ask.message.mine && canEveryone && !ask.message.deleted}
+        returnFocus={returnFocus}
+        onClose={() => setAsk(null)}
+        onChoose={(scope) => {
+          if (ask?.kind === "choice") void deleteMessage(ask.message, scope);
+          setAsk(null);
+        }}
+      />
       <DeleteUpsellDialog text={upsell} onClose={() => setUpsell(null)} returnFocus={returnFocus} />
     </>
   );
 
-  return { settle, onDeleted, onCleared, requestDelete, requestClear, dialogs };
+  return { settle, onDeleted, onCleared, requestDelete, requestDeleteChoice, requestClear, dialogs };
 }
 
 /** «مسح المحادثة»: first the choice, then its confirm text (one dialog, two steps) */
@@ -268,6 +291,47 @@ function ClearChatDialog({
           )}
           <Button variant="ghost" onClick={onClose} className="min-h-11 flex-1 sm:flex-none">
             تراجع
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/** «حذف الرسالة؟» (selection bar): «حذف لدى الجميع» (when allowed), «حذف لديّ», «إلغاء». A choice deletes at once */
+function DeleteMessageChoiceDialog({
+  open,
+  canEveryone,
+  returnFocus,
+  onChoose,
+  onClose,
+}: {
+  open: boolean;
+  canEveryone: boolean;
+  returnFocus?: RefObject<HTMLElement | null>;
+  onChoose: (scope: DeleteScope) => void;
+  onClose: () => void;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent dir="rtl" className="text-right sm:max-w-md" onCloseAutoFocus={returnFocus ? returnFocusTo(returnFocus) : undefined}>
+        <DialogHeader className="text-right sm:text-right">
+          <DialogTitle className="text-lg">حذف الرسالة؟</DialogTitle>
+          <DialogDescription className="text-right leading-relaxed">
+            {canEveryone ? "يمكنك حذفها من عندك فقط، أو لديك ولدى الطرف الآخر." : "ستُحذف من عندك فقط، وتبقى لدى الطرف الآخر."}
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter className="gap-2 sm:flex-row-reverse sm:justify-start">
+          {canEveryone && (
+            <Button variant="destructive" onClick={() => onChoose("everyone")} className="min-h-11 flex-1 sm:flex-none">
+              حذف لدى الجميع
+            </Button>
+          )}
+          <Button variant="outline" onClick={() => onChoose("me")} className="min-h-11 flex-1 sm:flex-none">
+            حذف لديّ
+          </Button>
+          <Button variant="ghost" onClick={onClose} className="min-h-11 flex-1 sm:flex-none">
+            إلغاء
           </Button>
         </DialogFooter>
       </DialogContent>

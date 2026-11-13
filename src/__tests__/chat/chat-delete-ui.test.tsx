@@ -29,6 +29,8 @@ import { MessageBubble } from "@/components/chat/message-bubble";
 import type { MessageActions } from "@/components/chat/message-menu";
 import type { UiMessage } from "@/components/chat/chat-utils";
 import { ChatRoom } from "@/components/chat/chat-room";
+import { useChatDelete, type DeleteEntryMode } from "@/components/chat/delete-dialogs";
+import { useEffect, useRef, useState } from "react";
 
 class RO {
   observe() {}
@@ -346,5 +348,95 @@ describe("chat room: delete for Pro", () => {
     await waitFor(() => expect(fetchMock.mock.calls.some(([u]) => String(u).startsWith("/api/chats/c1?before="))).toBe(true));
     const olderUrl = String(fetchMock.mock.calls.find(([u]) => String(u).startsWith("/api/chats/c1?before="))![0]);
     expect(olderUrl).toBe(`/api/chats/c1?before=${encodeURIComponent(T1)}`);
+  });
+});
+
+// ── requestDeleteChoice: one dialog, no second confirm (the WhatsApp-style selection bar) ─────────────────────
+
+function ChoiceHarness({ mode, canEveryone, target }: { mode: DeleteEntryMode; canEveryone: boolean; target: UiMessage }) {
+  const [messages, setMessages] = useState<UiMessage[]>([target]);
+  const messagesRef = useRef(messages);
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+  const hasMoreRef = useRef(false);
+  const d = useChatDelete({
+    conversationId: "c1",
+    mode,
+    canEveryone,
+    messagesRef,
+    setMessages,
+    setHasMore: () => {},
+    hasMoreRef,
+    onProRequired: () => {},
+    onRefused: () => {},
+  });
+  return (
+    <>
+      <button type="button" onClick={() => d.requestDeleteChoice(target)}>
+        اختيار الحذف
+      </button>
+      {d.dialogs}
+    </>
+  );
+}
+
+function choiceSetup(mode: DeleteEntryMode, target: UiMessage, canEveryone = true) {
+  const fetchMock = vi.fn(async () => new Response(JSON.stringify({ ok: true }), { status: 200 }));
+  vi.stubGlobal("fetch", fetchMock);
+  render(<ChoiceHarness mode={mode} canEveryone={canEveryone} target={target} />);
+  fireEvent.click(screen.getByRole("button", { name: "اختيار الحذف" }));
+  return fetchMock;
+}
+
+describe("requestDeleteChoice", () => {
+  it("my message in an open chat: both choices; «حذف لدى الجميع» posts once with no second dialog", async () => {
+    const fetchMock = choiceSetup("use", message({ mine: true }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText("حذف الرسالة؟")).toBeTruthy();
+    expect(within(dialog).getByRole("button", { name: "حذف لديّ" })).toBeTruthy();
+    expect(within(dialog).getByRole("button", { name: "إلغاء" })).toBeTruthy();
+    fireEvent.click(within(dialog).getByRole("button", { name: "حذف لدى الجميع" }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe("/api/chats/c1/messages/m1/delete");
+    expect(JSON.parse(String(init.body))).toEqual({ scope: "everyone" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+
+  it("«حذف لديّ» posts scope me", async () => {
+    const fetchMock = choiceSetup("use", message({ mine: true }));
+    fireEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "حذف لديّ" }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    expect(JSON.parse(String((fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1].body))).toEqual({ scope: "me" });
+  });
+
+  it("the partner's message, my closed chat, or my trace: only «حذف لديّ»", async () => {
+    for (const [target, open] of [
+      [message(), true],
+      [message({ mine: true }), false],
+      [message({ mine: true, deleted: true }), true],
+    ] as const) {
+      choiceSetup("use", target, open);
+      const dialog = await screen.findByRole("dialog");
+      expect(within(dialog).getByRole("button", { name: "حذف لديّ" })).toBeTruthy();
+      expect(within(dialog).queryByRole("button", { name: "حذف لدى الجميع" })).toBeNull();
+      cleanup();
+    }
+  });
+
+  it("«إلغاء» closes and sends nothing", async () => {
+    const fetchMock = choiceSetup("use", message({ mine: true }));
+    fireEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "إلغاء" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("upsell: opens the Pro offer and sends nothing", async () => {
+    const fetchMock = choiceSetup("upsell", message({ mine: true }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText("حذف الرسائل ومسح المحادثة متاح لأعضاء Pro")).toBeTruthy();
+    expect(within(dialog).getByRole("link").getAttribute("href")).toBe("/dashboard/pro");
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

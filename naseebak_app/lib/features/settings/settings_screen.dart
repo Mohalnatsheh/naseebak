@@ -11,9 +11,12 @@ import '../../core/localization/digits.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/brand_kit.dart';
 import '../../shared/widgets/common.dart';
+import '../../shared/widgets/grouped_section.dart';
 import '../home/counts.dart';
+import '../pro/pro_badge.dart';
 import '../pro/pro_repository.dart';
-import '../pro/pro_section.dart' show proActiveText;
+import '../profile/profile_repository.dart';
+import '../pro/pro_section.dart' show proPlanLabels;
 
 /// The pause dialog's Pro line (a renewing subscription)
 String pauseProLine(DateTime? end) =>
@@ -97,53 +100,102 @@ class AccountScreen extends ConsumerWidget {
         ? showPlans(pro, payments)
         : payments && remembered != null && (remembered.canBuy || remembered.isPro);
     final proActive = pro?.isPro ?? remembered?.isPro ?? false;
-    Widget tile(IconData icon, String title, VoidCallback onTap, {Color? color, String? subtitle}) => ListTile(
-          minVerticalPadding: 12,
-          leading: Icon(icon, color: color ?? AppColors.navy),
-          title: Text(title, style: TextStyle(color: color, fontWeight: FontWeight.w600)),
-          subtitle: subtitle == null ? null : Text(subtitle),
-          trailing: const Icon(Icons.chevron_right, color: AppColors.muted),
-          onTap: onTap,
-        );
+    final profile = ref.watch(myProfileProvider).valueOrNull;
+    final isPro = proActive || (ref.watch(countsProvider).valueOrNull?.isPro ?? false);
+    final planLabel = proActive ? proPlanLabels[pro?.plan] : null;
+    final name = me == null ? '' : '${me.firstName} ${me.lastName}'.trim();
+    final age = _ageOf(profile?.field('dateOfBirth'));
+    final headline = age == null ? name : '$name، $age';
+    final completeness = profile?.completeness;
     return Scaffold(
       appBar: AppBar(title: const Text('حسابي')),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(AppSpace.lg),
         children: [
-          Card(
-            child: Column(children: [
-              tile(Icons.person_outline_rounded, 'ملفي الشخصي', () => context.push('/profile'),
-                  subtitle: me == null ? null : '${me.firstName} ${me.lastName}'),
-              const Divider(),
-              tile(Icons.account_balance_wallet_outlined, payments ? 'الرصيد والباقات' : 'الرصيد',
-                  () => context.push('/credits'),
-                  subtitle: me == null ? null : 'رصيدك: ${me.credits}'),
-              if (showPro) ...[
-                const Divider(),
-                KeyedSubtree(
-                  key: const Key('menu-pro'),
-                  child: tile(Icons.workspace_premium_rounded, 'عضوية Pro', () => context.push('/pro'),
-                      subtitle: proActive ? proActiveText : null),
+          Material(
+            key: const Key('account-profile-card'),
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(AppRadius.md),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: () => context.push('/profile'),
+              child: Padding(
+                padding: const EdgeInsets.all(AppSpace.lg),
+                child: Row(
+                  children: [
+                    // Always the member's own initial: a photo is never fetched here
+                    MemberAvatar(name: me?.firstName ?? '', size: 56),
+                    const SizedBox(width: AppSpace.md),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          NameWithBadge(
+                            isPro: isPro,
+                            child: Text(headline, style: AppText.headline.copyWith(color: AppColors.ink)),
+                          ),
+                          Text(
+                            completeness == null ? 'الملف الشخصي' : 'الملف الشخصي · مكتمل $completeness%',
+                            style: AppText.labelRegular.copyWith(color: AppColors.muted),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(Icons.chevron_left_rounded, color: AppColors.muted),
+                  ],
                 ),
-              ],
-              const Divider(),
-              tile(Icons.card_giftcard_rounded, 'دعوة الأصدقاء', () => context.push('/referral')),
-            ]),
+              ),
+            ),
           ),
-          const SizedBox(height: 16),
-          Card(
-            child: Column(children: [
-              tile(Icons.support_agent_rounded, 'الدعم الفني', () => context.push('/support')),
-              const Divider(),
-              tile(Icons.settings_outlined, 'الإعدادات', () => context.push('/settings')),
-            ]),
-          ),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpace.xl),
+          GroupedSection(rows: [
+            GroupedRow(
+              icon: Icons.account_balance_wallet_outlined,
+              title: 'الرصيد',
+              value: me == null ? null : '${me.credits}',
+              onTap: () => context.push('/credits'),
+            ),
+            if (showPro)
+              GroupedRow(
+                rowKey: const Key('menu-pro'),
+                icon: Icons.workspace_premium_rounded,
+                title: 'عضوية Pro',
+                value: planLabel,
+                onTap: () => context.push('/pro'),
+              ),
+          ]),
+          const SizedBox(height: AppSpace.xl),
+          GroupedSection(rows: [
+            GroupedRow(icon: Icons.tune_rounded, title: 'ما أبحث عنه', onTap: () => context.push('/profile/preferences')),
+            GroupedRow(
+              icon: Icons.photo_library_outlined,
+              title: 'صوري',
+              value: 'مخفية حتى التوافق',
+              onTap: () => context.push('/profile/photos'),
+            ),
+            GroupedRow(icon: Icons.card_giftcard_rounded, title: 'ادعُ صديقاً', onTap: () => context.push('/referral')),
+          ]),
+          const SizedBox(height: AppSpace.xl),
+          GroupedSection(rows: [
+            GroupedRow(icon: Icons.settings_outlined, title: 'الإعدادات', onTap: () => context.push('/settings')),
+            GroupedRow(icon: Icons.support_agent_rounded, title: 'المساعدة والدعم', onTap: () => context.push('/support')),
+          ]),
+          const SizedBox(height: AppSpace.md),
           Center(child: Text('تغيير الدولة متاح قبل تسجيل الدخول فقط.', style: AppText.caption.copyWith(color: AppColors.muted))),
         ],
       ),
     );
   }
+}
+
+/// Whole years since [dob] (an ISO string from `/api/profile`); null when unknown or out of range
+int? _ageOf(Object? dob) {
+  final d = dob is String ? DateTime.tryParse(dob) : null;
+  if (d == null) return null;
+  final now = DateTime.now();
+  var age = now.year - d.year;
+  if (now.month < d.month || (now.month == d.month && now.day < d.day)) age--;
+  return age >= 18 && age < 100 ? age : null;
 }
 
 /// «حذف الحساب»: what happens, and an optional reason (`POST /api/profile/delete` `{ reason }`, like the website).

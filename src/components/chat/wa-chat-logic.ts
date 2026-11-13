@@ -6,22 +6,24 @@ import { menuItemsForActions, type MessageActions } from "./message-menu";
 export const SWIPE_REPLY_PX = 64;
 
 /**
- * A swipe on a bubble goes toward the screen's centre. In RTL my messages sit on the right (start), so inward is
- * left (negative dx) and the partner's, on the left, inward is right (positive dx); mirrored in LTR.
+ * A swipe on a bubble goes toward the screen's centre. `side` is where the bubble sits (logical): in the WhatsApp
+ * layout mine are on the end side (left in RTL), so inward is right (positive dx), and the partner's on the start side
+ * (right in RTL), inward is left (negative dx); mirrored in LTR.
  */
 export function swipeReplyStep({
   dx,
   dy,
   rtl,
-  mine,
+  side,
 }: {
   dx: number;
   dy: number;
   rtl: boolean;
-  mine: boolean;
+  side: "start" | "end";
 }): "none" | "track" | "reply" {
   if (Math.abs(dy) > Math.abs(dx)) return "none";
-  const inwardIsNegative = rtl === mine;
+  // On the right edge (start in RTL, end in LTR) inward is a negative dx
+  const inwardIsNegative = rtl === (side === "start");
   const inward = inwardIsNegative ? -dx : dx;
   if (inward <= 0) return "none";
   return inward >= SWIPE_REPLY_PX ? "reply" : "track";

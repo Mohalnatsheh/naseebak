@@ -66,6 +66,24 @@ describe("WaMessageBubble", () => {
     expect(bubbleOf(theirs.container).className).toContain("bg-card");
   });
 
+  it("mine sit on the end side (left in Arabic) and the partner's on the start side, tails and pills to match", () => {
+    const mine = setup(message({ reactions: [{ emoji: "❤️", mine: false }] }));
+    const row = mine.container.querySelector<HTMLElement>("[data-message-id]")!;
+    expect(row.className).toContain("justify-end");
+    expect(bubbleOf(mine.container).className).toContain("rounded-se-none");
+    expect(mine.getByTestId("bubble-tail").className).toContain("-end-2");
+    expect(mine.getByTestId("reaction-pill").className).toContain("end-2");
+    // the reply arrow / ⓘ column comes before the bubble in the reversed row: toward the centre
+    expect(row.firstElementChild!.className).toContain("flex-row-reverse");
+    cleanup();
+    const theirs = setup(message({ mine: false }));
+    const row2 = theirs.container.querySelector<HTMLElement>("[data-message-id]")!;
+    expect(row2.className).toContain("justify-start");
+    expect(bubbleOf(theirs.container).className).toContain("rounded-ss-none");
+    expect(theirs.getByTestId("bubble-tail").className).toContain("-start-2");
+    expect(row2.firstElementChild!.className).not.toContain("flex-row-reverse");
+  });
+
   it("a tail and 8 px on the first of a run; 2 px inside a run", () => {
     const first = setup(message());
     expect(first.queryByTestId("bubble-tail")).not.toBeNull();
@@ -177,22 +195,27 @@ describe("WaMessageBubble", () => {
 
   it("a touch swipe inward past the threshold replies (and cancels the long press); a mouse drag does not", () => {
     vi.useFakeTimers();
-    // jsdom lays out LTR: the partner's bubble sits on the right there, so inward is a negative dx
+    // jsdom lays out LTR: the partner's bubble sits on the start side, the left there, so inward is a positive dx
     const m = message({ mine: false });
     const { container, props } = setup(m);
     const bubble = bubbleOf(container);
     fireEvent.pointerDown(bubble, { pointerType: "mouse", clientX: 200, clientY: 50 });
-    fireEvent.pointerMove(bubble, { pointerType: "mouse", clientX: 100, clientY: 50 });
-    fireEvent.pointerUp(bubble, { pointerType: "mouse", clientX: 100, clientY: 50 });
+    fireEvent.pointerMove(bubble, { pointerType: "mouse", clientX: 300, clientY: 50 });
+    fireEvent.pointerUp(bubble, { pointerType: "mouse", clientX: 300, clientY: 50 });
     expect(props.actions!.onReply).not.toHaveBeenCalled();
     fireEvent.pointerDown(bubble, { pointerType: "touch", clientX: 200, clientY: 50 });
-    fireEvent.pointerMove(bubble, { pointerType: "touch", clientX: 170, clientY: 50 });
-    fireEvent.pointerUp(bubble, { pointerType: "touch", clientX: 170, clientY: 50 });
+    fireEvent.pointerMove(bubble, { pointerType: "touch", clientX: 230, clientY: 50 });
+    fireEvent.pointerUp(bubble, { pointerType: "touch", clientX: 230, clientY: 50 });
     expect(props.actions!.onReply).not.toHaveBeenCalled();
+    // outward does nothing
     fireEvent.pointerDown(bubble, { pointerType: "touch", clientX: 200, clientY: 50 });
     fireEvent.pointerMove(bubble, { pointerType: "touch", clientX: 120, clientY: 50 });
-    act(() => vi.advanceTimersByTime(450));
     fireEvent.pointerUp(bubble, { pointerType: "touch", clientX: 120, clientY: 50 });
+    expect(props.actions!.onReply).not.toHaveBeenCalled();
+    fireEvent.pointerDown(bubble, { pointerType: "touch", clientX: 200, clientY: 50 });
+    fireEvent.pointerMove(bubble, { pointerType: "touch", clientX: 280, clientY: 50 });
+    act(() => vi.advanceTimersByTime(450));
+    fireEvent.pointerUp(bubble, { pointerType: "touch", clientX: 280, clientY: 50 });
     expect(props.actions!.onReply).toHaveBeenCalledTimes(1);
     expect(props.onSelect).not.toHaveBeenCalled();
   });

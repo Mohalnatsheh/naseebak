@@ -34,27 +34,27 @@ const actions = (o: Partial<MessageActions> = {}): MessageActions => ({
 
 describe("swipeReplyStep", () => {
   it("threshold is 64", () => expect(SWIPE_REPLY_PX).toBe(64));
-  it("rtl partner (left side): inward is right", () => {
-    expect(swipeReplyStep({ dx: 70, dy: 5, rtl: true, mine: false })).toBe("reply");
-    expect(swipeReplyStep({ dx: 30, dy: 2, rtl: true, mine: false })).toBe("track");
-    expect(swipeReplyStep({ dx: 70, dy: 80, rtl: true, mine: false })).toBe("none");
-    expect(swipeReplyStep({ dx: -70, dy: 0, rtl: true, mine: false })).toBe("none");
-    expect(swipeReplyStep({ dx: 64, dy: 0, rtl: true, mine: false })).toBe("reply");
+  it("rtl end side (left: my bubbles in the WhatsApp layout): inward is right", () => {
+    expect(swipeReplyStep({ dx: 70, dy: 5, rtl: true, side: "end" })).toBe("reply");
+    expect(swipeReplyStep({ dx: 30, dy: 2, rtl: true, side: "end" })).toBe("track");
+    expect(swipeReplyStep({ dx: 70, dy: 80, rtl: true, side: "end" })).toBe("none");
+    expect(swipeReplyStep({ dx: -70, dy: 0, rtl: true, side: "end" })).toBe("none");
+    expect(swipeReplyStep({ dx: 64, dy: 0, rtl: true, side: "end" })).toBe("reply");
   });
-  it("rtl mine (right side): inward is left", () => {
-    expect(swipeReplyStep({ dx: -70, dy: 5, rtl: true, mine: true })).toBe("reply");
-    expect(swipeReplyStep({ dx: -30, dy: 2, rtl: true, mine: true })).toBe("track");
-    expect(swipeReplyStep({ dx: -70, dy: 80, rtl: true, mine: true })).toBe("none");
-    expect(swipeReplyStep({ dx: 70, dy: 0, rtl: true, mine: true })).toBe("none");
+  it("rtl start side (right: the partner's bubbles): inward is left", () => {
+    expect(swipeReplyStep({ dx: -70, dy: 5, rtl: true, side: "start" })).toBe("reply");
+    expect(swipeReplyStep({ dx: -30, dy: 2, rtl: true, side: "start" })).toBe("track");
+    expect(swipeReplyStep({ dx: -70, dy: 80, rtl: true, side: "start" })).toBe("none");
+    expect(swipeReplyStep({ dx: 70, dy: 0, rtl: true, side: "start" })).toBe("none");
   });
   it("ltr is mirrored", () => {
-    expect(swipeReplyStep({ dx: -70, dy: 5, rtl: false, mine: false })).toBe("reply");
-    expect(swipeReplyStep({ dx: 30, dy: 2, rtl: false, mine: true })).toBe("track");
-    expect(swipeReplyStep({ dx: 70, dy: 0, rtl: false, mine: false })).toBe("none");
-    expect(swipeReplyStep({ dx: -70, dy: 0, rtl: false, mine: true })).toBe("none");
+    expect(swipeReplyStep({ dx: -70, dy: 5, rtl: false, side: "end" })).toBe("reply");
+    expect(swipeReplyStep({ dx: 30, dy: 2, rtl: false, side: "start" })).toBe("track");
+    expect(swipeReplyStep({ dx: 70, dy: 0, rtl: false, side: "end" })).toBe("none");
+    expect(swipeReplyStep({ dx: -70, dy: 0, rtl: false, side: "start" })).toBe("none");
   });
   it("no movement is none", () => {
-    expect(swipeReplyStep({ dx: 0, dy: 0, rtl: true, mine: false })).toBe("none");
+    expect(swipeReplyStep({ dx: 0, dy: 0, rtl: true, side: "end" })).toBe("none");
   });
 });
 

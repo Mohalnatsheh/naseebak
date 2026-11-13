@@ -33,10 +33,10 @@ type Press = {
 
 /**
  * One message in the WhatsApp-style layout (switch `chat_whatsapp_layout`). Mine: a pale navy bubble with ink text on
- * the start side; theirs: white on the end side. A tail on the first of a run; time and ticks inside at the bottom end.
+ * the end side (left in Arabic, as WhatsApp in Arabic); theirs: white on the start side. Classic keeps its own sides. A tail on the first of a run; time and ticks inside at the bottom end.
  * A long press (touch), right-click, the hover chevron (desktop) or Enter on the row selects the message (`onSelect`:
  * the room shows the selection bar); there is no per-bubble menu. A touch swipe inward replies; on desktop a reply
- * arrow shows on hover. Reactions sit in one pill at the bottom start edge (tap: `onReactionsTap`).
+ * arrow shows on hover. Reactions sit in one pill at the bottom end edge (tap: `onReactionsTap`).
  */
 export function WaMessageBubble({
   message,
@@ -150,7 +150,7 @@ export function WaMessageBubble({
               <CircleAlert className="h-5 w-5" aria-hidden />
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align={mine ? "start" : "end"}>
+          <DropdownMenuContent align={mine ? "end" : "start"}>
             <DropdownMenuItem className="min-h-11" onSelect={onRetry}>
               إعادة المحاولة
             </DropdownMenuItem>
@@ -200,14 +200,14 @@ export function WaMessageBubble({
         })}
         className={cn(
           "group/row flex animate-bubble-in px-2 transition-colors duration-700 outline-none focus-visible:bg-primary/10 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40 motion-reduce:transition-none",
-          mine ? "justify-start" : "justify-end",
+          mine ? "justify-end" : "justify-start",
           tail ? "mt-2" : "mt-0.5",
           chips.length > 0 && "mb-3",
           highlighted && "bg-accent/20",
           selected && "bg-chat-select duration-0"
         )}
       >
-        <div className={cn("flex max-w-[85%] items-start sm:max-w-[70%]", !mine && "flex-row-reverse")}>
+        <div className={cn("flex max-w-[85%] items-start sm:max-w-[70%]", mine && "flex-row-reverse")}>
           <div
             data-wa-bubble=""
             style={offset ? { transform: `translateX(${offset}px)` } : undefined}
@@ -215,7 +215,7 @@ export function WaMessageBubble({
               "group/bubble relative min-w-0 whitespace-pre-wrap break-words rounded-xl text-[15px] leading-relaxed text-foreground shadow-[0_1px_0.5px_rgb(0_0_0/0.13)]",
               photo ? "p-1" : "px-2.5 pb-1.5 pt-1.5",
               mine ? "bg-bubble-mine" : "bg-card",
-              tail && (mine ? "rounded-ss-none" : "rounded-se-none"),
+              tail && (mine ? "rounded-se-none" : "rounded-ss-none"),
               failed && "opacity-70 ring-1 ring-destructive/40",
               highlighted && "ring-2 ring-accent",
               !offset && "transition-transform duration-200 motion-reduce:transition-none",
@@ -271,7 +271,7 @@ export function WaMessageBubble({
               }
               stopTimer();
               if (!p.swipe) return;
-              const step = swipeReplyStep({ dx, dy, rtl: p.rtl, mine });
+              const step = swipeReplyStep({ dx, dy, rtl: p.rtl, side: mine ? "end" : "start" });
               p.step = step;
               if (step === "none") {
                 setOffset(0);
@@ -312,8 +312,8 @@ export function WaMessageBubble({
                 className={cn(
                   "absolute top-0 h-2.5 w-2",
                   mine
-                    ? "-start-2 bg-bubble-mine [clip-path:polygon(0_0,100%_0,0_100%)] ltr:[clip-path:polygon(0_0,100%_0,100%_100%)]"
-                    : "-end-2 bg-card [clip-path:polygon(0_0,100%_0,100%_100%)] ltr:[clip-path:polygon(0_0,100%_0,0_100%)]"
+                    ? "-end-2 bg-bubble-mine [clip-path:polygon(0_0,100%_0,100%_100%)] ltr:[clip-path:polygon(0_0,100%_0,0_100%)]"
+                    : "-start-2 bg-card [clip-path:polygon(0_0,100%_0,0_100%)] ltr:[clip-path:polygon(0_0,100%_0,100%_100%)]"
                 )}
               />
             )}
@@ -324,7 +324,7 @@ export function WaMessageBubble({
                 aria-label="خيارات الرسالة"
                 onClick={() => onSelect(message)}
                 className={cn(
-                  "absolute end-0 top-0 z-10 flex size-11 items-start justify-end rounded-xl p-1 text-muted-foreground opacity-0 transition-opacity focus-visible:opacity-100 group-hover/bubble:opacity-100 motion-reduce:transition-none pointer-coarse:hidden",
+                  "absolute start-0 top-0 z-10 flex size-11 items-start justify-start rounded-xl p-1 text-muted-foreground opacity-0 transition-opacity focus-visible:opacity-100 group-hover/bubble:opacity-100 motion-reduce:transition-none pointer-coarse:hidden",
                   photo && "text-white"
                 )}
               >
@@ -369,7 +369,7 @@ export function WaMessageBubble({
                 tabIndex={rowTab}
                 onClick={() => onReactionsTap(message)}
                 aria-label={`التفاعلات: ${chips.map((c) => c.emoji).join(" ")}${reactionCount > 1 ? ` · ${reactionCount}` : ""}`}
-                className="absolute -bottom-3.5 start-2 flex h-6 items-center gap-0.5 rounded-full border border-border/70 bg-card px-1.5 text-sm leading-none shadow-sm after:absolute after:-inset-2.5 after:content-['']"
+                className="absolute -bottom-3.5 end-2 flex h-6 items-center gap-0.5 rounded-full border border-border/70 bg-card px-1.5 text-sm leading-none shadow-sm after:absolute after:-inset-2.5 after:content-['']"
               >
                 {chips.map((c) => (
                   <span key={c.emoji}>{c.emoji}</span>

@@ -296,7 +296,8 @@ export function WaChatRoom({ model }: { model: ChatRoomModel }) {
                           className={cn(
                             "absolute z-20",
                             selection?.below ? "top-full mt-1" : "bottom-full mb-1",
-                            m.mine ? "start-3" : "end-3"
+                            // over the bubble's own side: mine on the end side, the partner's on the start side
+                            m.mine ? "end-3" : "start-3"
                           )}
                         >
                           <WaReactionPicker message={m} actions={messageActions} onPicked={clearSelection} />

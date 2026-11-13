@@ -9,6 +9,7 @@ import 'package:naseebak_app/features/profile/profile_edit_plan.dart';
 import 'package:naseebak_app/features/profile/profile_edit_screen.dart';
 import 'package:naseebak_app/features/profile/preferences_screen.dart';
 import 'package:naseebak_app/features/profile/profile_repository.dart' show MyProfile, PartnerPrefs;
+import 'package:naseebak_app/features/profile/profile_screen.dart';
 import 'package:naseebak_app/shared/person.dart';
 import 'package:naseebak_app/shared/religion.dart';
 
@@ -543,6 +544,60 @@ void main() {
         expect(plan.fills, isEmpty, reason: '$before');
         expect(plan.reviewed, {'religion': 'مسيحي'}, reason: '$before');
       }
+    });
+  });
+
+  group('my profile', () {
+    Future<void> pumpProfile(WidgetTester tester, Map<String, dynamic> counts, Map<String, dynamic> profile,
+        {String gender = 'FEMALE'}) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+      final adapter = FakeAdapter()
+        ..on('GET', '/api/profile', FakeResponse(200, {
+          'user': {'id': 'u1', 'firstName': 'سارة', 'lastName': 'أحمد', 'gender': gender, 'profile': profile},
+          'completeness': {'total': 60, 'sections': []},
+        }))
+        ..on('GET', '/api/me/counts', FakeResponse(200, counts))
+        ..on('GET', '/api/profile/update-request', const FakeResponse(200, {'requests': []}));
+      await tester.pumpWidget(ProviderScope(
+        overrides: await testOverrides(adapter),
+        child: rtlApp(const ProfileScreen()),
+      ));
+      for (var i = 0; i < 10; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+      await tester.pumpAndSettle();
+    }
+
+    const on = {'religionEnabled': true};
+
+    testWidgets('shows «الديانة» and the preference while the switch is on', (tester) async {
+      await pumpProfile(tester, on, {...storedProfile, 'religion': null});
+      expect(find.text('الديانة'), findsOneWidget);
+      expect(find.text('مسلمة'), findsOneWidget);
+      expect(find.text('الديانة لدى الشريك'), findsOneWidget);
+      expect(find.text('نفس ديانتي'), findsOneWidget);
+    });
+
+    testWidgets('a Christian has no sect or hijab row', (tester) async {
+      await pumpProfile(tester, on, {...storedProfile, 'religion': 'مسيحي', 'sect': 'سني', 'hijab': true});
+      expect(find.text('مسيحية'), findsOneWidget);
+      expect(find.text('المذهب'), findsNothing);
+      expect(find.text('الحجاب'), findsNothing);
+    });
+
+    testWidgets('a Muslim still has the sect and hijab rows (control)', (tester) async {
+      await pumpProfile(tester, on, {...storedProfile, 'religion': 'مسلم', 'sect': 'سني', 'hijab': true});
+      expect(find.text('المذهب'), findsOneWidget);
+      expect(find.text('الحجاب'), findsOneWidget);
+    });
+
+    testWidgets('switch off: no religion rows', (tester) async {
+      await pumpProfile(tester, const {}, {...storedProfile, 'religion': 'مسيحي', 'prefReligion': 'لا مانع'});
+      expect(find.text('الديانة'), findsNothing);
+      expect(find.text('الديانة لدى الشريك'), findsNothing);
+      expect(find.text('الحجاب'), findsOneWidget);
     });
   });
 }

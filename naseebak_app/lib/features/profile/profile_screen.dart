@@ -8,6 +8,8 @@ import '../../core/network/api_exception.dart';
 import '../../core/network/json.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/person.dart';
+import '../../shared/religion.dart';
+import '../home/counts.dart';
 import '../../shared/widgets/common.dart';
 import '../auth/phone_validation.dart';
 import 'profile_edit_screen.dart' show profileFieldLabels;
@@ -33,6 +35,8 @@ class ProfileScreen extends ConsumerWidget {
     final me = ref.watch(authControllerProvider).me;
     // An edit waiting for review shows here too (not only on «تعديل ملفي»)
     final pending = ref.watch(pendingEditProvider).valueOrNull;
+    // «الديانة» follows the server's switch; counts missing (loading, older server) = off
+    final religionOn = ref.watch(countsProvider).valueOrNull?.religionEnabled ?? false;
     return Scaffold(
       appBar: AppBar(title: const Text('ملفي')),
       body: profile.when(
@@ -42,6 +46,7 @@ class ProfileScreen extends ConsumerWidget {
           final female = p.female;
           String? v(String k) => asString(p.field(k));
           final dob = asDate(p.field('dateOfBirth'));
+          final christian = religionOn && isChristian(p.field('religion'));
           final facts = <(String, String?)>[
             ('تاريخ الميلاد', dob == null ? null : formatDate(dob)),
             ('الجنسية', v('nationality')),
@@ -50,9 +55,11 @@ class ProfileScreen extends ConsumerWidget {
             ('الوظيفة', v('job')),
             ('الحالة الاجتماعية', v('maritalStatus') == null ? null : OptionLabels.self('maritalStatus', v('maritalStatus')!, female: female)),
             ('التدين', v('religiosity') == null ? null : OptionLabels.self('religiosity', v('religiosity')!, female: female)),
-            // Lebanon only; my own «أفضّل عدم الذكر» shows here (never to others)
-            ('المذهب', v('sect') == null ? null : OptionLabels.self('sect', v('sect')!, female: female)),
-            if (female) ('الحجاب', hijabLabel(asBool(p.field('hijab')), asBool(p.field('niqab')))),
+            if (religionOn) ('الديانة', OptionLabels.self('religion', religionOf(v('religion')), female: female)),
+            if (religionOn) ('الديانة لدى الشريك', v('prefReligion') ?? prefReligionSame),
+            // Lebanon only; my own «أفضّل عدم الذكر» shows here (never to others). Not for a Christian
+            if (!christian) ('المذهب', v('sect') == null ? null : OptionLabels.self('sect', v('sect')!, female: female)),
+            if (female && !christian) ('الحجاب', hijabLabel(asBool(p.field('hijab')), asBool(p.field('niqab')))),
             ('العمر المناسب للشريك',
                 p.field('prefAgeMin') == null ? null : '${asInt(p.field('prefAgeMin'))} – ${asInt(p.field('prefAgeMax'))}'),
           ];

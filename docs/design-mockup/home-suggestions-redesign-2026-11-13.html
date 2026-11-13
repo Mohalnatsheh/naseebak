@@ -1,0 +1,398 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Home and Suggestions Redesign</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#f4f3f0;--card:#fff;--line:#e2dfd9;--navy:#22476a;--gold:#c19250;--goldink:#8a6327;--goldsoft:#f6eedf;--red:#d13b30;--green:#1f6b47;--greendot:#2f9e6a;--ink:#1d2430;--muted:#62666e;--chip:#f1efeb}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Cairo,sans-serif;background:#e7e5e0;color:var(--ink);padding:32px 24px 80px}
+h1.page{font-size:26px;font-weight:800;margin-bottom:6px}
+p.lead{color:var(--muted);font-size:15px;margin-bottom:28px;max-width:900px}
+.row{display:flex;flex-wrap:wrap;gap:28px;align-items:flex-start;margin-bottom:48px}
+.cap{font-size:14px;font-weight:700;margin-bottom:8px;color:var(--navy)}
+.cap small{display:block;font-weight:400;color:var(--muted);font-size:12px;max-width:390px}
+/* phone */
+.phone{width:390px;height:844px;background:var(--bg);border-radius:44px;border:10px solid #111;position:relative;overflow:hidden;display:flex;flex-direction:column}
+.sb{height:44px;display:flex;justify-content:space-between;align-items:center;padding:0 26px;font-size:14px;font-weight:700;flex:none;direction:ltr}
+.scroll{flex:1;overflow:hidden;padding:0 16px}
+.tabbar{flex:none;height:78px;background:#fbfaf8;border-top:.5px solid var(--line);display:flex;justify-content:space-around;padding-top:8px;font-size:11px;color:var(--muted)}
+.tabbar div{display:flex;flex-direction:column;align-items:center;gap:2px;position:relative}
+.tabbar div.on{color:var(--navy);font-weight:700}
+.tabbar .ic{width:24px;height:24px;border-radius:7px;border:2px solid currentColor;opacity:.8}
+.tabbar .bd{position:absolute;top:-4px;inset-inline-start:30px;background:var(--red);color:#fff;font-size:10px;border-radius:9px;min-width:17px;height:17px;display:flex;align-items:center;justify-content:center}
+.tabbar .bd.n{background:var(--navy)}
+/* shared bits */
+.top{display:flex;justify-content:space-between;align-items:center;padding:6px 0 14px}
+.hello small{display:block;color:var(--muted);font-size:13px}
+.hello b{font-size:26px;font-weight:800}
+.pill{display:inline-flex;align-items:center;gap:6px;background:#fff;border:.5px solid var(--line);border-radius:20px;padding:5px 12px;font-size:13px;font-weight:600}
+.pill b{color:var(--goldink)}
+.bell{width:38px;height:38px;border-radius:50%;background:#fff;border:.5px solid var(--line);position:relative}
+.bell::after{content:"";position:absolute;top:8px;inset-inline-end:9px;width:8px;height:8px;border-radius:50%;background:var(--red)}
+.sec{display:flex;justify-content:space-between;align-items:baseline;margin:18px 0 8px}
+.sec h3{font-size:17px;font-weight:800}
+.sec a{font-size:13px;color:var(--navy);text-decoration:none;font-weight:600}
+.group{background:var(--card);border-radius:12px;overflow:hidden}
+.li{display:flex;align-items:center;gap:12px;padding:12px 14px;border-bottom:.5px solid var(--line);min-height:52px}
+.li:last-child{border-bottom:0}
+.li .t{flex:1;min-width:0}
+.li .t b{font-size:14px;font-weight:700;display:block}
+.li .t span{font-size:12px;color:var(--muted)}
+.li .t span.r{color:var(--red)}
+.li .v{font-size:13px;color:var(--muted)}
+.chev{color:#a9a49b;font-size:18px}
+.ico{width:32px;height:32px;border-radius:9px;background:var(--navy);flex:none;display:flex;align-items:center;justify-content:center;color:#fff;font-size:15px}
+.ico.soft{background:var(--goldsoft);color:var(--goldink)}
+.ico.mut{background:var(--chip);color:var(--muted)}
+.av{border-radius:50%;flex:none;position:relative;background:radial-gradient(circle at 40% 35%,#d9cfc2,#9d9183);filter:none}
+.av.blur{background:radial-gradient(circle at 40% 35%,#cfd3d6,#8f969b)}
+.av.none{background:#e4e1db}
+.av .lock{position:absolute;bottom:-1px;inset-inline-end:-1px;width:18px;height:18px;border-radius:50%;background:#3b3f45;border:2px solid #fff}
+.people{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.person{background:#fff;border-radius:12px;padding:12px 6px;text-align:center;font-size:13px}
+.person .av{width:58px;height:58px;margin:0 auto 6px}
+.person b{display:block;font-size:14px}
+.person span{color:var(--muted);font-size:12px}
+.note{font-size:12px;color:var(--muted);margin-top:6px}
+.small .li{min-height:44px;padding:9px 14px}
+.small .li .t b{font-size:13px;font-weight:600}
+.bar{height:6px;border-radius:3px;background:var(--chip);width:70px;overflow:hidden}
+.bar i{display:block;height:100%;width:80%;background:var(--gold)}
+.tagnew{font-size:11px;background:var(--goldsoft);color:var(--goldink);border-radius:6px;padding:1px 6px;font-weight:700}
+/* suggestions */
+.seg{display:flex;background:#e9e7e2;border-radius:10px;padding:3px;margin-bottom:12px}
+.seg div{flex:1;text-align:center;font-size:13px;font-weight:600;padding:6px 0;border-radius:8px;color:var(--muted)}
+.seg div.on{background:#fff;color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.seg .c{display:inline-flex;min-width:18px;height:18px;border-radius:9px;background:var(--gold);color:#fff;font-size:11px;align-items:center;justify-content:center;margin-inline-start:4px;padding:0 4px}
+.seg .c.n{background:#cfcbc3;color:var(--ink)}
+.scard{background:#fff;border-radius:16px;padding:16px;cursor:pointer}
+.head{display:flex;gap:12px;align-items:center}
+.head .av{width:56px;height:56px}
+.head .nm{flex:1}
+.head .nm b{font-size:20px;font-weight:800;display:block;line-height:1.3}
+.head .nm span{font-size:13px;color:var(--muted)}
+.dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--greendot);margin-inline:4px 3px}
+.score{font-size:13px;font-weight:700;color:var(--goldink);background:var(--goldsoft);border-radius:8px;padding:3px 9px;white-space:nowrap}
+.liked{display:inline-block;margin-top:10px;font-size:12px;font-weight:700;color:var(--green);background:#e7f3ec;border-radius:8px;padding:3px 9px}
+.facts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:14px 0 12px}
+.fact{background:var(--chip);border-radius:10px;padding:8px 10px}
+.fact span{display:block;font-size:12px;color:var(--muted)}
+.fact b{font-size:14px;font-weight:700}
+.about span{font-size:12px;color:var(--muted)}
+.about p{font-size:14px;line-height:1.7;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.full{display:flex;justify-content:space-between;align-items:center;border-top:.5px solid var(--line);margin-top:12px;padding-top:12px;color:var(--navy);font-weight:700;font-size:14px}
+.btns{display:flex;gap:8px;margin-top:12px}
+.btn{height:52px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px}
+.btn.p{flex:2;background:var(--navy);color:#fff}
+.btn.s{flex:1;background:#e9e7e2;color:var(--ink)}
+.btn.m{width:44px;flex:none;background:#fff;border:.5px solid var(--line);color:var(--muted)}
+.cost{font-size:12px;color:var(--muted);text-align:center;margin-top:8px}
+/* profile */
+.navb{display:flex;justify-content:space-between;align-items:center;padding:4px 0 8px;color:var(--navy);font-weight:600;font-size:15px}
+.ph-head{text-align:center;padding:4px 0 10px}
+.ph-head .av{width:96px;height:96px;margin:0 auto 8px}
+.ph-head b{font-size:24px;font-weight:800;display:block}
+.ph-head span{font-size:13px;color:var(--muted)}
+.lockline{display:inline-block;margin-top:8px;font-size:12px;background:#ebe8e3;border-radius:14px;padding:3px 10px;color:var(--muted)}
+.why{background:var(--goldsoft);color:var(--goldink);border-radius:12px;padding:10px 12px;font-size:13px;font-weight:600;margin:8px 0}
+.gh{font-size:12px;color:var(--muted);margin:14px 4px 6px;font-weight:600}
+.kv{display:flex;justify-content:space-between;padding:10px 14px;border-bottom:.5px solid var(--line);font-size:14px}
+.kv:last-child{border-bottom:0}
+.kv span{color:var(--muted)}
+.kv b{font-weight:600}
+.txt{padding:12px 14px;font-size:14px;line-height:1.7}
+.chips{display:flex;flex-wrap:wrap;gap:6px;padding:12px 14px}
+.chips i{font-style:normal;background:var(--chip);border-radius:14px;padding:3px 10px;font-size:13px}
+.sticky{flex:none;background:rgba(251,250,248,.97);border-top:.5px solid var(--line);padding:10px 16px 26px;display:flex;gap:8px}
+/* desktop */
+.desk{width:1240px;background:var(--bg);border-radius:14px;border:1px solid #cfccc5;overflow:hidden;display:flex;position:relative}
+.side{width:230px;background:#fff;border-inline-start:0;border-inline-end:.5px solid var(--line);padding:22px 14px;flex:none}
+.logo{font-size:26px;font-weight:800;color:var(--navy);margin:0 8px 18px}
+.me{display:flex;gap:10px;align-items:center;margin:0 8px 18px}
+.me .av{width:40px;height:40px}
+.me b{font-size:14px;display:block}.me span{font-size:12px;color:var(--muted)}
+.nav a{display:flex;justify-content:space-between;align-items:center;padding:9px 12px;border-radius:10px;font-size:14px;color:var(--ink);text-decoration:none;margin-bottom:2px}
+.nav a.on{background:#eef1f5;color:var(--navy);font-weight:700}
+.nav a i{font-style:normal;font-size:11px;color:#fff;background:var(--navy);border-radius:9px;min-width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center}
+.nav a i.g{background:var(--gold)}.nav a i.r{background:var(--red)}
+.nav .lbl{font-size:12px;color:var(--muted);margin:14px 12px 6px}
+.main{flex:1;min-width:0}
+.topbar{height:60px;border-bottom:.5px solid var(--line);display:flex;justify-content:flex-end;align-items:center;gap:10px;padding:0 24px;direction:ltr}
+.content{padding:26px 40px 40px;max-width:760px;margin:0 auto}
+.content.wide{max-width:none}
+.dgrid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.overlay{position:absolute;inset:0;background:rgba(20,26,34,.32)}
+.panel{position:absolute;top:0;bottom:0;inset-inline-end:0;width:440px;background:var(--bg);box-shadow:0 0 30px rgba(0,0,0,.18);display:flex;flex-direction:column}
+.panel .pin{flex:1;overflow:hidden;padding:14px 22px}
+.x{width:36px;height:36px;border-radius:50%;background:#fff;border:.5px solid var(--line);display:flex;align-items:center;justify-content:center;color:var(--muted)}
+.bnr{background:#eef1f5;border-radius:12px;padding:10px 14px;font-size:13px;display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.bnr b{color:var(--navy)}
+.bnr .go{background:var(--navy);color:#fff;border-radius:9px;padding:5px 12px;font-weight:700;font-size:13px}
+.legend{background:#fff;border-radius:12px;padding:16px 20px;max-width:1240px;font-size:14px;line-height:1.9;margin-bottom:36px}
+.legend b{color:var(--navy)}
+</style>
+</head>
+<body>
+
+<h1 class="page">نصيبك: إعادة تصميم الرئيسية والاقتراحات (مسودة للنقاش)</h1>
+<p class="lead">نمط واحد للموقع والتطبيق، على أساس تصميم التطبيق في 12 نوفمبر. الرئيسية تبدأ بما ينتظرك الآن. بطاقة الاقتراح قصيرة، ونقرة واحدة على البطاقة أو على «الملف كاملاً» تفتح كل المعلومات في صفحة واحدة. الأسماء والأرقام أمثلة.</p>
+
+<div class="legend">
+<b>ما الذي يتغيّر:</b><br>
+1. الرئيسية: الترحيب والرصيد، ثم ما ينتظرك فقط («بانتظار ردّك»، «مهتمون بك»، «اليوم»). سؤال الأسبوع وعضوية Pro واكتمال الملف تبقى، لكن كسطر صغير واحد لكلٍّ منها في الأسفل.<br>
+2. بطاقة الاقتراح: 6 معلومات أساسية + «عنها» على البطاقة نفسها. لا أزرار «عرض التفاصيل» داخل البطاقة.<br>
+3. الملف الكامل: نقرة واحدة (على البطاقة أو «الملف كاملاً») تفتح كل المعلومات مرة واحدة، مع «مهتم» و«لا» ثابتين في الأسفل. في التطبيق صفحة، في الموقع لوحة جانبية على الكمبيوتر وصفحة كاملة على الهاتف.<br>
+4. لا يتغيّر: الصور تبقى مخفية حتى التوافق، «مهتم» برصيد واحد، الرد المجاني، القوائم والترتيب.
+</div>
+
+<!-- ============ APP ============ -->
+<div class="row">
+
+<div>
+<div class="cap">التطبيق · الرئيسية<small>ما ينتظرك أولاً، والباقي أسطر صغيرة في الأسفل.</small></div>
+<div class="phone">
+ <div class="sb"><span>9:41</span><span>●●● ▮</span></div>
+ <div class="scroll">
+  <div class="top">
+   <div class="hello"><small>مساء الخير</small><b>أحمد</b></div>
+   <div style="display:flex;gap:8px;align-items:center"><span class="pill">رصيدك <b>7</b></span><span class="bell"></span></div>
+  </div>
+  <div class="sec" style="margin-top:4px"><h3>بانتظار ردّك</h3></div>
+  <div class="group">
+   <div class="li"><span class="av" style="width:40px;height:40px"></span><div class="t"><b>رهف تطلب تعارفاً عائلياً</b><span class="r">تبقّى 5 أيام للرد</span></div><span class="chev">‹</span></div>
+  </div>
+  <div class="sec"><h3>مهتمون بك</h3><a>عرض الكل ‹</a></div>
+  <div class="people">
+   <div class="person"><div class="av blur"><span class="lock"></span></div><b>جنى، 27</b><span>عمّان</span></div>
+   <div class="person"><div class="av blur"><span class="lock"></span></div><b>لينا، 25</b><span>إربد</span></div>
+   <div class="person"><div class="av none"></div><b>دانة، 29</b><span>الزرقاء</span></div>
+  </div>
+  <div class="note">ردّك بـ«مهتم» على من اهتم بك مجاني.</div>
+  <div class="sec"><h3>اليوم</h3></div>
+  <div class="group">
+   <div class="li"><span class="ico">✦</span><div class="t"><b>اقتراحات جديدة</b></div><span class="v">8</span><span class="chev">‹</span></div>
+   <div class="li"><span class="ico">✉</span><div class="t"><b>رسالتان من سارة</b></div><span class="v">تبقّى 9 أيام</span><span class="chev">‹</span></div>
+  </div>
+  <div class="sec"><h3 style="font-size:14px;color:var(--muted);font-weight:700">المزيد</h3></div>
+  <div class="group small">
+   <div class="li"><span class="ico soft">؟</span><div class="t"><b>سؤال الأسبوع</b></div><span class="tagnew">جديد</span><span class="chev">‹</span></div>
+   <div class="li"><span class="ico mut">✓</span><div class="t"><b>ملفك مكتمل 80%</b></div><span class="bar"><i></i></span><span class="chev">‹</span></div>
+   <div class="li"><span class="ico soft">♛</span><div class="t"><b>عضوية Pro</b></div><span class="chev">‹</span></div>
+  </div>
+ </div>
+ <div class="tabbar"><div class="on"><span class="ic"></span>الرئيسية</div><div><span class="ic"></span><span class="bd" style="background:var(--gold)">3</span>الاقتراحات</div><div><span class="ic"></span><span class="bd">1</span>التوافقات</div><div><span class="ic"></span><span class="bd n">2</span>المحادثات</div><div><span class="ic"></span>حسابي</div></div>
+</div>
+</div>
+
+<div>
+<div class="cap">التطبيق · الاقتراحات «جديدة»<small>كل البطاقة تُفتح بنقرة. 6 معلومات + «عنها» ظاهرة دون أي زر.</small></div>
+<div class="phone">
+ <div class="sb"><span>9:41</span><span>●●● ▮</span></div>
+ <div class="scroll">
+  <div class="top"><b style="font-size:26px;font-weight:800">الاقتراحات</b><span class="pill">رصيدك <b>7</b></span></div>
+  <div class="seg"><div class="on">جديدة <span class="c n">8</span></div><div>مهتمون بك <span class="c">3</span></div><div>بانتظار ردّهم</div></div>
+  <div class="scard">
+   <div class="head"><div class="av blur"><span class="lock"></span></div><div class="nm"><b>نسرين، 27</b><span>عمّان <span class="dot"></span>نشطة اليوم</span></div><span class="score">توافق 86%</span></div>
+   <div class="facts">
+    <div class="fact"><span>العمل</span><b>مهندسة برمجيات</b></div>
+    <div class="fact"><span>التعليم</span><b>بكالوريوس</b></div>
+    <div class="fact"><span>الالتزام</span><b>ملتزمة</b></div>
+    <div class="fact"><span>الحجاب</span><b>محجبة</b></div>
+    <div class="fact"><span>الطول</span><b>165 سم</b></div>
+    <div class="fact"><span>الحالة الاجتماعية</span><b>عزباء</b></div>
+   </div>
+   <div class="about"><span>عنها</span><p>أحب القراءة والسفر مع العائلة، وأبحث عن شريك يقدّر الحوار والهدوء وبناء بيت مستقر.</p></div>
+   <div class="full"><span>الملف كاملاً</span><span>‹</span></div>
+   <div class="btns"><div class="btn p">مهتم</div><div class="btn s">لا</div><div class="btn m">⋮</div></div>
+   <div class="cost">«مهتم» يستخدم رصيداً واحداً</div>
+  </div>
+ </div>
+ <div class="tabbar"><div><span class="ic"></span>الرئيسية</div><div class="on"><span class="ic"></span><span class="bd" style="background:var(--gold)">3</span>الاقتراحات</div><div><span class="ic"></span><span class="bd">1</span>التوافقات</div><div><span class="ic"></span><span class="bd n">2</span>المحادثات</div><div><span class="ic"></span>حسابي</div></div>
+</div>
+</div>
+
+<div>
+<div class="cap">التطبيق · الملف كاملاً (نقرة واحدة)<small>كل المعلومات مرة واحدة، بلا أقسام مطوية. «مهتم» و«لا» ثابتان.</small></div>
+<div class="phone">
+ <div class="sb"><span>9:41</span><span>●●● ▮</span></div>
+ <div class="scroll">
+  <div class="navb"><span>› الاقتراحات</span><span style="color:var(--muted)">⋯</span></div>
+  <div class="ph-head"><div class="av blur"><span class="lock" style="width:24px;height:24px"></span></div><b>نسرين، 27</b><span>عمّان <span class="dot"></span>نشطة اليوم · توافق 86%</span><br><span class="lockline">الصور تظهر بعد التوافق المتبادل فقط</span></div>
+  <div class="why">اقترحناها لك: نفس المدينة، والتعليم والالتزام الذي تفضّله.</div>
+  <div class="gh">عنها</div>
+  <div class="group"><div class="txt">أحب القراءة والسفر مع العائلة، وأبحث عن شريك يقدّر الحوار والهدوء وبناء بيت مستقر.</div></div>
+  <div class="gh">المعلومات الشخصية</div>
+  <div class="group">
+   <div class="kv"><span>الحالة الاجتماعية</span><b>عزباء · لا يوجد أبناء</b></div>
+   <div class="kv"><span>الجنسية</span><b>أردنية</b></div>
+   <div class="kv"><span>الطول والوزن</span><b>165 سم · 58 كغ</b></div>
+   <div class="kv"><span>الحجاب</span><b>محجبة</b></div>
+  </div>
+  <div class="gh">التعليم والعمل</div>
+  <div class="group">
+   <div class="kv"><span>التعليم</span><b>بكالوريوس هندسة</b></div>
+   <div class="kv"><span>العمل</span><b>مهندسة برمجيات</b></div>
+  </div>
+ </div>
+ <div class="sticky"><div class="btn p">مهتم</div><div class="btn s">لا</div></div>
+</div>
+</div>
+
+</div>
+
+<!-- ============ WEBSITE DESKTOP ============ -->
+<div class="cap">الموقع · الرئيسية على الكمبيوتر<small style="max-width:none">عمود واحد هادئ بدل الشبكة الحالية. نفس ترتيب التطبيق.</small></div>
+<div class="row">
+<div class="desk">
+ <div class="side">
+  <div class="logo">نصيبك</div>
+  <div class="me"><span class="av"></span><div><b>أحمد الخطيب</b><span>الأردن</span></div></div>
+  <div class="nav">
+   <a class="on">الرئيسية</a><a>الاقتراحات <i class="g">3</i></a><a>التوافقات <i class="r">1</i></a><a>المحادثات <i>2</i></a><a>الإشعارات <i>2</i></a>
+   <div class="lbl">الحساب</div><a>الملف الشخصي</a><a>صوري</a><a>رصيدك</a><a>عضوية Pro</a><a>إعدادات الحساب</a>
+  </div>
+ </div>
+ <div class="main">
+  <div class="topbar"><span class="bell"></span><span class="pill">رصيدك <b>7</b></span></div>
+  <div class="content">
+   <div class="hello" style="margin-bottom:14px"><small>الخميس 13 نوفمبر</small><b>مساء الخير، أحمد</b></div>
+   <div class="bnr"><span><b>الإشعارات غير مفعّلة.</b> لن تعرف بالتوافق والرسائل فور حدوثها.</span><span class="go">فعّلها الآن</span></div>
+   <div class="sec"><h3>بانتظار ردّك</h3></div>
+   <div class="group">
+    <div class="li"><span class="av" style="width:40px;height:40px"></span><div class="t"><b>رهف تطلب تعارفاً عائلياً</b><span class="r">تبقّى 5 أيام للرد</span></div><span class="chev">‹</span></div>
+   </div>
+   <div class="sec"><h3>مهتمون بك</h3><a>عرض الكل ‹</a></div>
+   <div class="people" style="grid-template-columns:repeat(5,1fr)">
+    <div class="person"><div class="av blur"><span class="lock"></span></div><b>جنى، 27</b><span>عمّان</span></div>
+    <div class="person"><div class="av blur"><span class="lock"></span></div><b>لينا، 25</b><span>إربد</span></div>
+    <div class="person"><div class="av none"></div><b>دانة، 29</b><span>الزرقاء</span></div>
+   </div>
+   <div class="note">ردّك بـ«مهتم» على من اهتم بك مجاني.</div>
+   <div class="sec"><h3>اليوم</h3></div>
+   <div class="group">
+    <div class="li"><span class="ico">✦</span><div class="t"><b>اقتراحات جديدة</b></div><span class="v">8</span><span class="chev">‹</span></div>
+    <div class="li"><span class="ico">✉</span><div class="t"><b>رسالتان من سارة</b><span>شكراً على سؤالك، أنا أيضاً أحب السفر…</span></div><span class="v">تبقّى 9 أيام</span><span class="chev">‹</span></div>
+    <div class="li"><span class="ico">✉</span><div class="t"><b>مريم</b><span>أنت: أهلاً، سعيد بالتوافق</span></div><span class="v">أمس</span><span class="chev">‹</span></div>
+   </div>
+   <div class="sec"><h3 style="font-size:14px;color:var(--muted);font-weight:700">المزيد</h3></div>
+   <div class="group small">
+    <div class="li"><span class="ico soft">؟</span><div class="t"><b>سؤال الأسبوع: ما أهم ما تبحث عنه في أول لقاء عائلي؟</b></div><span class="tagnew">جديد</span><span class="chev">‹</span></div>
+    <div class="li"><span class="ico mut">✓</span><div class="t"><b>ملفك مكتمل 80%</b><span>أكمل اختبار الشخصية</span></div><span class="bar"><i></i></span><span class="chev">‹</span></div>
+    <div class="li"><span class="ico soft">♛</span><div class="t"><b>عضوية Pro</b><span>صور ورسائل صوتية في المحادثة</span></div><span class="chev">‹</span></div>
+   </div>
+  </div>
+ </div>
+</div>
+</div>
+
+<div class="cap">الموقع · الاقتراحات على الكمبيوتر، والملف الكامل مفتوح<small style="max-width:none">نقرة على البطاقة تفتح لوحة جانبية بكل المعلومات. الإغلاق يعيدك لنفس المكان في القائمة.</small></div>
+<div class="row">
+<div class="desk" style="height:900px">
+ <div class="side">
+  <div class="logo">نصيبك</div>
+  <div class="me"><span class="av"></span><div><b>أحمد الخطيب</b><span>الأردن</span></div></div>
+  <div class="nav">
+   <a>الرئيسية</a><a class="on">الاقتراحات <i class="g">3</i></a><a>التوافقات <i class="r">1</i></a><a>المحادثات <i>2</i></a><a>الإشعارات <i>2</i></a>
+   <div class="lbl">الحساب</div><a>الملف الشخصي</a><a>صوري</a><a>رصيدك</a><a>عضوية Pro</a><a>إعدادات الحساب</a>
+  </div>
+ </div>
+ <div class="main">
+  <div class="topbar"><span class="bell"></span><span class="pill">رصيدك <b>7</b></span></div>
+  <div class="content wide">
+   <b style="font-size:26px;font-weight:800;display:block;margin-bottom:12px">الاقتراحات</b>
+   <div class="seg" style="max-width:640px"><div class="on">جديدة <span class="c n">8</span></div><div>مهتمون بك <span class="c">3</span></div><div>بانتظار ردّهم</div><div>التوافقات</div></div>
+   <div class="dgrid">
+    <div class="scard">
+     <div class="head"><div class="av blur"><span class="lock"></span></div><div class="nm"><b>نسرين، 27</b><span>عمّان <span class="dot"></span>نشطة اليوم</span></div><span class="score">توافق 86%</span></div>
+     <div class="facts" style="grid-template-columns:1fr 1fr 1fr">
+      <div class="fact"><span>العمل</span><b>مهندسة برمجيات</b></div><div class="fact"><span>التعليم</span><b>بكالوريوس</b></div><div class="fact"><span>الالتزام</span><b>ملتزمة</b></div>
+      <div class="fact"><span>الحجاب</span><b>محجبة</b></div><div class="fact"><span>الطول</span><b>165 سم</b></div><div class="fact"><span>الحالة</span><b>عزباء</b></div>
+     </div>
+     <div class="about"><span>عنها</span><p>أحب القراءة والسفر مع العائلة، وأبحث عن شريك يقدّر الحوار والهدوء.</p></div>
+     <div class="full"><span>الملف كاملاً</span><span>‹</span></div>
+     <div class="btns"><div class="btn p">مهتم</div><div class="btn s">لا</div><div class="btn m">⋮</div></div>
+    </div>
+    <div class="scard">
+     <div class="head"><div class="av blur"><span class="lock"></span></div><div class="nm"><b>نور، 26</b><span>عمّان <span class="dot"></span>نشطة اليوم</span></div><span class="score">توافق 88%</span></div>
+     <span class="liked">أبدت اهتمامها بك</span>
+     <div class="facts" style="grid-template-columns:1fr 1fr 1fr">
+      <div class="fact"><span>العمل</span><b>معلّمة</b></div><div class="fact"><span>التعليم</span><b>ماجستير</b></div><div class="fact"><span>الالتزام</span><b>ملتزمة جداً</b></div>
+      <div class="fact"><span>الحجاب</span><b>محجبة</b></div><div class="fact"><span>الطول</span><b>160 سم</b></div><div class="fact"><span>الحالة</span><b>عزباء</b></div>
+     </div>
+     <div class="about"><span>عنها</span><p>هادئة، قريبة من أهلي، أحب الطبخ والتطوع.</p></div>
+     <div class="full"><span>الملف كاملاً</span><span>‹</span></div>
+     <div class="btns"><div class="btn p">مهتم · مجاني</div><div class="btn s">لا</div><div class="btn m">⋮</div></div>
+    </div>
+   </div>
+  </div>
+ </div>
+ <div class="overlay"></div>
+ <div class="panel">
+  <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 22px 0"><b style="font-size:15px;color:var(--muted)">الملف كاملاً</b><span class="x">✕</span></div>
+  <div class="pin">
+   <div class="ph-head"><div class="av blur"><span class="lock" style="width:24px;height:24px"></span></div><b>نسرين، 27</b><span>عمّان <span class="dot"></span>نشطة اليوم · توافق 86%</span><br><span class="lockline">الصور تظهر بعد التوافق المتبادل فقط</span></div>
+   <div class="why">اقترحناها لك: نفس المدينة، والتعليم والالتزام الذي تفضّله.</div>
+   <div class="gh">عنها</div>
+   <div class="group"><div class="txt">أحب القراءة والسفر مع العائلة، وأبحث عن شريك يقدّر الحوار والهدوء وبناء بيت مستقر.</div></div>
+   <div class="gh">المعلومات الشخصية</div>
+   <div class="group"><div class="kv"><span>الحالة الاجتماعية</span><b>عزباء · لا يوجد أبناء</b></div><div class="kv"><span>الجنسية</span><b>أردنية</b></div><div class="kv"><span>الطول والوزن</span><b>165 سم · 58 كغ</b></div><div class="kv"><span>الحجاب</span><b>محجبة</b></div></div>
+   <div class="gh">التعليم والعمل</div>
+   <div class="group"><div class="kv"><span>التعليم</span><b>بكالوريوس هندسة</b></div><div class="kv"><span>العمل</span><b>مهندسة برمجيات</b></div><div class="kv"><span>الدخل الشهري</span><b>500–800 دينار</b></div></div>
+   <div class="gh">الدين ونمط الحياة</div>
+   <div class="group"><div class="kv"><span>الالتزام</span><b>ملتزمة</b></div><div class="kv"><span>التدخين</span><b>لا تدخّن</b></div></div>
+  </div>
+  <div class="sticky" style="padding-bottom:16px"><div class="btn p">مهتم</div><div class="btn s">لا</div></div>
+ </div>
+</div>
+</div>
+
+<!-- ============ WEBSITE PHONE ============ -->
+<div class="row">
+<div>
+<div class="cap">الموقع · الاقتراحات على الهاتف<small>نفس بطاقة التطبيق.</small></div>
+<div class="phone">
+ <div class="sb"><span>9:41</span><span>●●● ▮</span></div>
+ <div style="height:52px;display:flex;justify-content:space-between;align-items:center;padding:0 16px;background:#fff;border-bottom:.5px solid var(--line);flex:none"><b style="color:var(--navy);font-size:20px;font-weight:800">نصيبك</b><div style="display:flex;gap:8px;align-items:center"><span class="pill">رصيدك <b>7</b></span><span class="bell"></span></div></div>
+ <div class="scroll" style="padding-top:12px">
+  <b style="font-size:24px;font-weight:800;display:block;margin-bottom:10px">الاقتراحات</b>
+  <div class="seg"><div class="on">جديدة <span class="c n">8</span></div><div>مهتمون بك <span class="c">3</span></div><div>بانتظار ردّهم</div></div>
+  <div class="scard">
+   <div class="head"><div class="av blur"><span class="lock"></span></div><div class="nm"><b>نسرين، 27</b><span>عمّان <span class="dot"></span>نشطة اليوم</span></div><span class="score">توافق 86%</span></div>
+   <div class="facts">
+    <div class="fact"><span>العمل</span><b>مهندسة برمجيات</b></div><div class="fact"><span>التعليم</span><b>بكالوريوس</b></div>
+    <div class="fact"><span>الالتزام</span><b>ملتزمة</b></div><div class="fact"><span>الحجاب</span><b>محجبة</b></div>
+    <div class="fact"><span>الطول</span><b>165 سم</b></div><div class="fact"><span>الحالة الاجتماعية</span><b>عزباء</b></div>
+   </div>
+   <div class="about"><span>عنها</span><p>أحب القراءة والسفر مع العائلة، وأبحث عن شريك يقدّر الحوار والهدوء.</p></div>
+   <div class="full"><span>الملف كاملاً</span><span>‹</span></div>
+   <div class="btns"><div class="btn p">مهتم</div><div class="btn s">لا</div><div class="btn m">⋮</div></div>
+  </div>
+ </div>
+ <div class="tabbar"><div><span class="ic"></span>الرئيسية</div><div class="on"><span class="ic"></span>الاقتراحات</div><div><span class="ic"></span>التوافقات</div><div><span class="ic"></span>المحادثات</div><div><span class="ic"></span>المزيد</div></div>
+</div>
+</div>
+<div>
+<div class="cap">الموقع · الملف كاملاً على الهاتف<small>صفحة تغطي الشاشة فوق القائمة؛ ✕ أو زر الرجوع يعيدك لنفس البطاقة.</small></div>
+<div class="phone">
+ <div class="sb"><span>9:41</span><span>●●● ▮</span></div>
+ <div class="scroll">
+  <div class="navb"><span class="x">✕</span><span style="color:var(--muted)">⋯</span></div>
+  <div class="ph-head"><div class="av blur"><span class="lock" style="width:24px;height:24px"></span></div><b>نسرين، 27</b><span>عمّان <span class="dot"></span>نشطة اليوم · توافق 86%</span><br><span class="lockline">الصور تظهر بعد التوافق المتبادل فقط</span></div>
+  <div class="why">اقترحناها لك: نفس المدينة، والتعليم والالتزام الذي تفضّله.</div>
+  <div class="gh">عنها</div>
+  <div class="group"><div class="txt">أحب القراءة والسفر مع العائلة، وأبحث عن شريك يقدّر الحوار والهدوء وبناء بيت مستقر.</div></div>
+  <div class="gh">المعلومات الشخصية</div>
+  <div class="group"><div class="kv"><span>الحالة الاجتماعية</span><b>عزباء · لا يوجد أبناء</b></div><div class="kv"><span>الجنسية</span><b>أردنية</b></div><div class="kv"><span>الطول والوزن</span><b>165 سم · 58 كغ</b></div></div>
+  <div class="gh">العائلة</div>
+  <div class="group"><div class="kv"><span>العشيرة</span><b>…</b></div><div class="kv"><span>عدد الإخوة</span><b>4</b></div></div>
+ </div>
+ <div class="sticky"><div class="btn p">مهتم</div><div class="btn s">لا</div></div>
+</div>
+</div>
+</div>
+
+</body>
+</html>

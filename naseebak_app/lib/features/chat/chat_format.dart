@@ -91,3 +91,15 @@ bool _rtl(int r) =>
 
 bool _ltrLetter(int r) =>
     (r >= 0x41 && r <= 0x5A) || (r >= 0x61 && r <= 0x7A) || (r >= 0xC0 && r <= 0x24F) || (r >= 0x370 && r <= 0x52F);
+
+/// The partner's messages are marked read only while the chat is the screen on top and the app is in front, and only
+/// when they wrote after the last read sent (audit B1). [readUpTo] null = nothing marked yet.
+bool readIsDue({
+  required bool onTop,
+  required bool foreground,
+  required DateTime? newestPartnerAt,
+  required DateTime? readUpTo,
+}) {
+  if (!onTop || !foreground || newestPartnerAt == null) return false;
+  return readUpTo == null || newestPartnerAt.isAfter(readUpTo);
+}

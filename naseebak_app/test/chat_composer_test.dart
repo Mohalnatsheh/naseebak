@@ -1,226 +1,54 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:naseebak_app/features/chat/chat_cache.dart';
 import 'package:naseebak_app/features/chat/chat_live.dart';
-import 'package:naseebak_app/features/chat/chat_media_picker.dart';
 import 'package:naseebak_app/features/chat/chat_room_screen.dart' show composerHintGap, micRefusedText;
 import 'package:naseebak_app/features/chat/hold_to_record.dart';
 import 'package:naseebak_app/features/chat/media_bubbles.dart';
 import 'package:naseebak_app/features/chat/voice_recorder.dart';
 
 import 'helpers/chat_room_helpers.dart';
+import 'helpers/chat_test_room.dart';
 import 'helpers/fake_api.dart';
-import 'helpers/fake_recorder.dart';
-import 'helpers/fake_voice_player.dart';
-
-/// Live events the test pushes (Ably's SSE in the app)
-class FakeLive extends ChatLive {
-  FakeLive(super.api);
-  final controller = StreamController<ChatLiveEvent>.broadcast();
-
-  @override
-  Stream<ChatLiveEvent> events(String chatId, {void Function(bool connected)? connected}) {
-    scheduleMicrotask(() => connected?.call(true));
-    return controller.stream;
-  }
-}
-
-class _Room {
-  _Room({
-    this.status = 'ACTIVE',
-    List<Map<String, dynamic>>? messages,
-    this.starters = const [],
-    this.partnerTyping = false,
-    this.pollInterval = const Duration(hours: 1),
-  }) : messages = messages ?? [msg(1)];
-
-  String status;
-  List<Map<String, dynamic>> messages;
-  List<String> starters;
-  bool partnerTyping;
-  final Duration pollInterval;
-
-  /// `polledAt` on every answer (null = a server before the field)
-  String? polledAt;
-
-  /// `reactionUpdates` on a poll that sends `reactionsSince`
-  List<Map<String, dynamic>> reactionUpdates = const [];
-
-  /// While set, a recorder's start waits for it (a slow microphone)
-  Completer<void>? startGate;
-  final recorders = <FakeRecorder>[];
-  FakeRecorder get rec => recorders.single;
-  Future<bool> Function() permission = () async => true;
-  FakeLive? live;
-  late ProviderContainer container;
-  int picks = 0;
-
-  late final Directory dir = () {
-    final d = Directory.systemTemp.createTempSync('chat_composer_test');
-    addTearDown(() {
-      if (d.existsSync()) d.deleteSync(recursive: true);
-    });
-    return d;
-  }();
-  File? picked;
-
-  late final FakeAdapter adapter = FakeAdapter()
-    ..handlers['GET /api/chats/c1'] = ((req) {
-      // Like the server: `?after=` returns the messages from that time on
-      final after = req.queryParameters['after'] as String?;
-      final from = after == null ? null : DateTime.parse(after);
-      return FakeResponse(200, {
-          'conversation': {...conv, 'status': status},
-          'messages': [
-            for (final m in messages)
-              if (from == null || !DateTime.parse(m['createdAt'] as String).isBefore(from)) m,
-          ],
-          'hasMore': false,
-          'chatEnabled': true,
-          'partnerTyping': partnerTyping,
-          'starters': starters,
-          'polledAt': ?polledAt,
-          if (req.queryParameters['reactionsSince'] != null) 'reactionUpdates': reactionUpdates,
-        });
-    })
-    ..on('POST', '/api/chats/c1/end', const FakeResponse(200, {'message': 'تم'}))
-    ..handlers['GET /api/pro'] = ((_) => const FakeResponse(200, {
-          'enabled': true,
-          'isPro': true,
-          'cancelAtPeriodEnd': false,
-          'pastDue': false,
-          'canBuy': true,
-          'offers': [],
-        }))
-    ..handlers['GET /api/me/counts'] = ((_) => const FakeResponse(200, {
-          'flags': {},
-          'pro': {'isPro': true},
-        }))
-    ..handlers['POST /api/chats/c1/messages'] = ((r) {
-      final body = r.data as Map;
-      return FakeResponse(201, {
-        'message': {
-          'id': 'srv-${body['clientNonce']}',
-          'body': body['body'],
-          'createdAt': DateTime.now().toUtc().toIso8601String(),
-          'mine': true,
-          if (body['replyToId'] != null)
-            'replyTo': {'id': body['replyToId'], 'mine': false, 'kind': 'TEXT', 'snippet': 'رسالة 1'},
-        },
-      });
-    })
-    ..on('POST', '/api/chats/c1/typing', const FakeResponse(204))
-    ..handlers['POST /api/chats/c1/messages/m001/reaction'] = ((r) {
-      final emoji = (r.data as Map)['emoji'];
-      return FakeResponse(200, {
-        'reactions': [
-          if (emoji != null) {'emoji': emoji, 'mine': true},
-        ],
-      });
-    })
-    ..handlers['POST /api/chats/c1/media'] = ((r) {
-      final fields = Map.fromEntries((r.data as FormData).fields);
-      return FakeResponse(200, {
-        'message': {
-          'id': 'srv-${fields['clientNonce']}',
-          'body': '🎤 رسالة صوتية',
-          'createdAt': DateTime.now().toUtc().toIso8601String(),
-          'mine': true,
-          'kind': fields['kind'],
-          'media': {'url': '/api/chats/c1/media/srv', 'type': 'audio/mp4', 'durationSec': 2},
-        },
-      });
-    });
-
-  Future<void> open(WidgetTester tester) async {
-    container = await openRoom(tester, adapter, MemoryChatCache(), pollInterval: pollInterval, extra: [
-      voiceRecorderProvider.overrideWithValue(() {
-        final r = FakeRecorder(dir, permission)..startGate = startGate;
-        recorders.add(r);
-        return r;
-      }),
-      voicePlayerFactoryProvider.overrideWithValue(FakeVoicePlayer.new),
-      voiceAudioSessionProvider.overrideWithValue(() async {}),
-      chatPhotoPickerProvider.overrideWithValue(() async {
-        picks++;
-        final f = picked = File('${dir.path}/picked-$picks.jpg')..writeAsBytesSync([0xFF, 0xD8, 0xFF]);
-        return PickedPhoto(path: f.path, bytes: 3);
-      }),
-      if (live != null) chatLiveProvider.overrideWith((ref) => live!),
-    ]);
-    for (var i = 0; i < 10; i++) {
-      await tester.pump(const Duration(milliseconds: 20));
-    }
-  }
-
-  Future<void> leave(WidgetTester tester) async {
-    await tester.pumpWidget(UncontrolledProviderScope(container: container, child: const SizedBox()));
-    await tester.pump(const Duration(seconds: 1));
-  }
-
-  List<RequestOptions> get uploads => adapter.to('POST', '/api/chats/c1/media');
-  List<Map> get sends => adapter.to('POST', '/api/chats/c1/messages').map((r) => r.data as Map).toList();
-}
-
-final _mic = find.byKey(const Key('chat-mic'));
-final _input = find.byKey(const Key('chat-input'));
-
-/// Presses the mic and holds past the hold delay (the recorder starts)
-Future<TestGesture> _hold(WidgetTester tester) async {
-  final g = await tester.startGesture(tester.getCenter(_mic));
-  await tester.pump(holdDelay + const Duration(milliseconds: 20));
-  await tester.pump();
-  await tester.pump();
-  return g;
-}
-
-Future<void> _frames(WidgetTester tester, [int n = 8]) async {
-  for (var i = 0; i < n; i++) {
-    await tester.pump(const Duration(milliseconds: 30));
-  }
-}
 
 void main() {
   group('composer', () {
     testWidgets('one round button: mic while empty, send with text; the photo button sits inside the field',
         (tester) async {
-      final r = _Room();
+      final r = ChatTestRoom();
       await r.open(tester);
-      expect(_mic, findsOneWidget);
+      expect(chatMic, findsOneWidget);
       expect(find.byKey(const Key('chat-send')), findsNothing);
-      final field = tester.getRect(find.ancestor(of: _input, matching: find.byType(Container)).first);
+      final field = tester.getRect(find.ancestor(of: chatInput, matching: find.byType(Container)).first);
       final photo = tester.getRect(find.byKey(const Key('chat-photo')));
       expect(field.contains(photo.center), isTrue);
-      await tester.enterText(_input, 'السلام عليكم');
+      await tester.enterText(chatInput, 'السلام عليكم');
       await tester.pump();
-      expect(_mic, findsNothing);
+      expect(chatMic, findsNothing);
       expect(find.byKey(const Key('chat-send')), findsOneWidget);
       expect(tester.getSize(find.byKey(const Key('chat-send'))).width, greaterThanOrEqualTo(44));
-      await tester.enterText(_input, '  ');
+      await tester.enterText(chatInput, '  ');
       await tester.pump();
-      expect(_mic, findsOneWidget);
+      expect(chatMic, findsOneWidget);
     });
   });
 
   group('composer on an iPhone (simulator QA D1, D2)', () {
     testWidgets('the hint starts a little after the cursor edge, so its first letter is never under the cursor',
         (tester) async {
-      final r = _Room();
+      final r = ChatTestRoom();
       await r.open(tester);
-      await tester.tap(_input);
+      await tester.tap(chatInput);
       await tester.pump();
-      final field = tester.getRect(find.descendant(of: _input, matching: find.byType(EditableText)));
+      final field = tester.getRect(find.descendant(of: chatInput, matching: find.byType(EditableText)));
       final hint = tester.getRect(find.byKey(const Key('chat-input-hint')));
       // Arabic: the cursor of an empty field stands at the right edge
       expect(field.right - hint.right, greaterThanOrEqualTo(composerHintGap));
       expect(find.text('اكتبي رسالتكِ…'), findsOneWidget);
-      await tester.enterText(_input, 'س');
+      await tester.enterText(chatInput, 'س');
       await tester.pump();
       await r.leave(tester);
     });
@@ -231,7 +59,7 @@ void main() {
       tester.view.padding = const FakeViewPadding(bottom: 34);
       tester.view.viewPadding = const FakeViewPadding(bottom: 34);
       addTearDown(tester.view.reset);
-      final r = _Room();
+      final r = ChatTestRoom();
       await r.open(tester);
       final row = find.byKey(const ValueKey('composer-row'));
       expect(tester.getRect(row).bottom, 844 - 34);
@@ -250,9 +78,9 @@ void main() {
 
   group('hold to record', () {
     testWidgets('hold, then release after 1.5 s: one voice note goes up', (tester) async {
-      final r = _Room();
+      final r = ChatTestRoom();
       await r.open(tester);
-      final g = await _hold(tester);
+      final g = await holdMic(tester);
       expect(r.rec.started, isTrue);
       expect(find.byKey(const Key('voice-hold-bar')), findsOneWidget);
       expect(find.text('اسحبي للإلغاء'), findsOneWidget);
@@ -273,7 +101,7 @@ void main() {
       // The live level bars follow the microphone
       expect(find.byKey(const Key('voice-level')), findsOneWidget);
       await g.up();
-      await _frames(tester);
+      await frames(tester);
       expect(r.uploads, hasLength(1));
       expect(Map.fromEntries((r.uploads.single.data as FormData).fields)['durationSec'], '2');
       expect(find.byKey(const Key('voice-hold-bar')), findsNothing);
@@ -282,26 +110,26 @@ void main() {
 
     testWidgets('released under 1 s: dropped with «الرسالة قصيرة جداً», the file deleted, nothing sent',
         (tester) async {
-      final r = _Room();
+      final r = ChatTestRoom();
       await r.open(tester);
-      final g = await _hold(tester);
+      final g = await holdMic(tester);
       r.rec.now = const Duration(milliseconds: 600);
       final file = r.rec.file!;
       await g.up();
-      await _frames(tester);
+      await frames(tester);
       expect(find.text(holdTooShortText), findsOneWidget);
       expect(r.uploads, isEmpty);
       expect(r.rec.cancelled, isTrue);
       expect(file.existsSync(), isFalse);
-      expect(_input, findsOneWidget);
+      expect(chatInput, findsOneWidget);
       await r.leave(tester);
     });
 
     testWidgets('slide towards the start edge (right in Arabic) cancels: nothing sent, even on release',
         (tester) async {
-      final r = _Room();
+      final r = ChatTestRoom();
       await r.open(tester);
-      final g = await _hold(tester);
+      final g = await holdMic(tester);
       r.rec.now = const Duration(seconds: 4);
       await g.moveBy(const Offset(60, 0));
       await tester.pump();
@@ -310,7 +138,7 @@ void main() {
       expect(r.rec.cancelled, isTrue);
       expect(find.byKey(const Key('voice-hold-bar')), findsNothing);
       await g.up();
-      await _frames(tester);
+      await frames(tester);
       expect(r.uploads, isEmpty);
       await r.leave(tester);
     });
@@ -325,9 +153,9 @@ void main() {
     });
 
     testWidgets('slide up locks: release sends nothing; the bar has stop, cancel and send', (tester) async {
-      final r = _Room();
+      final r = ChatTestRoom();
       await r.open(tester);
-      final g = await _hold(tester);
+      final g = await holdMic(tester);
       r.rec.now = const Duration(seconds: 3);
       await g.moveBy(const Offset(0, -50));
       await tester.pump();
@@ -337,29 +165,29 @@ void main() {
       expect(find.byKey(const Key('voice-cancel')), findsOneWidget);
       expect(find.byKey(const Key('voice-send')), findsOneWidget);
       await g.up();
-      await _frames(tester);
+      await frames(tester);
       expect(r.uploads, isEmpty);
       expect(r.rec.stopped, isFalse, reason: 'still recording hands-free');
       // Stop: waits for «إرسال»
       await tester.tap(find.byKey(const Key('voice-stop')));
-      await _frames(tester);
+      await frames(tester);
       expect(r.rec.stopped, isTrue);
       expect(find.text('توقف التسجيل'), findsOneWidget);
       expect(r.uploads, isEmpty);
       await tester.tap(find.byKey(const Key('voice-send')));
-      await _frames(tester);
+      await frames(tester);
       expect(r.uploads, hasLength(1));
       await r.leave(tester);
     });
 
     testWidgets('the pointer is cancelled mid-hold (a call, a system gesture): it stops and waits, never sends',
         (tester) async {
-      final r = _Room();
+      final r = ChatTestRoom();
       await r.open(tester);
-      final g = await _hold(tester);
+      final g = await holdMic(tester);
       r.rec.now = const Duration(seconds: 5);
       await g.cancel();
-      await _frames(tester);
+      await frames(tester);
       expect(r.rec.stopped, isTrue);
       expect(r.rec.cancelled, isFalse);
       expect(find.text('توقف التسجيل'), findsOneWidget);
@@ -370,16 +198,16 @@ void main() {
 
     testWidgets('a second finger on the mic mid-hold: it stops and waits; lifting both sends nothing',
         (tester) async {
-      final r = _Room();
+      final r = ChatTestRoom();
       await r.open(tester);
-      final g = await _hold(tester);
+      final g = await holdMic(tester);
       r.rec.now = const Duration(seconds: 5);
-      final second = await tester.startGesture(tester.getCenter(_mic) + const Offset(4, 4), pointer: 7);
-      await _frames(tester);
+      final second = await tester.startGesture(tester.getCenter(chatMic) + const Offset(4, 4), pointer: 7);
+      await frames(tester);
       expect(r.rec.stopped, isTrue);
       await second.up();
       await g.up();
-      await _frames(tester);
+      await frames(tester);
       expect(find.text('توقف التسجيل'), findsOneWidget);
       expect(r.uploads, isEmpty);
       await r.leave(tester);
@@ -387,15 +215,15 @@ void main() {
 
     testWidgets('the finger wanders off the button (no cancel, no lock) and lets go: it stops and waits',
         (tester) async {
-      final r = _Room();
+      final r = ChatTestRoom();
       await r.open(tester);
-      final g = await _hold(tester);
+      final g = await holdMic(tester);
       r.rec.now = const Duration(seconds: 5);
       // Towards the end edge and down: neither cancel nor lock
       await g.moveBy(const Offset(-70, 40));
       await tester.pump();
       await g.up();
-      await _frames(tester);
+      await frames(tester);
       expect(r.rec.stopped, isTrue);
       expect(find.text('توقف التسجيل'), findsOneWidget);
       expect(r.uploads, isEmpty);
@@ -404,16 +232,16 @@ void main() {
 
     testWidgets('the app goes to the background mid-hold: it stops and waits; the later release sends nothing',
         (tester) async {
-      final r = _Room();
+      final r = ChatTestRoom();
       await r.open(tester);
-      final g = await _hold(tester);
+      final g = await holdMic(tester);
       r.rec.now = const Duration(seconds: 6);
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
       await tester.pump();
       await tester.pump();
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
       await g.up();
-      await _frames(tester);
+      await frames(tester);
       expect(r.rec.stopped, isTrue);
       expect(find.text('توقف التسجيل'), findsOneWidget);
       expect(r.uploads, isEmpty);
@@ -421,43 +249,43 @@ void main() {
     });
 
     testWidgets('held to the 3-minute limit: it stops and waits; the release sends nothing', (tester) async {
-      final r = _Room();
+      final r = ChatTestRoom();
       await r.open(tester);
-      final g = await _hold(tester);
+      final g = await holdMic(tester);
       r.rec.now = maxVoiceDuration;
       await tester.pump(const Duration(milliseconds: 300));
-      await _frames(tester);
+      await frames(tester);
       expect(find.text('بلغ التسجيل الحد الأقصى'), findsOneWidget);
       await g.up();
-      await _frames(tester);
+      await frames(tester);
       expect(r.uploads, isEmpty);
       await tester.tap(find.byKey(const Key('voice-send')));
-      await _frames(tester);
+      await frames(tester);
       expect(r.uploads, hasLength(1));
       await r.leave(tester);
     });
 
     testWidgets('let go during the microphone prompt: nothing records and nothing is sent', (tester) async {
-      final r = _Room();
+      final r = ChatTestRoom();
       final answer = Completer<bool>();
       r.permission = () => answer.future;
       await r.open(tester);
-      final g = await _hold(tester);
+      final g = await holdMic(tester);
       await g.up();
       await tester.pump();
       answer.complete(true);
-      await _frames(tester);
+      await frames(tester);
       expect(r.rec.started, isFalse);
       expect(r.rec.disposed, isTrue);
       expect(r.uploads, isEmpty);
-      expect(_input, findsOneWidget);
+      expect(chatInput, findsOneWidget);
       await r.leave(tester);
     });
 
     testWidgets('leaving the chat mid-hold: the microphone is released, nothing sent', (tester) async {
-      final r = _Room();
+      final r = ChatTestRoom();
       await r.open(tester);
-      final g = await _hold(tester);
+      final g = await holdMic(tester);
       r.rec.now = const Duration(seconds: 3);
       final file = r.rec.file!;
       await r.leave(tester);
@@ -473,7 +301,7 @@ void main() {
   group('reply', () {
     testWidgets('long-press → «رد»: the strip shows the quote; the send carries replyToId and the bubble the quote',
         (tester) async {
-      final r = _Room();
+      final r = ChatTestRoom();
       await r.open(tester);
       await tester.longPress(find.text('رسالة 1'));
       await tester.pumpAndSettle();
@@ -481,7 +309,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('chat-reply-strip')), findsOneWidget);
       expect(find.descendant(of: find.byKey(const Key('chat-reply-strip')), matching: find.text('عمر')), findsOneWidget);
-      await tester.enterText(_input, 'نعم');
+      await tester.enterText(chatInput, 'نعم');
       await tester.pump();
       await tester.tap(find.byKey(const Key('chat-send')));
       await tester.pumpAndSettle();
@@ -491,7 +319,7 @@ void main() {
     });
 
     testWidgets('✕ drops the reply: the message goes without replyToId', (tester) async {
-      final r = _Room();
+      final r = ChatTestRoom();
       await r.open(tester);
       await tester.longPress(find.text('رسالة 1'));
       await tester.pumpAndSettle();
@@ -500,7 +328,7 @@ void main() {
       await tester.tap(find.byKey(const Key('chat-reply-close')));
       await tester.pump();
       expect(find.byKey(const Key('chat-reply-strip')), findsNothing);
-      await tester.enterText(_input, 'نعم');
+      await tester.enterText(chatInput, 'نعم');
       await tester.pump();
       await tester.tap(find.byKey(const Key('chat-send')));
       await tester.pumpAndSettle();
@@ -509,7 +337,7 @@ void main() {
 
     testWidgets('swipe a bubble towards the end side (left in Arabic) to reply; the other way does nothing',
         (tester) async {
-      final r = _Room();
+      final r = ChatTestRoom();
       await r.open(tester);
       await tester.drag(find.text('رسالة 1'), const Offset(90, 0));
       await tester.pumpAndSettle();
@@ -520,7 +348,7 @@ void main() {
     });
 
     testWidgets('a photo reply carries replyToId too', (tester) async {
-      final r = _Room();
+      final r = ChatTestRoom();
       await r.open(tester);
       await tester.drag(find.text('رسالة 1'), const Offset(-90, 0));
       await tester.pumpAndSettle();
@@ -533,7 +361,7 @@ void main() {
     });
 
     testWidgets('tapping a quote scrolls to the original and tints it for a moment', (tester) async {
-      final r = _Room(messages: [
+      final r = ChatTestRoom(messages: [
         for (var n = 1; n <= 60; n++) {...msg(n), 'readAt': '2026-10-30T12:00:00.000Z'},
         {
           ...msg(61, mine: true),
@@ -558,7 +386,7 @@ void main() {
     });
 
     testWidgets('a reply from the server shows its quote (the old field body stays the text)', (tester) async {
-      final r = _Room(messages: [
+      final r = ChatTestRoom(messages: [
         msg(1),
         {
           ...msg(2),
@@ -575,7 +403,7 @@ void main() {
 
   group('long-press menu and reactions', () {
     testWidgets('a reaction shows at once and goes to the server; tapping my chip removes it', (tester) async {
-      final r = _Room();
+      final r = ChatTestRoom();
       await r.open(tester);
       await tester.longPress(find.text('رسالة 1'));
       await tester.pumpAndSettle();
@@ -594,7 +422,7 @@ void main() {
     });
 
     testWidgets('a refused reaction goes back with the server\'s message', (tester) async {
-      final r = _Room();
+      final r = ChatTestRoom();
       r.adapter.on('POST', '/api/chats/c1/messages/m001/reaction', const FakeResponse(429, {'error': 'تمهّل قليلاً'}));
       await r.open(tester);
       await tester.longPress(find.text('رسالة 1'));
@@ -606,7 +434,7 @@ void main() {
     });
 
     testWidgets('«نسخ» copies the text; «إبلاغ عن الرسالة» opens the report with that message named', (tester) async {
-      final r = _Room();
+      final r = ChatTestRoom();
       String? copied;
       tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
         if (call.method == 'Clipboard.setData') copied = (call.arguments as Map)['text'] as String?;
@@ -634,7 +462,7 @@ void main() {
     });
 
     testWidgets('my own message: no «إبلاغ»; a voice note: no «نسخ»', (tester) async {
-      final r = _Room(messages: [
+      final r = ChatTestRoom(messages: [
         {...msg(1, mine: true)},
         {
           ...msg(2),
@@ -658,7 +486,7 @@ void main() {
     });
 
     testWidgets('an ended chat: no reply, no reactions, no swipe; copy and report stay', (tester) async {
-      final r = _Room(status: 'ENDED');
+      final r = ChatTestRoom(status: 'ENDED');
       await r.open(tester);
       await tester.pumpAndSettle();
       await tester.longPress(find.text('رسالة 1'));
@@ -672,7 +500,7 @@ void main() {
 
   group('typing', () {
     testWidgets('the poll says he is typing: «يكتب الآن…» under the name for 5 s', (tester) async {
-      final r = _Room(partnerTyping: true);
+      final r = ChatTestRoom(partnerTyping: true);
       await r.open(tester);
       expect(find.byKey(const Key('chat-typing')), findsOneWidget);
       // The viewer is a woman: her partner «يكتب»
@@ -682,26 +510,26 @@ void main() {
     });
 
     testWidgets('never in an ended chat', (tester) async {
-      final r = _Room(status: 'ENDED', partnerTyping: true);
+      final r = ChatTestRoom(status: 'ENDED', partnerTyping: true);
       await r.open(tester);
       expect(find.byKey(const Key('chat-typing')), findsNothing);
     });
 
     testWidgets('my typing is sent at most every 3 s', (tester) async {
-      final r = _Room();
+      final r = ChatTestRoom();
       await r.open(tester);
-      await tester.enterText(_input, 'ا');
+      await tester.enterText(chatInput, 'ا');
       await tester.pump(const Duration(milliseconds: 500));
-      await tester.enterText(_input, 'اه');
+      await tester.enterText(chatInput, 'اه');
       await tester.pump(const Duration(milliseconds: 500));
-      await tester.enterText(_input, 'اهل');
+      await tester.enterText(chatInput, 'اهل');
       await tester.pump();
       expect(r.adapter.to('POST', '/api/chats/c1/typing'), hasLength(1));
     });
 
     testWidgets('live: his typing shows with no fetch, mine is ignored; a live reaction updates the bubble',
         (tester) async {
-      final r = _Room();
+      final r = ChatTestRoom();
       r.live = FakeLive(fakeClient(r.adapter));
       await r.open(tester);
       final gets = r.adapter.to('GET', '/api/chats/c1').length;
@@ -732,16 +560,16 @@ void main() {
     const starters = ['ما خططك للسنوات القادمة؟', 'كيف تحب أن تقضي يوم الجمعة؟'];
 
     testWidgets('shown while I haven\'t written; a tap fills the box to edit, nothing is sent', (tester) async {
-      final r = _Room(starters: starters);
+      final r = ChatTestRoom(starters: starters);
       await r.open(tester);
       expect(find.byKey(const Key('chat-starters')), findsOneWidget);
       await tester.tap(find.text(starters.first));
       await tester.pump();
-      expect(tester.widget<TextField>(_input).controller!.text, starters.first);
+      expect(tester.widget<TextField>(chatInput).controller!.text, starters.first);
       expect(r.sends, isEmpty);
       // While the box has text, the chips step aside
       expect(find.byKey(const Key('chat-starters')), findsNothing);
-      await tester.enterText(_input, '${starters.first} وما رأيك؟');
+      await tester.enterText(chatInput, '${starters.first} وما رأيك؟');
       await tester.tap(find.byKey(const Key('chat-send')));
       await tester.pumpAndSettle();
       expect(r.sends.single['body'], '${starters.first} وما رأيك؟');
@@ -749,7 +577,7 @@ void main() {
     });
 
     testWidgets('none once I have written', (tester) async {
-      final r = _Room(starters: starters, messages: [msg(1, mine: true)]);
+      final r = ChatTestRoom(starters: starters, messages: [msg(1, mine: true)]);
       await r.open(tester);
       expect(find.byKey(const Key('chat-starters')), findsNothing);
     });
@@ -757,7 +585,7 @@ void main() {
 
   group('photo preview', () {
     testWidgets('«إلغاء» on the preview: nothing uploads and the picked copy is deleted', (tester) async {
-      final r = _Room();
+      final r = ChatTestRoom();
       await r.open(tester);
       await tester.tap(find.byKey(const Key('chat-photo')));
       await tester.pumpAndSettle();
@@ -770,7 +598,7 @@ void main() {
     });
 
     testWidgets('leaving the chat while the preview is open sends nothing', (tester) async {
-      final r = _Room();
+      final r = ChatTestRoom();
       await r.open(tester);
       await tester.tap(find.byKey(const Key('chat-photo')));
       await tester.pumpAndSettle();
@@ -782,7 +610,7 @@ void main() {
 
   group('unread on open', () {
     testWidgets('«رسائل جديدة» is scrolled into view when the chat opens on many unread messages', (tester) async {
-      final r = _Room(messages: [
+      final r = ChatTestRoom(messages: [
         for (var n = 1; n <= 20; n++) {...msg(n), 'readAt': '2026-10-30T12:00:00.000Z'},
         for (var n = 21; n <= 60; n++) msg(n),
       ]);
@@ -801,16 +629,16 @@ void main() {
   group('review polish (Task 8b)', () {
     testWidgets('released while the microphone is still starting: «الرسالة قصيرة جداً», nothing kept or sent',
         (tester) async {
-      final r = _Room()..startGate = Completer<void>();
+      final r = ChatTestRoom()..startGate = Completer<void>();
       await r.open(tester);
-      final g = await _hold(tester);
+      final g = await holdMic(tester);
       // The recorder hasn't started yet (a slow microphone)
       expect(r.rec.started, isFalse);
       await g.up();
-      await _frames(tester);
+      await frames(tester);
       expect(find.text(holdTooShortText), findsOneWidget);
       r.startGate!.complete();
-      await _frames(tester);
+      await frames(tester);
       expect(r.rec.cancelled, isTrue);
       expect(r.uploads, isEmpty);
       expect(find.byKey(const Key('voice-hold-bar')), findsNothing);
@@ -819,14 +647,14 @@ void main() {
 
     testWidgets('a blocked microphone answers while the mic is held: letting go keeps the reason on screen',
         (tester) async {
-      final r = _Room();
+      final r = ChatTestRoom();
       r.permission = () async => false;
       await r.open(tester);
-      final g = await _hold(tester);
-      await _frames(tester);
+      final g = await holdMic(tester);
+      await frames(tester);
       expect(find.text(micRefusedText), findsOneWidget);
       await g.up();
-      await _frames(tester);
+      await frames(tester);
       // Not replaced by «الرسالة قصيرة جداً»: the refusal and its «الإعدادات» stay
       expect(find.text(holdTooShortText), findsNothing);
       expect(find.text(micRefusedText), findsOneWidget);
@@ -836,15 +664,15 @@ void main() {
     });
 
     testWidgets('a first «لا» to the microphone during a hold still says why (QA A2-L5)', (tester) async {
-      final r = _Room();
+      final r = ChatTestRoom();
       final answer = Completer<bool>();
       r.permission = () => answer.future;
       await r.open(tester);
-      final g = await _hold(tester);
+      final g = await holdMic(tester);
       await g.up();
       await tester.pump();
       answer.complete(false);
-      await _frames(tester);
+      await frames(tester);
       expect(find.text(micRefusedText), findsOneWidget);
       expect(r.rec.started, isFalse);
       await r.leave(tester);
@@ -852,22 +680,22 @@ void main() {
 
     testWidgets('released while the microphone prompt is up: nothing said (the member was answering the phone)',
         (tester) async {
-      final r = _Room();
+      final r = ChatTestRoom();
       final answer = Completer<bool>();
       r.permission = () => answer.future;
       await r.open(tester);
-      final g = await _hold(tester);
+      final g = await holdMic(tester);
       await g.up();
-      await _frames(tester);
+      await frames(tester);
       expect(find.text(holdTooShortText), findsNothing);
       answer.complete(true);
-      await _frames(tester);
+      await frames(tester);
       expect(r.uploads, isEmpty);
       await r.leave(tester);
     });
 
     testWidgets('the reactions chip and a quote are at least 44 px tall to tap', (tester) async {
-      final r = _Room(messages: [
+      final r = ChatTestRoom(messages: [
         {
           ...msg(1),
           'reactions': [
@@ -888,7 +716,7 @@ void main() {
     });
 
     testWidgets('a swipe past the reply point that the system cancels does not reply', (tester) async {
-      final r = _Room();
+      final r = ChatTestRoom();
       await r.open(tester);
       final g = await tester.startGesture(tester.getCenter(find.text('رسالة 1')));
       for (var i = 0; i < 6; i++) {
@@ -901,7 +729,7 @@ void main() {
     });
 
     testWidgets('a live «typing» that arrives after their message is not shown again', (tester) async {
-      final r = _Room();
+      final r = ChatTestRoom();
       r.live = FakeLive(fakeClient(r.adapter));
       await r.open(tester);
       r.live!.controller.add(const ChatLiveEvent('message', {'id': 'm002', 'senderId': 'p1'}));
@@ -920,7 +748,7 @@ void main() {
     });
 
     testWidgets('«إبلاغ عن الرسالة» sends the reported message id with the report', (tester) async {
-      final r = _Room();
+      final r = ChatTestRoom();
       await r.open(tester);
       await tester.longPress(find.text('رسالة 1'));
       await tester.pumpAndSettle();
@@ -939,7 +767,7 @@ void main() {
     });
 
     testWidgets('«إبلاغ فقط» files the report with end:false; the chat stays open (A-M02)', (tester) async {
-      final r = _Room();
+      final r = ChatTestRoom();
       await r.open(tester);
       await tester.longPress(find.text('رسالة 1'));
       await tester.pumpAndSettle();
@@ -961,7 +789,7 @@ void main() {
     });
 
     testWidgets('the chat menu «إبلاغ» (no message) sends no message id', (tester) async {
-      final r = _Room();
+      final r = ChatTestRoom();
       await r.open(tester);
       await tester.tap(find.byTooltip('خيارات'));
       await tester.pumpAndSettle();
@@ -979,7 +807,7 @@ void main() {
 
     testWidgets('polling: reaction changes on older messages come back with the next poll (reactionsSince)',
         (tester) async {
-      final r = _Room(
+      final r = ChatTestRoom(
         pollInterval: const Duration(seconds: 4),
         messages: [
           for (var n = 1; n <= 40; n++)
@@ -1023,13 +851,13 @@ void main() {
     });
 
     testWidgets('my voice note keeps its waveform when the server copy replaces the sending bubble', (tester) async {
-      final r = _Room();
+      final r = ChatTestRoom();
       await r.open(tester);
-      final g = await _hold(tester);
+      final g = await holdMic(tester);
       r.rec.now = const Duration(milliseconds: 1500);
       await tester.pump(const Duration(milliseconds: 300));
       await g.up();
-      await _frames(tester);
+      await frames(tester);
       final nonce = Map.fromEntries((r.uploads.single.data as FormData).fields)['clientNonce'];
       final painter = tester
           .widgetList<CustomPaint>(find.byType(CustomPaint))

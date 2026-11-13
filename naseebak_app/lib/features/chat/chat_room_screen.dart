@@ -15,6 +15,7 @@ import '../../core/network/json.dart';
 import '../../core/privacy/screen_privacy.dart';
 import '../../core/push/push_permission.dart';
 import '../../core/review/store_review.dart';
+import '../../core/routing/route_observer.dart';
 import '../../core/storage/picker_files.dart';
 import '../../core/system/app_settings.dart';
 import '../../core/theme/app_theme.dart';
@@ -110,7 +111,7 @@ const micBlockedText = 'الميكروفون غير مسموح لنصيبك. ي�
 /// Shared preferences: the microphone was refused once on this phone (the next refusal points to the settings)
 const micRefusedKey = 'mic_refused_once';
 
-class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBindingObserver {
+class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBindingObserver, RouteAware {
   final _input = TextEditingController();
   final _inputFocus = FocusNode();
 
@@ -167,6 +168,16 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
 
   /// In the background (no polling, no live link until resumed)
   bool _background = false;
+
+  /// This chat's route, watched so read marks follow whether it is on top (audit B1)
+  ModalRoute<dynamic>? _route;
+
+  /// The chat is the screen on top: nothing pushed over it (a page, a sheet, a dialog, a menu)
+  bool get _onTop => _route?.isCurrent ?? true;
+
+  /// The newest point a read mark was sent for (null: none yet), and the one being sent now
+  DateTime? _readUpTo;
+  DateTime? _readingUpTo;
   StreamSubscription<void>? _live;
   bool _liveConnected = false;
 
@@ -343,6 +354,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    appRouteObserver.unsubscribe(this);
     _saveDraft();
     // Left normally: a later cold start opens home, not this chat
     unawaited(LastChat.forget(_prefs, widget.chatId));
@@ -808,7 +820,8 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
       _notePartnerTyping(page.partnerTyping);
       _dropVoiceIfNotAllowed();
       if (fresh.isNotEmpty || changed) _saveCache();
-      if (fresh.any((m) => !m.mine)) _markRead();
+      // Also retries a read that failed or waited (the chat was covered or in the background)
+      _markReadIfDue();
       _watch();
       if (after == null) _fillScreen();
       if (++_pollsSinceFamily * (_timerEvery ?? widget.pollInterval).inMilliseconds >= _familyRecheck.inMilliseconds) {
@@ -954,7 +967,21 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
   void didChangeDependencies() {
     super.didChangeDependencies();
     _keyboardOpen = (View.maybeOf(context)?.viewInsets.bottom ?? 0) > 0;
+    final route = ModalRoute.of(context);
+    if (route != null && route != _route) {
+      if (_route != null) appRouteObserver.unsubscribe(this);
+      _route = route;
+      appRouteObserver.subscribe(this, route);
+    }
   }
+
+  /// Back on top (what covered the chat was closed): what they wrote meanwhile is read now
+  @override
+  void didPopNext() => _markReadIfDue();
+
+  // A page or a sheet over the chat: polling goes on (the unseen count), read marks wait (`_markRead`)
+  @override
+  void didPushNext() {}
 
   void _onScrollNotification(ScrollNotification n) {
     if (n.depth != 0) return;
@@ -1069,11 +1096,35 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     }
   }
 
+  /// Marks the partner's messages read, only while the chat is on top and the app in front (audit B1)
   Future<void> _markRead() async {
+    if (!mounted || !_onTop || _background) return;
     final last = _lastServerTime;
+    // The same mark already on its way
+    if (last != null && last == _readingUpTo) return;
+    _readingUpTo = last;
     try {
       await _repo.markRead(widget.chatId, upTo: last);
-    } catch (_) {}
+      if (last != null && (_readUpTo == null || last.isAfter(_readUpTo!))) _readUpTo = last;
+    } catch (_) {
+      // Retried by the next poll (`readIsDue`)
+    } finally {
+      if (_readingUpTo == last) _readingUpTo = null;
+    }
+  }
+
+  void _markReadIfDue() {
+    if (!mounted) return;
+    DateTime? newestPartnerAt;
+    for (final m in _messages.reversed) {
+      if (m.state == SendState.sent && !m.mine) {
+        newestPartnerAt = m.createdAt;
+        break;
+      }
+    }
+    if (readIsDue(onTop: _onTop, foreground: !_background, newestPartnerAt: newestPartnerAt, readUpTo: _readUpTo)) {
+      _markRead();
+    }
   }
 
   Future<void> _send([ChatMessage? retry]) async {

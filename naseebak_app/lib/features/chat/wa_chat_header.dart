@@ -36,8 +36,13 @@ class WaChatHeader extends StatelessWidget implements PreferredSizeWidget {
     required this.deleteMode,
     required this.onOpenMatch,
     required this.onMenu,
+    this.onBack,
     this.textScale = 1,
   });
+
+  /// The toolbar's back arrow (shown only where the route can pop): leaves the chat even with the emoji panel open.
+  /// Null keeps the default back button (the system back's order).
+  final VoidCallback? onBack;
 
   final ChatSummary? chat;
   final Widget? status;
@@ -72,6 +77,9 @@ class WaChatHeader extends StatelessWidget implements PreferredSizeWidget {
       shape: const Border(bottom: BorderSide(color: AppColors.line)),
       titleSpacing: 0,
       toolbarHeight: preferredSize.height,
+      leading: onBack != null && (ModalRoute.of(context)?.canPop ?? false)
+          ? BackButton(key: const Key('chat-back'), onPressed: onBack)
+          : null,
       title: Row(
         children: [
           // One avatar with the chat's time as a gold arc around it; the days are said on a tap and to screen readers

@@ -263,6 +263,25 @@ void main() {
     await tester.pump(const Duration(seconds: 5));
   });
 
+  testWidgets('the header back arrow while recording still asks first', (tester) async {
+    final h = _Harness()..withBack = true;
+    await h.open(tester);
+    // The push transition finishes (the arrow is on screen)
+    await tester.pump(const Duration(seconds: 1));
+    await tester.tap(_mic);
+    await tester.pump();
+    await tester.pump();
+    expect(h.rec.started, isTrue);
+    await tester.tap(find.byKey(const Key('chat-back')));
+    await tester.pumpAndSettle();
+    expect(find.text('حذف الرسالة الصوتية؟'), findsOneWidget);
+    await tester.tap(find.text('حذف والخروج'));
+    await tester.pumpAndSettle();
+    expect(find.text('chats-list'), findsOneWidget);
+    expect(h.rec.cancelled, isTrue);
+    expect(h.uploads, isEmpty);
+  });
+
   testWidgets('back while recording asks first: «إلغاء» keeps the recording, «حذف والخروج» deletes it and leaves',
       (tester) async {
     final h = _Harness()..withBack = true;

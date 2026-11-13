@@ -225,6 +225,19 @@ void main() {
     expect(find.text('chats-list'), findsOneWidget);
   });
 
+  testWidgets('the header back arrow leaves the chat even with the emoji panel open', (tester) async {
+    final r = ChatTestRoom()..withBack = true;
+    await r.open(tester);
+    await tester.pumpAndSettle();
+    await tester.tap(_emojiButton);
+    await tester.pumpAndSettle();
+    expect(_panel, findsOneWidget);
+    await tester.tap(find.byKey(const Key('chat-back')));
+    await tester.pumpAndSettle();
+    expect(find.text('chats-list'), findsOneWidget);
+    expect(_panel, findsNothing);
+  });
+
   testWidgets('the paperclip offers «المعرض» and «الكاميرا»; each picks from its source and shows the preview',
       (tester) async {
     final r = ChatTestRoom();

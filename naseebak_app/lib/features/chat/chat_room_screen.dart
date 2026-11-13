@@ -2284,6 +2284,18 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     if (mounted && Navigator.of(context).canPop()) Navigator.of(context).pop();
   }
 
+  /// The header's back arrow leaves the chat even with the emoji panel open (the panel closes as part of leaving);
+  /// an unsent voice note still asks first. The system back keeps its order: selection, panel, recording.
+  void _toolbarBack() {
+    if (_voiceUnsent) {
+      _backWhileRecording();
+      return;
+    }
+    if (_emojiOpen) setState(() => _emojiOpen = false);
+    // pop, not maybePop: the PopScope still refuses while the panel is open, until the next frame
+    if (Navigator.of(context).canPop()) Navigator.of(context).pop();
+  }
+
   @override
   Widget build(BuildContext context) {
     final selected = selectedMessageOf(_messages, _selectedId, canInteract: _open, deleteMode: _deleteMode(), open: _open);
@@ -2353,6 +2365,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
             )
           : WaChatHeader(
         chat: chat,
+        onBack: _toolbarBack,
         status: status,
         left: left,
         deleteMode: deleteMode,

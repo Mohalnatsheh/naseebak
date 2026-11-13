@@ -1,27 +1,29 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertCircle, Check, ChevronRight, Loader2 } from "lucide-react";
 import { useAutoSave } from "@/hooks/use-auto-save";
 import { useDashboardData } from "@/contexts/dashboard-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { NumberInput } from "@/components/shared/number-input";
 import { LoadError } from "@/components/shared/load-error";
 import { PageLoading } from "@/components/shared/page-loading";
-import { Field } from "@/components/profile/form-fields";
-import { BirthDateSelect } from "@/components/profile/birth-date-select";
+import { DealbreakerToggle, Field } from "@/components/profile/form-fields";
+import { FieldControl, checkDraft, initialDraft, isOtherJob, rowKeys, toPatch, type Values } from "@/components/profile/edit/field-control";
 import { SetupDone } from "@/components/profile/setup/setup-done";
 import { COUNTRIES, toCountry, type CountryCode } from "@/lib/countries";
-import { editField, prefReligionHints } from "@/lib/profile-edit-fields";
-import { defaultNationality, nationalityOptions, type Opt } from "@/lib/profile-options";
-import { missingSetupSteps } from "@/lib/profile-completeness";
-import { PREF_RELIGION_SAME, sectAsked } from "@/lib/profile-religion";
-import { activeDealbreakers, type DealbreakerPrefs } from "@/lib/matching/dealbreaker-summary";
+import { editField, rowKeyOf, type EditCtx, type EditField, type EditShowCtx } from "@/lib/profile-edit-fields";
+import { isEmptyStored } from "@/lib/profile-edit-split";
+import { dealbreakerKeysToSave, sendableChanges } from "@/lib/profile-edit-state";
+import { firstIncompleteStep, missingOnStep, setupRequired, setupSteps, type SetupStep, type SetupStepId } from "@/lib/setup-steps";
+import { defaultNationality, type Opt } from "@/lib/profile-options";
+import { dealbreakerPrefsFor } from "@/lib/profile-religion";
+import { activeDealbreakers, dealbreakerSummary, type DealbreakerPrefs } from "@/lib/matching/dealbreaker-summary";
+import type { DealbreakerKey } from "@/lib/matching/score";
 import { forViewer } from "@/lib/gendered-copy";
 import { FixedBottomBar } from "@/components/profile/fixed-bottom-bar";
-import { dateOfBirthError, parentInfoSchemaFor, PREF_AGE_MAX } from "@/lib/validations/profile";
+import { parentInfoSchemaFor } from "@/lib/validations/profile";
 import { normalizePhone } from "@/lib/phone";
 import { toLatinDigits } from "@/lib/digits";
 import { sharedGet } from "@/lib/shared-get";
@@ -29,28 +31,6 @@ import { trackEvent } from "@/lib/analytics";
 import { cn } from "@/lib/utils";
 
 const SINGLE = "أعزب/عزباء";
-const PREF_AGE_MIN = 18;
-const STEP_NAMES = ["عنك", "حالتك", "من تبحث عنه"];
-const GUARDIAN_STEP_NAME = "وليّ الأمر";
-
-const EMPTY_FORM = {
-  dateOfBirth: "",
-  nationality: "",
-  city: "",
-  education: "",
-  maritalStatus: "",
-  childrenCount: "",
-  religiosity: "",
-  // «الديانة» (switch `religion_enabled`): required, no preselected answer
-  religion: "",
-  // «المذهب»: Lebanese members only, never a Christian (sectAsked)
-  sect: "",
-  prefAgeMin: "",
-  prefAgeMax: "",
-  prefReligion: PREF_RELIGION_SAME as string,
-};
-type SetupForm = typeof EMPTY_FORM;
-type FormKey = keyof SetupForm;
 
 const EMPTY_GUARDIAN = { parentName: "", parentPhone: "", relationship: "", address: "" };
 type GuardianForm = typeof EMPTY_GUARDIAN;
@@ -62,10 +42,41 @@ const GUARDIAN_RELATIONSHIPS: Opt[] = [
   { value: "guardian", label: "قريب آخر" },
 ];
 
-/** The stored `setupStep` the legacy wizard reads if the switch goes off: its guardian step is 5 */
-const storedStep = (step: number) => (step === 4 ? 5 : step);
+/**
+ * The stored `setupStep` (1–5, the draft API's range) is the legacy wizard's step, read if the switch goes off:
+ * 1 basics and work, 2 religion and life, 3 about me and preferences, 4 family, 5 guardian.
+ */
+const LEGACY_STEP: Record<SetupStepId, number> = { you: 1, faith: 2, work: 1, family: 4, about: 3, looking: 3, musts: 3 };
+const GUARDIAN_LEGACY_STEP = 5;
+/** Step `i` (past the last: the guardian) as the stored `setupStep` */
+const storedStep = (steps: SetupStep[], i: number) => (i >= steps.length ? GUARDIAN_LEGACY_STEP : LEGACY_STEP[steps[i].id]);
 
-const str = (v: unknown) => (v === null || v === undefined ? "" : String(v));
+/** Every field the steps ask, in step order */
+const SETUP_FIELDS: EditField[] = setupSteps({ dealbreakers: false })
+  .flatMap((s) => s.fieldKeys)
+  .map((key) => editField(key))
+  .filter((f): f is EditField => !!f);
+const LOOKING_FIELDS: EditField[] = setupSteps({ dealbreakers: false })
+  .find((s) => s.id === "looking")!
+  .fieldKeys.map((key) => editField(key))
+  .filter((f): f is EditField => !!f);
+
+/** The form a stored profile opens with, in the controls' forms */
+function formFromProfile(p: Values, gender: string, country: CountryCode): Values {
+  const form: Values = {};
+  for (const field of SETUP_FIELDS) Object.assign(form, initialDraft(field, p));
+  // «الديانة» has no preselected answer in setup (the edit list reads a stored null as «مسلم»)
+  if (isEmptyStored(p.religion)) form.religion = "";
+  if (!form.nationality) form.nationality = defaultNationality(gender, country);
+  return form;
+}
+
+/** A draft value of the same shape as the form's (an old or foreign draft never breaks a control) */
+function sameShape(current: unknown, v: unknown): boolean {
+  if (Array.isArray(current)) return Array.isArray(v) && v.every((x) => typeof x === "string");
+  if (typeof current === "string") return typeof v === "string";
+  return v === null || typeof v === "boolean";
+}
 
 /** One pill per option (the mockup's chips), labelled by its Field */
 function Chips({
@@ -111,18 +122,46 @@ function Chips({
   );
 }
 
+/** The sub-line under each step's title */
+function stepSub(id: SetupStepId, gender: string): string {
+  switch (id) {
+    case "you":
+      return forViewer(gender, "بياناتك الأساسية كما تظهر لمن يُقترح عليك.", "بياناتكِ الأساسية كما تظهر لمن يُقترح عليكِ.");
+    case "faith":
+      return forViewer(gender, "تساعدنا على اقتراح من يناسبك.", "تساعدنا على اقتراح من يناسبكِ.");
+    case "work":
+      return forViewer(gender, "دراستك وعملك.", "دراستكِ وعملكِ.");
+    case "family":
+      return forViewer(gender, "عائلتك وسكنك.", "عائلتكِ وسكنكِ.");
+    case "about":
+      return forViewer(gender, "بكلماتك. كلها اختيارية، ويمكنك إكمالها لاحقاً.", "بكلماتكِ. كلها اختيارية، ويمكنكِ إكمالها لاحقاً.");
+    case "looking":
+      return forViewer(gender, "العمر مطلوب، وباقي التفضيلات اختياري.", "العمر مطلوب، وباقي التفضيلات اختياري.");
+    case "musts":
+      return forViewer(gender, "اختر ما لا تقبل غيره. يمكنك تغييره لاحقاً من «تعديل ملفي».", "اختاري ما لا تقبلين غيره. يمكنكِ تغييره لاحقاً من «تعديل ملفي».");
+  }
+}
+
 /**
- * The short setup (switch `auth_profile_redesign`): three steps «عنك» / «حالتك» / «من تبحث عنه» with the
- * required fields only, then «ملفك جاهز». It opens on the first step still missing (`missingSetupSteps`), never
- * on the stored `setupStep`. Legacy cycle only (`intro_requests_enabled` off): a fourth guardian step, as today.
+ * The sign-up setup (switch `auth_profile_redesign`): every profile field in 7 steps (6 where the legacy shows no
+ * «شروط أساسية», `flags.mutualSuggestions`), driven by the edit field table through `setupSteps`, then «ملفك جاهز».
+ * It opens on the first step with a required answer missing (`firstIncompleteStep`), never on the stored
+ * `setupStep`. Legacy cycle only (`intro_requests_enabled` off): a last guardian step, as before.
+ * Spec: docs/superpowers/specs/2026-11-14-full-setup-design.md.
  */
 export function ShortSetup({ guardianStep }: { guardianStep: boolean }) {
   const router = useRouter();
-  const { refreshProfile, profile: me, counts } = useDashboardData();
+  const { refreshProfile, profile: me, counts, loading: dataLoading } = useDashboardData();
   // «الديانة»: asked only while the switch is on (from /api/me/counts)
   const religionEnabled = counts?.religionEnabled === true;
-  const [step, setStep] = useState(1);
-  const [form, setForm] = useState<SetupForm>(EMPTY_FORM);
+  // «شروط أساسية»: only where the legacy setup shows them (new suggestions flow)
+  const dealbreakersOn = counts?.flags?.mutualSuggestions === true;
+  const steps = useMemo(() => setupSteps({ dealbreakers: dealbreakersOn }), [dealbreakersOn]);
+  const [step, setStep] = useState(0);
+  const [form, setForm] = useState<Values>({});
+  const [stored, setStored] = useState<Values>({});
+  const [ticked, setTicked] = useState<string[]>([]);
+  const [jobOther, setJobOther] = useState(false);
   const [guardian, setGuardian] = useState<GuardianForm>(EMPTY_GUARDIAN);
   const [shareConsent, setShareConsent] = useState(false);
   const [gender, setGender] = useState("");
@@ -132,20 +171,20 @@ export function ShortSetup({ guardianStep }: { guardianStep: boolean }) {
   const [loadFailed, setLoadFailed] = useState(false);
   const [autoSaveEnabled, setAutoSaveEnabled] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  // Stored «شروط أساسية» that work as a filter: only for the hint under the partner's «الديانة»
-  const [storedDealbreakers, setStoredDealbreakers] = useState<string[]>([]);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [done, setDone] = useState(false);
   const { savedIndicatorVisible, saveToLocalStorage, restoreDraft, clearDraft, saveToServer } = useAutoSave(autoSaveEnabled);
 
   const country = COUNTRIES[countryCode];
-  // «المذهب» is asked of Lebanese members only, never of a Christian (the only Muslim-only question here)
-  const sectOn = sectAsked(countryCode, form.religion);
-  const optsCtx = { gender: (gender === "FEMALE" ? "FEMALE" : "MALE") as "MALE" | "FEMALE", country: countryCode, religionEnabled };
-  const options = (key: string) => editField(key)?.options?.(optsCtx) ?? [];
-  const totalSteps = guardianStep ? 4 : 3;
-  const stepNames = guardianStep ? [...STEP_NAMES, GUARDIAN_STEP_NAME] : STEP_NAMES;
+  const ctx: EditCtx = useMemo(
+    () => ({ gender: gender === "FEMALE" ? "FEMALE" : "MALE", country: countryCode, religionEnabled }),
+    [gender, countryCode, religionEnabled],
+  );
+  const showCtx: EditShowCtx = { ...ctx, profile: form };
+  const totalSteps = steps.length + (guardianStep ? 1 : 0);
+  const onGuardian = guardianStep && step === steps.length;
+  const current: SetupStep | undefined = steps[step];
 
   const loadProfile = useCallback(async () => {
     setLoadFailed(false);
@@ -161,29 +200,19 @@ export function ShortSetup({ guardianStep }: { guardianStep: boolean }) {
         return;
       }
       const code = toCountry(user.country);
-      const p: Record<string, unknown> = user.profile ?? {};
+      const userGender = String(user.gender ?? "");
+      const p: Values = user.profile ?? {};
+      const loadCtx: EditCtx = { gender: userGender === "FEMALE" ? "FEMALE" : "MALE", country: code, religionEnabled };
       setOwnerId(user.id);
-      setGender(user.gender ?? "");
+      setGender(userGender);
       setCountryCode(code);
-      const next: SetupForm = {
-        dateOfBirth: p.dateOfBirth ? new Date(String(p.dateOfBirth)).toISOString().split("T")[0] : "",
-        nationality: str(p.nationality) || defaultNationality(user.gender, code),
-        city: str(p.city),
-        education: str(p.education),
-        maritalStatus: str(p.maritalStatus),
-        childrenCount: str(p.childrenCount),
-        religiosity: str(p.religiosity),
-        religion: str(p.religion),
-        sect: str(p.sect),
-        prefAgeMin: str(p.prefAgeMin),
-        prefAgeMax: str(p.prefAgeMax),
-        prefReligion: str(p.prefReligion) || PREF_RELIGION_SAME,
-      };
-      const ticked = Array.isArray(p.dealbreakers) ? p.dealbreakers.map(String) : [];
-      setStoredDealbreakers(activeDealbreakers(ticked, p as DealbreakerPrefs, user.gender));
+      setStored(p);
+      setTicked(Array.isArray(p.dealbreakers) ? p.dealbreakers.map(String) : []);
+      const fromServer = formFromProfile(p, userGender, code);
+      const next = { ...fromServer };
       const pi = user.parentInfo;
       const nextGuardian: GuardianForm = pi
-        ? { parentName: str(pi.parentName), parentPhone: str(pi.parentPhone), relationship: str(pi.relationship), address: str(pi.address) }
+        ? { parentName: String(pi.parentName ?? ""), parentPhone: String(pi.parentPhone ?? ""), relationship: String(pi.relationship ?? ""), address: String(pi.address ?? "") }
         : EMPTY_GUARDIAN;
       setShareConsent(!!pi?.shareConsentAt);
 
@@ -191,18 +220,20 @@ export function ShortSetup({ guardianStep }: { guardianStep: boolean }) {
       const draft = restoreDraft(user.id);
       const serverTime = p.updatedAt ? new Date(String(p.updatedAt)).getTime() : 0;
       if (draft && new Date(draft.savedAt).getTime() > serverTime) {
-        for (const key of Object.keys(EMPTY_FORM) as FormKey[]) {
+        for (const key of Object.keys(next)) {
           const v = draft.form?.[key];
-          if (typeof v === "string") next[key] = v;
+          if (v !== undefined && sameShape(next[key], v)) next[key] = v;
         }
         for (const key of Object.keys(EMPTY_GUARDIAN) as (keyof GuardianForm)[]) {
           const v = draft.parentForm?.[key];
           if (typeof v === "string") nextGuardian[key] = v;
         }
       }
+      const jobField = editField("job");
+      setJobOther(!!jobField && isOtherJob(jobField, next, loadCtx));
       setForm(next);
       setGuardian(nextGuardian);
-      setStep(missingSetupSteps({ profile: p, country: code })[0]?.step ?? 3);
+      setStep(firstIncompleteStep(steps, fromServer, loadCtx));
       loaded = true;
     } catch {
       // Never treat a failed load as an empty profile: saving it would overwrite what is stored
@@ -211,15 +242,16 @@ export function ShortSetup({ guardianStep }: { guardianStep: boolean }) {
       setFetching(false);
       setAutoSaveEnabled(loaded);
     }
-  }, [restoreDraft, router]);
+  }, [restoreDraft, router, steps, religionEnabled]);
+  // The step count and «الديانة» follow the switches: load once they are known
   useEffect(() => {
-    loadProfile();
-  }, [loadProfile]);
+    if (!dataLoading) loadProfile();
+  }, [dataLoading, loadProfile]);
 
   // The local draft follows every change (debounced in the hook)
   useEffect(() => {
-    if (autoSaveEnabled) saveToLocalStorage(form, guardian, storedStep(step), ownerId);
-  }, [form, guardian, step, autoSaveEnabled, saveToLocalStorage, ownerId]);
+    if (autoSaveEnabled) saveToLocalStorage(form, guardian, storedStep(steps, step), ownerId);
+  }, [form, guardian, step, steps, autoSaveEnabled, saveToLocalStorage, ownerId]);
 
   // Each step and the done screen start at the top
   const topRef = useRef<HTMLDivElement>(null);
@@ -232,58 +264,45 @@ export function ShortSetup({ guardianStep }: { guardianStep: boolean }) {
     topRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
   }, [step, done]);
 
-  function clearError(key: string) {
+  function clearErrors(keys: string[]) {
     setErrors((prev) => {
-      if (!prev[key]) return prev;
+      if (!keys.some((k) => prev[k])) return prev;
       const next = { ...prev };
-      delete next[key];
+      for (const k of keys) delete next[k];
       return next;
     });
   }
 
-  function update(key: FormKey, value: string) {
-    setForm((prev) => ({ ...prev, [key]: value }));
-    clearError(key);
+  function update(field: EditField, patch: Values) {
+    const extra: Values = field.key === "maritalStatus" && patch.maritalStatus === SINGLE ? { childrenCount: "0" } : {};
+    setForm((prev) => ({ ...prev, ...patch, ...extra }));
+    clearErrors([field.key, ...Object.keys(extra)]);
   }
 
   function updateGuardian(key: keyof GuardianForm, value: string) {
     setGuardian((prev) => ({ ...prev, [key]: value }));
-    clearError(key);
+    clearErrors([key]);
   }
 
-  function validate(s: number): Record<string, string> {
+  /** The step's fields shown now: the table's `showIf`, and the children count once a marital status is chosen */
+  function shownFields(s: SetupStep): EditField[] {
+    return s.fieldKeys
+      .map((key) => editField(key))
+      .filter((f): f is EditField => !!f && (!f.showIf || f.showIf(showCtx)))
+      .filter((f) => f.key !== "childrenCount" || !!form.maritalStatus);
+  }
+
+  /** The partner preferences as stored values (for the «شروط أساسية») */
+  const prefs = useMemo(() => {
+    const out: Values = {};
+    for (const field of LOOKING_FIELDS) Object.assign(out, toPatch(field, Object.fromEntries(rowKeys(field).map((k) => [k, form[k]]))));
+    return dealbreakerPrefsFor(form.religion as string | null | undefined, out) as DealbreakerPrefs;
+  }, [form]);
+  const activeTicked = activeDealbreakers(ticked, prefs, gender);
+
+  function validate(i: number): Record<string, string> {
     const e: Record<string, string> = {};
-    if (s === 1) {
-      if (!form.dateOfBirth) e.dateOfBirth = "تاريخ الميلاد مطلوب";
-      else {
-        const dobErr = dateOfBirthError(form.dateOfBirth);
-        if (dobErr) e.dateOfBirth = dobErr;
-      }
-      if (!form.nationality.trim()) e.nationality = "الجنسية مطلوبة";
-      if (!form.city) e.city = "المدينة مطلوبة";
-      if (!form.education) e.education = "المستوى التعليمي مطلوب";
-    } else if (s === 2) {
-      if (religionEnabled && !form.religion) e.religion = "الديانة مطلوبة";
-      if (!form.maritalStatus) e.maritalStatus = "الحالة الاجتماعية مطلوبة";
-      if (form.maritalStatus && form.maritalStatus !== SINGLE) {
-        if (form.childrenCount === "") e.childrenCount = "عدد الأبناء مطلوب";
-        else {
-          const c = parseInt(form.childrenCount);
-          if (!(c >= 0 && c <= 20)) e.childrenCount = "عدد الأبناء يجب أن يكون بين 0 و 20";
-        }
-      }
-      if (!form.religiosity) e.religiosity = "مستوى التدين مطلوب";
-      if (sectOn && !form.sect) e.sect = "المذهب مطلوب";
-    } else if (s === 3) {
-      const range = `بين ${PREF_AGE_MIN} و ${PREF_AGE_MAX}`;
-      const min = parseInt(form.prefAgeMin);
-      const max = parseInt(form.prefAgeMax);
-      if (!form.prefAgeMin) e.prefAgeMin = "العمر الأدنى مطلوب";
-      else if (!(min >= PREF_AGE_MIN && min <= PREF_AGE_MAX)) e.prefAgeMin = `العمر الأدنى يجب أن يكون ${range}`;
-      if (!form.prefAgeMax) e.prefAgeMax = "العمر الأقصى مطلوب";
-      else if (!(max >= PREF_AGE_MIN && max <= PREF_AGE_MAX)) e.prefAgeMax = `العمر الأقصى يجب أن يكون ${range}`;
-      if (!e.prefAgeMin && !e.prefAgeMax && min > max) e.prefAgeMin = "العمر الأدنى يجب أن يكون أقل من العمر الأقصى";
-    } else if (s === 4) {
+    if (i >= steps.length) {
       if (!guardian.parentName) e.parentName = "اسم ولي الأمر مطلوب";
       if (!guardian.parentPhone) e.parentPhone = `رقم ${country.words.phone} ولي الأمر مطلوب`;
       if (!guardian.relationship) e.relationship = "صلة القرابة مطلوبة";
@@ -298,34 +317,38 @@ export function ShortSetup({ guardianStep }: { guardianStep: boolean }) {
       if (!e.parentPhone && me?.phone && normalizePhone(guardian.parentPhone, country.code) === me.phone) {
         e.parentPhone = `رقم وليّ الأمر يجب أن يختلف عن رقم ${country.words.phone}ك`;
       }
+      return e;
+    }
+    const s = steps[i];
+    const missing = new Set(missingOnStep(s, form, ctx).map(rowKeyOf));
+    for (const field of shownFields(s)) {
+      const label = field.label(ctx.gender, countryCode);
+      const issue = checkDraft(field, form, label, field.key === "job" && jobOther, countryCode);
+      if (issue) e[field.key] = issue;
+      else if (missing.has(field.key)) e[field.key] = `${label} ${field.fem ? "مطلوبة" : "مطلوب"}`;
     }
     return e;
   }
 
-  /** The answers so far, empty ones left out (the server keeps what it has) */
-  function payload(): Record<string, unknown> {
-    const p: Record<string, unknown> = {};
-    if (form.dateOfBirth) p.dateOfBirth = form.dateOfBirth;
-    if (form.nationality.trim()) p.nationality = form.nationality.trim();
-    if (form.city) p.city = form.city;
-    if (form.education) p.education = form.education;
-    if (form.maritalStatus) {
-      p.maritalStatus = form.maritalStatus;
-      p.childrenCount = form.maritalStatus === SINGLE ? 0 : form.childrenCount ? parseInt(form.childrenCount) : 0;
+  /** Every step's answers as stored values, empty ones left out (the server keeps what it has), through `sendableChanges` */
+  function payload(): Values {
+    const out: Values = {};
+    for (const s of steps) {
+      for (const field of shownFields(s)) {
+        const values = toPatch(field, Object.fromEntries(rowKeys(field).map((k) => [k, form[k]])));
+        for (const [key, raw] of Object.entries(values)) {
+          const v = typeof raw === "string" ? raw.trim() : raw;
+          if (!isEmptyStored(v)) out[key] = v;
+        }
+      }
     }
-    if (form.religiosity) p.religiosity = form.religiosity;
-    if (religionEnabled && form.religion) p.religion = form.religion;
-    // Never a Christian's «المذهب» (sectOn is false for one; the server strips it too)
-    if (sectOn && form.sect) p.sect = form.sect;
-    if (form.prefAgeMin) p.prefAgeMin = parseInt(form.prefAgeMin);
-    if (form.prefAgeMax) p.prefAgeMax = parseInt(form.prefAgeMax);
-    if (religionEnabled && form.prefReligion) p.prefReligion = form.prefReligion;
-    return p;
+    if (form.maritalStatus === SINGLE) out.childrenCount = 0;
+    return sendableChanges(out, stored, religionEnabled);
   }
 
   /** Errors under their fields; the first one is brought into view. True when the step is fine. */
-  function check(s: number): boolean {
-    const e = validate(s);
+  function check(i: number): boolean {
+    const e = validate(i);
     setErrors(e);
     setError("");
     const first = Object.keys(e)[0];
@@ -338,8 +361,15 @@ export function ShortSetup({ guardianStep }: { guardianStep: boolean }) {
   function goNext() {
     if (!check(step)) return;
     const nextStep = step + 1;
-    saveToServer(storedStep(nextStep), payload());
+    saveToServer(storedStep(steps, nextStep), payload());
     setStep(nextStep);
+  }
+
+  async function putJson(url: string, body: unknown, fallback: string): Promise<string | null> {
+    const res = await fetch(url, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    if (res.ok) return null;
+    const data = await res.json().catch(() => ({}));
+    return typeof data.error === "string" && data.error ? data.error : fallback;
   }
 
   async function finish() {
@@ -348,26 +378,16 @@ export function ShortSetup({ guardianStep }: { guardianStep: boolean }) {
     try {
       // Legacy cycle: the guardian first, the profile only counts as complete once it has one (the server checks)
       if (guardianStep) {
-        const res = await fetch("/api/profile/parent-info", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...guardian, shareConsent }),
-        });
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          setError(data.error || "حدث خطأ أثناء حفظ بيانات ولي الأمر");
-          return;
-        }
+        const failed = await putJson("/api/profile/parent-info", { ...guardian, shareConsent }, "حدث خطأ أثناء حفظ بيانات ولي الأمر");
+        if (failed) return setError(failed);
       }
-      const res = await fetch("/api/profile", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload()),
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        setError(data.error || "حدث خطأ أثناء حفظ الملف الشخصي");
-        return;
+      const failed = await putJson("/api/profile", payload(), "حدث خطأ أثناء حفظ الملف الشخصي");
+      if (failed) return setError(failed);
+      // «شروط أساسية» after the profile, as the edit list (the religion this setup saved decides the Muslim-only keys)
+      if (steps.some((s) => s.id === "musts")) {
+        const keys = dealbreakerKeysToSave(ticked, prefs, form.religion as string | null | undefined, gender);
+        const dealbreakersFailed = await putJson("/api/profile/dealbreakers", { keys }, "تعذّر حفظ الشروط الأساسية. يمكنك المحاولة مرة أخرى.");
+        if (dealbreakersFailed) return setError(dealbreakersFailed);
       }
       trackEvent("profile_completed");
       clearDraft();
@@ -388,7 +408,7 @@ export function ShortSetup({ guardianStep }: { guardianStep: boolean }) {
       </div>
     );
   }
-  if (fetching) return <PageLoading width="max-w-xl" />;
+  if (dataLoading || fetching) return <PageLoading width="max-w-xl" />;
   if (done) {
     return (
       <div ref={topRef} className="scroll-mt-20">
@@ -397,212 +417,97 @@ export function ShortSetup({ guardianStep }: { guardianStep: boolean }) {
     );
   }
 
-  const heading =
-    step === 1
-      ? { title: "معلوماتك الأساسية", sub: "أسئلة قليلة فقط، وباقي ملفك اختياري يمكنك إكماله لاحقاً." }
-      : step === 2
-        ? { title: "حالتك الاجتماعية", sub: forViewer(gender, "تساعدنا على اقتراح من يناسبك.", "تساعدنا على اقتراح من يناسبكِ.") }
-        : step === 3
-          ? {
-              title: forViewer(gender, "من تبحث عنه؟", "من تبحثين عنه؟"),
-              sub: "العمر المناسب للطرف الآخر. يمكنك إضافة باقي التفضيلات لاحقاً من «تعديل ملفي».",
-            }
-          : { title: "بيانات ولي الأمر", sub: "هذه البيانات مطلوبة لتنسيق الزيارات العائلية ولن تظهر للمستخدمين الآخرين" };
-  const last = step === totalSteps;
-  const rowClass = "flex min-h-13 items-center gap-3 px-4";
-  const rowInput = "h-12 min-w-0 flex-1 bg-transparent text-end text-body text-ink outline-none";
+  const heading = onGuardian || !current
+    ? { title: "بيانات ولي الأمر", sub: "هذه البيانات مطلوبة لتنسيق الزيارات العائلية ولن تظهر للمستخدمين الآخرين" }
+    : {
+        title: current.id === "looking" ? forViewer(gender, current.title, "من تبحثين عنه") : current.title,
+        sub: stepSub(current.id, gender),
+      };
+  const last = step === totalSteps - 1;
+
+  /** «شروط أساسية»: one toggle per filled preference that has one */
+  function mustsStep() {
+    const rows = LOOKING_FIELDS.filter((f) => f.dealbreaker && (!f.showIf || f.showIf(showCtx)))
+      .map((f) => ({ field: f, key: f.dealbreaker as DealbreakerKey, summary: dealbreakerSummary(f.dealbreaker as DealbreakerKey, prefs, gender) }))
+      .filter((r) => r.summary !== null);
+    if (rows.length === 0) {
+      return (
+        <p className="rounded-xl bg-primary/5 p-4 text-body text-muted-ink">
+          {forViewer(gender, "لم تختر تفضيلات بعد، يمكنك إضافتها لاحقاً من «تعديل ملفي».", "لم تختاري تفضيلات بعد، يمكنكِ إضافتها لاحقاً من «تعديل ملفي».")}
+        </p>
+      );
+    }
+    return (
+      <>
+        <p className="text-label font-normal text-muted-ink">{forViewer(gender, "لن نقترح عليك من لا يحققه.", "لن نقترح عليكِ من لا يحققه.")}</p>
+        <ul className="divide-y divide-border overflow-hidden rounded-xl bg-card">
+          {rows.map(({ field, key, summary }) => {
+            const id = `must-${key}`;
+            return (
+              <li key={key} className="flex min-h-14 items-center gap-3 px-4 py-2">
+                <div className="min-w-0 flex-1">
+                  <p id={`${id}-label`} className="text-body text-ink">{field.label(ctx.gender, countryCode)}</p>
+                  <p className="text-caption text-muted-ink">{summary}</p>
+                </div>
+                <DealbreakerToggle
+                  id={id}
+                  checked={activeTicked.includes(key)}
+                  onChange={(on) => setTicked((prev) => (on ? [...new Set([...prev, key])] : prev.filter((k) => k !== key)))}
+                />
+              </li>
+            );
+          })}
+        </ul>
+      </>
+    );
+  }
 
   return (
     <div ref={topRef} className="mx-auto max-w-xl scroll-mt-20 pt-2">
-      {/* Progress: one bar per step, with the step names */}
+      {/* Progress: one bar per step and «الخطوة X من N»; the step's name is the title below */}
       <div className="mb-6">
         <div className="mb-2 flex gap-1.5" aria-hidden>
-          {stepNames.map((name, i) => (
-            <span key={name} className={cn("h-1 flex-1 rounded-full", i < step ? "bg-primary" : "bg-muted")} />
+          {Array.from({ length: totalSteps }, (_, i) => (
+            <span key={i} data-testid="setup-progress-segment" className={cn("h-1 flex-1 rounded-full", i <= step ? "bg-primary" : "bg-muted")} />
           ))}
         </div>
-        <ol aria-label="خطوات الإعداد" className="flex justify-between gap-2">
-          {stepNames.map((name, i) => (
-            <li
-              key={name}
-              aria-current={i + 1 === step ? "step" : undefined}
-              className={cn("text-caption", i + 1 === step ? "font-bold text-primary" : "text-muted-ink")}
-            >
-              {i + 1}. {name}
-            </li>
-          ))}
-        </ol>
+        <p className="text-caption text-muted-ink">{`الخطوة ${step + 1} من ${totalSteps}`}</p>
       </div>
 
       <h1 className="font-display text-display-sm text-ink">{heading.title}</h1>
       <p className="mt-1 mb-6 text-body text-muted-ink">{heading.sub}</p>
 
       <div className="space-y-6">
-        {step === 1 && (
-          <>
-            <Field id="dateOfBirth" label="تاريخ الميلاد" error={errors.dateOfBirth}>
-              <BirthDateSelect id="dateOfBirth" value={form.dateOfBirth} onChange={(v) => update("dateOfBirth", v)} invalid={!!errors.dateOfBirth} />
-            </Field>
+        {current && !onGuardian && current.id === "musts" && mustsStep()}
 
-            <div>
-              <p className="mb-1.5 px-1 text-label font-normal text-muted-ink">الجنسية والمدينة</p>
-              <div
-                className={cn(
-                  "overflow-hidden rounded-xl bg-card focus-within:ring-2 focus-within:ring-primary/30",
-                  (errors.nationality || errors.city) && "ring-1 ring-destructive",
-                )}
-              >
-                <div data-field="nationality" className={cn(rowClass, "border-b border-border")}>
-                  <label htmlFor="nationality" className="shrink-0 text-body text-ink">
-                    الجنسية
-                  </label>
-                  <input
-                    id="nationality"
-                    list="nationality-options"
-                    value={form.nationality}
-                    maxLength={100}
-                    onChange={(e) => update("nationality", e.target.value)}
-                    aria-invalid={!!errors.nationality}
-                    aria-describedby={errors.nationality ? "nationality-error" : undefined}
-                    className={rowInput}
-                  />
-                  <datalist id="nationality-options">
-                    {nationalityOptions(gender, countryCode).map((n) => (
-                      <option key={n} value={n} />
-                    ))}
-                  </datalist>
-                </div>
-                <div data-field="city" className={rowClass}>
-                  <label htmlFor="city" className="shrink-0 text-body text-ink">
-                    المدينة
-                  </label>
-                  <select
-                    id="city"
-                    value={form.city}
-                    onChange={(e) => update("city", e.target.value)}
-                    aria-invalid={!!errors.city}
-                    aria-describedby={errors.city ? "city-error" : undefined}
-                    className={cn(rowInput, "cursor-pointer", !form.city && "text-muted-ink")}
-                  >
-                    <option value="">اختر المدينة</option>
-                    {options("city").map((o) => (
-                      <option key={o.value} value={o.value}>
-                        {o.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              {errors.nationality && (
-                <p id="nationality-error" className="mt-2 px-1 text-caption text-destructive">
-                  {errors.nationality}
-                </p>
-              )}
-              {errors.city && (
-                <p id="city-error" className="mt-2 px-1 text-caption text-destructive">
-                  {errors.city}
-                </p>
-              )}
-            </div>
-
-            <Field id="education" label="المستوى التعليمي" error={errors.education}>
-              <Chips id="education" options={options("education")} value={form.education} onSelect={(v) => update("education", v)} invalid={!!errors.education} />
-            </Field>
-          </>
-        )}
-
-        {step === 2 && (
-          <>
-            {religionEnabled && (
-              <Field id="religion" label="الديانة" error={errors.religion}>
-                <Chips id="religion" options={options("religion")} value={form.religion} onSelect={(v) => update("religion", v)} invalid={!!errors.religion} />
-              </Field>
-            )}
-
-            <Field id="maritalStatus" label="الحالة الاجتماعية" error={errors.maritalStatus}>
-              <Chips
-                id="maritalStatus"
-                options={options("maritalStatus")}
-                value={form.maritalStatus}
-                onSelect={(v) => {
-                  update("maritalStatus", v);
-                  if (v === SINGLE) update("childrenCount", "0");
-                }}
-                invalid={!!errors.maritalStatus}
-              />
-            </Field>
-
-            {form.maritalStatus && form.maritalStatus !== SINGLE && (
-              <Field id="childrenCount" label="عدد الأبناء" error={errors.childrenCount}>
-                <NumberInput
-                  id="childrenCount"
-                  value={form.childrenCount}
-                  onChange={(e) => update("childrenCount", e.target.value)}
-                  placeholder="0"
-                  min={0}
-                  max={20}
-                  dir="ltr"
-                  aria-invalid={!!errors.childrenCount}
-                  className={cn("h-12 max-w-32 text-body", errors.childrenCount && "border-destructive")}
+        {current &&
+          !onGuardian &&
+          current.id !== "musts" &&
+          shownFields(current).map((field) => {
+            const label = field.label(ctx.gender, countryCode);
+            const hints = field.hints?.({ ...showCtx, dealbreakers: activeTicked }) ?? [];
+            return (
+              <Field key={field.key} id={field.key} label={label} optional={!setupRequired(field, showCtx)} error={errors[field.key]}>
+                <FieldControl
+                  id={field.key}
+                  field={field}
+                  ctx={ctx}
+                  value={Object.fromEntries(rowKeys(field).map((k) => [k, form[k]]))}
+                  onChange={(patch) => update(field, patch)}
+                  invalid={!!errors[field.key]}
+                  jobOther={jobOther}
+                  onJobOther={setJobOther}
                 />
+                {hints.map((line) => (
+                  <p key={line} className="px-1 text-caption text-muted-ink">
+                    {line}
+                  </p>
+                ))}
               </Field>
-            )}
+            );
+          })}
 
-            <Field id="religiosity" label="مستوى التدين" error={errors.religiosity}>
-              <Chips id="religiosity" options={options("religiosity")} value={form.religiosity} onSelect={(v) => update("religiosity", v)} invalid={!!errors.religiosity} />
-            </Field>
-
-            {sectOn && (
-              <Field id="sect" label="المذهب" error={errors.sect}>
-                <Chips id="sect" options={options("sect")} value={form.sect} onSelect={(v) => update("sect", v)} invalid={!!errors.sect} />
-              </Field>
-            )}
-          </>
-        )}
-
-        {step === 3 && religionEnabled && (
-          <Field id="prefReligion" label="الديانة">
-            <Chips id="prefReligion" options={options("prefReligion")} value={form.prefReligion} onSelect={(v) => update("prefReligion", v)} />
-            {prefReligionHints(form.religion, form.prefReligion, storedDealbreakers).map((line) => (
-              <p key={line} className="px-1 text-caption text-muted-ink">
-                {line}
-              </p>
-            ))}
-          </Field>
-        )}
-
-        {step === 3 && (
-          <div className="grid grid-cols-2 gap-4">
-            <Field id="prefAgeMin" label="العمر الأدنى" error={errors.prefAgeMin}>
-              <NumberInput
-                id="prefAgeMin"
-                value={form.prefAgeMin}
-                onChange={(e) => update("prefAgeMin", e.target.value)}
-                placeholder={String(PREF_AGE_MIN)}
-                min={PREF_AGE_MIN}
-                max={PREF_AGE_MAX}
-                dir="ltr"
-                aria-invalid={!!errors.prefAgeMin}
-                className={cn("h-12 text-body", errors.prefAgeMin && "border-destructive")}
-              />
-            </Field>
-            <Field id="prefAgeMax" label="العمر الأقصى" error={errors.prefAgeMax}>
-              <NumberInput
-                id="prefAgeMax"
-                value={form.prefAgeMax}
-                onChange={(e) => update("prefAgeMax", e.target.value)}
-                placeholder="40"
-                min={PREF_AGE_MIN}
-                max={PREF_AGE_MAX}
-                dir="ltr"
-                aria-invalid={!!errors.prefAgeMax}
-                className={cn("h-12 text-body", errors.prefAgeMax && "border-destructive")}
-              />
-            </Field>
-          </div>
-        )}
-
-        {step === 4 && (
+        {onGuardian && (
           <>
             <Field id="parentName" label="اسم ولي الأمر" error={errors.parentName}>
               <Input
@@ -671,7 +576,7 @@ export function ShortSetup({ guardianStep }: { guardianStep: boolean }) {
         spacerClassName="mt-8"
         className="flex items-center gap-3 border-t border-border bg-background/95 py-3 backdrop-blur md:mt-8 md:border-0 md:bg-transparent md:backdrop-blur-none"
       >
-        {step > 1 && (
+        {step > 0 && (
           <Button
             type="button"
             variant="ghost"

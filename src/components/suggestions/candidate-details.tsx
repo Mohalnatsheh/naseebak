@@ -79,16 +79,32 @@ function Section({
   icon: Icon,
   children,
   defaultOpen = true,
+  flat = false,
 }: {
   title: string;
   icon: React.ComponentType<{ className?: string }>;
   children: React.ReactNode;
   defaultOpen?: boolean;
+  /** Profile sheet: always open, the title is a plain heading (no toggle) */
+  flat?: boolean;
 }) {
   const [open, setOpen] = useState(defaultOpen);
 
   // Every row empty: no heading with nothing under it
   if (!hasShownRows(children, InfoRow)) return null;
+  if (flat) {
+    return (
+      <section className="border border-border/40 rounded-xl overflow-hidden bg-card/50">
+        <h3 className="flex items-center gap-2.5 px-4 py-3">
+          <span className="h-8 w-8 rounded-lg bg-gradient-to-br from-primary/15 to-primary/5 flex items-center justify-center">
+            <Icon className="h-4 w-4 text-primary/70" aria-hidden="true" />
+          </span>
+          <span className="text-sm font-bold text-foreground">{title}</span>
+        </h3>
+        <div className="px-4 pb-3 grid grid-cols-2 gap-2">{children}</div>
+      </section>
+    );
+  }
   return (
     <div className="border border-border/40 rounded-xl overflow-hidden bg-card/50">
       <button
@@ -113,14 +129,14 @@ function Section({
 }
 
 /* ── Candidate expanded details shared component ── */
-export function CandidateDetails({ c }: { c: CandidateDetailsData }) {
+export function CandidateDetails({ c, flat = false }: { c: CandidateDetailsData; flat?: boolean }) {
   // Candidates are the other gender: describe their options in third person
   const { profile: viewer, country } = useDashboardData();
   const partnerGender = oppositeGender(viewer?.gender);
   const { words } = countryConfig(country);
   return (
-    <div className="px-5 md:px-6 pb-4 space-y-3" style={{ animation: "fadeSlideIn 0.3s ease-out" }}>
-      <Section title="المعلومات الشخصية" icon={User} defaultOpen={true}>
+    <div className={flat ? "space-y-3" : "px-5 md:px-6 pb-4 space-y-3"} style={{ animation: "fadeSlideIn 0.3s ease-out" }}>
+      <Section flat={flat} title="المعلومات الشخصية" icon={User} defaultOpen={true}>
         <InfoRow icon={Calendar} label="العمر" value={c.age ? `${c.age} سنة` : null} />
         <InfoRow icon={MapPin} label="المدينة" value={c.city} />
         <InfoRow icon={MapPinned} label={words.area} value={c.area} />
@@ -137,13 +153,13 @@ export function CandidateDetails({ c }: { c: CandidateDetailsData }) {
           <InfoRow icon={User} label="اللحية" value={c.beard ? "نعم" : "لا"} />
         )}
       </Section>
-      <Section title="التعليم والعمل" icon={GraduationCap} defaultOpen={true}>
+      <Section flat={flat} title="التعليم والعمل" icon={GraduationCap} defaultOpen={true}>
         <InfoRow icon={GraduationCap} label="المستوى التعليمي" value={c.education} />
         <InfoRow icon={BookOpen} label="التخصص" value={c.fieldOfStudy} />
         <InfoRow icon={Briefcase} label="الوظيفة" value={c.job && describeOption("job", c.job, partnerGender)} />
         <InfoRow icon={Wallet} label="مستوى الدخل" value={c.incomeRange} />
       </Section>
-      <Section title="الدين ونمط الحياة" icon={Moon} defaultOpen={true}>
+      <Section flat={flat} title="الدين ونمط الحياة" icon={Moon} defaultOpen={true}>
         <InfoRow icon={Moon} label="مستوى التدين" value={c.religiosity && describeOption("religiosity", c.religiosity, partnerGender)} />
         <InfoRow icon={Moon} label="المذهب" value={c.sect && describeOption("sect", c.sect, partnerGender)} />
         <InfoRow icon={Cigarette} label="التدخين" value={c.smokingStatus && describeOption("smokingStatus", c.smokingStatus, partnerGender)} />
@@ -151,7 +167,7 @@ export function CandidateDetails({ c }: { c: CandidateDetailsData }) {
         <InfoRow icon={UtensilsCrossed} label="القدرة على الطبخ" value={c.cookingAbility && describeOption("cookingAbility", c.cookingAbility, partnerGender)} />
         <InfoRow icon={Car} label="رخصة قيادة" value={c.drivingLicense !== null && c.drivingLicense !== undefined ? (c.drivingLicense ? "نعم" : "لا") : null} />
       </Section>
-      <Section title="العائلة" icon={Users} defaultOpen={true}>
+      <Section flat={flat} title="العائلة" icon={Users} defaultOpen={true}>
         <InfoRow icon={Gem} label={tribeLabel(country)} value={c.tribe} />
         <InfoRow icon={MapPinned} label="منطقة أصل العائلة" value={c.familyOriginArea} />
         <InfoRow icon={Users} label="عدد الإخوة" value={c.numberOfSiblings !== null && c.numberOfSiblings !== undefined ? `${c.numberOfSiblings}` : null} />
@@ -160,7 +176,7 @@ export function CandidateDetails({ c }: { c: CandidateDetailsData }) {
         <InfoRow icon={Heart} label="القيم العائلية" value={c.familyValues} wide />
       </Section>
       {(c.hobbies || c.interests) && (
-        <Section title="الهوايات والاهتمامات" icon={Sparkles} defaultOpen={true}>
+        <Section flat={flat} title="الهوايات والاهتمامات" icon={Sparkles} defaultOpen={true}>
           {c.hobbies && (
             <div className="col-span-2 py-2">
               <span className="text-xs text-muted-foreground block mb-2">الهوايات</span>

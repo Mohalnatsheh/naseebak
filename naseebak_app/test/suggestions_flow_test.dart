@@ -781,4 +781,81 @@ void main() {
       expect(find.text('أبدى اهتمامه بك'), findsOneWidget);
     });
   });
+
+  group('home asks to open one card (FeedOpenRequest)', () {
+    setUp(feedOpenRequest.clear);
+    tearDown(feedOpenRequest.clear);
+
+    CandidateProfileScreen profile(WidgetTester tester) => tester.widget(find.byType(CandidateProfileScreen));
+
+    testWidgets('asked before the screen opens: the tab loads, then that card\'s full profile opens once',
+        (tester) async {
+      final h = Harness(items: [card('s0'), card('s1')]);
+      feedOpenRequest.ask(FeedTab.newTab, 's1');
+      await h.pump(tester);
+      expect(find.byType(CandidateProfileScreen), findsOneWidget);
+      expect(profile(tester).item.id, 's1');
+      expect(feedOpenRequest.pendingFor(FeedTab.newTab), isNull);
+      // Back: the list, and nothing opens again on the next reload
+      await tester.tap(find.byKey(const Key('profile-back')));
+      await pumpFor(tester);
+      expect(find.byType(CandidateProfileScreen), findsNothing);
+      await h.show(tester, FeedTab.newTab);
+      await pumpFor(tester);
+      expect(find.byType(CandidateProfileScreen), findsNothing);
+    });
+
+    testWidgets('the screen is alive on another tab: it switches to «مهتمون بك», opens the card, and «لا» runs as from the list',
+        (tester) async {
+      final h = Harness(items: [card('i1', likedYou: true)], itemsTab: 'interested');
+      h.adapter.handlers['POST /api/suggestions/i1/decide'] = (_) {
+        h.items.clear();
+        return const FakeResponse(200, {'match': false});
+      };
+      await h.pump(tester);
+      expect(find.byType(CandidateProfileScreen), findsNothing);
+      // What home's card does (`openOnSuggestions`): the tab through the link, then the card
+      feedTabRequest.ask(FeedTab.interested);
+      feedOpenRequest.ask(FeedTab.interested, 'i1');
+      await pumpFor(tester, 30);
+      // Under the profile, the tab already switched
+      expect(tester.widget<TabBar>(find.byType(TabBar, skipOffstage: false)).controller!.index, FeedTab.interested.index);
+      expect(profile(tester).item.id, 'i1');
+      expect(profile(tester).tab, FeedTab.interested);
+      await tester.tap(find.byKey(const Key('profile-decline-i1')));
+      await pumpFor(tester);
+      await tester.tap(find.text('نعم، لا يناسبني'));
+      await pumpFor(tester, 30);
+      expect(h.adapter.to('POST', '/api/suggestions/i1/decide').single.data, {'interested': false});
+      expect(find.text('تم. لن يظهر هذا الاقتراح مجدداً.'), findsOneWidget);
+    });
+
+    testWidgets('a card no longer in the tab: the tab shows, no profile, the request is dropped', (tester) async {
+      final h = Harness(items: [card('s1')]);
+      feedOpenRequest.ask(FeedTab.newTab, 'gone');
+      await h.pump(tester);
+      expect(find.byType(CandidateProfileScreen), findsNothing);
+      expect(find.byKey(const Key('card-open-s1')), findsOneWidget);
+      expect(feedOpenRequest.pendingFor(FeedTab.newTab), isNull);
+    });
+
+    testWidgets('a request for another tab is left for that tab', (tester) async {
+      final h = Harness(items: [card('s1')]);
+      feedOpenRequest.ask(FeedTab.interested, 's1');
+      await h.pump(tester);
+      expect(find.byType(CandidateProfileScreen), findsNothing);
+      expect(feedOpenRequest.pendingFor(FeedTab.interested), 's1');
+    });
+
+    test('a request older than a minute is dropped', () {
+      var now = DateTime(2026, 11, 14, 9);
+      final r = FeedOpenRequest(clock: () => now);
+      r.ask(FeedTab.newTab, 's1');
+      expect(r.pendingFor(FeedTab.waiting), isNull);
+      expect(r.pendingFor(FeedTab.newTab), 's1');
+      now = now.add(const Duration(minutes: 2));
+      expect(r.pendingFor(FeedTab.newTab), isNull);
+    });
+  });
 }
+

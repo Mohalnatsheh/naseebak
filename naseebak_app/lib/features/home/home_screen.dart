@@ -18,6 +18,7 @@ import 'counts.dart';
 import 'gendered_copy.dart';
 import 'poll_card.dart';
 import 'profile_strength_card.dart' show strengthSubtitle;
+import 'widgets/home_load_error_row.dart';
 
 /// «صباح الخير» from 04:00 to noon in Amman, «مساء الخير» otherwise, whatever the phone's clock or zone says (Jordan
 /// and Saudi Arabia are UTC+3 all year; the website's home uses the same rule).
@@ -480,46 +481,6 @@ class _CountChip extends StatelessWidget {
   }
 }
 
-/// A failed block: one line with a retry (never a fake empty state)
-class _LoadErrorRow extends StatelessWidget {
-  const _LoadErrorRow({super.key, required this.text, required this.onRetry});
-  final String text;
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      margin: EdgeInsets.zero,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppRadius.md),
-        side: const BorderSide(color: AppColors.line),
-      ),
-      // Wraps at large text: the retry drops under the line instead of squeezing it (QA A-M05)
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: AppSpace.lg, vertical: AppSpace.sm),
-        child: Wrap(
-          crossAxisAlignment: WrapCrossAlignment.center,
-          alignment: WrapAlignment.spaceBetween,
-          spacing: AppSpace.sm,
-          children: [
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.wifi_off_rounded, color: AppColors.muted),
-                const SizedBox(width: AppSpace.md),
-                Flexible(
-                  child: Text(text, style: AppText.labelRegular.copyWith(color: AppColors.ink)),
-                ),
-              ],
-            ),
-            TextButton(onPressed: onRetry, child: const Text('إعادة المحاولة')),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 /// «مهتمون بك»: up to 3 people (locked avatar, «الاسم، العمر», city); every tap opens the «مهتمون بك» tab
 class _InterestedSection extends ConsumerWidget {
   const _InterestedSection({required this.female, required this.freeReply});
@@ -533,7 +494,7 @@ class _InterestedSection extends ConsumerWidget {
     if (async.hasError && !async.isLoading) {
       return Padding(
         padding: const EdgeInsets.only(bottom: AppSpace.xl),
-        child: _LoadErrorRow(
+        child: HomeLoadErrorRow(
           key: const Key('home-interested-error'),
           text: 'تعذّر تحميل من اهتم بك.',
           onRetry: () => ref.invalidate(homeInterestedProvider),
@@ -716,7 +677,7 @@ class _MoreSection extends ConsumerWidget {
           if (rows.isNotEmpty) _Group(rows),
           if (pollFailed) ...[
             if (rows.isNotEmpty) const SizedBox(height: AppSpace.sm),
-            _LoadErrorRow(
+            HomeLoadErrorRow(
               key: const Key('home-poll-error'),
               text: 'تعذّر تحميل سؤال الأسبوع.',
               onRetry: () => ref.invalidate(currentPollProvider),

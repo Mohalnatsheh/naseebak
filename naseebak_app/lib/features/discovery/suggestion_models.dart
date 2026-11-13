@@ -39,6 +39,48 @@ class FeedTabRequest extends ChangeNotifier {
 
 final feedTabRequest = FeedTabRequest();
 
+/// Home asked the suggestions screen to open one card's full profile (a home suggestion or «مهتمون بك» card): the
+/// tab's list opens it once that card is in it, through its own open path, so the answers run exactly as from the
+/// list. A card no longer in the tab once it has loaded (answered, closed, gone) only shows the tab. A request left
+/// unanswered for [maxAge] (the screen never loaded) is dropped, so it never opens a profile much later.
+class FeedOpenRequest extends ChangeNotifier {
+  FeedOpenRequest({DateTime Function()? clock}) : _clock = clock ?? DateTime.now;
+
+  static const maxAge = Duration(minutes: 1);
+
+  final DateTime Function() _clock;
+  FeedTab? _tab;
+  String? _id;
+  DateTime? _at;
+
+  void ask(FeedTab tab, String id) {
+    _tab = tab;
+    _id = id;
+    _at = _clock();
+    notifyListeners();
+  }
+
+  /// The card id waiting to be opened on [tab], if any (and still fresh)
+  String? pendingFor(FeedTab tab) {
+    final at = _at;
+    if (_id == null || _tab != tab || at == null) return null;
+    if (_clock().difference(at) > maxAge) {
+      clear();
+      return null;
+    }
+    return _id;
+  }
+
+  /// Done (opened, or the card is gone): nothing more to open
+  void clear() {
+    _tab = null;
+    _id = null;
+    _at = null;
+  }
+}
+
+final feedOpenRequest = FeedOpenRequest();
+
 /// `mutual` (shared suggestion: `/decide`) · `legacy_suggestion` (`/like`, `/reject`) ·
 /// `legacy_interest` (`/api/interests/{id}/accept|reject`) · `legacy_sent` (read only).
 enum FeedKind { mutual, legacySuggestion, legacyInterest, legacySent, unknown }

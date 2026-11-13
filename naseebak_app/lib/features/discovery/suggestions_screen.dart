@@ -231,7 +231,35 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
   @override
   void initState() {
     super.initState();
+    feedOpenRequest.addListener(_onOpenAsked);
     _load();
+  }
+
+  @override
+  void dispose() {
+    feedOpenRequest.removeListener(_onOpenAsked);
+    super.dispose();
+  }
+
+  /// Home asked for one card while this list is alive: opened if it is already here; otherwise the reload the
+  /// screen runs on its return (top-up) decides
+  void _onOpenAsked() => _openAsked(loaded: false);
+
+  /// Opens the card home asked for (`feedOpenRequest`) once it is in this tab's list, through [_openProfile], after
+  /// the frame (the tab switch and the route change land first). [loaded]: this list has just finished loading, so a
+  /// card still not in it is gone (answered, closed): the request is dropped and the tab simply shows.
+  void _openAsked({required bool loaded}) {
+    final id = feedOpenRequest.pendingFor(widget.tab);
+    if (id == null || !mounted) return;
+    final item = _items.where((e) => e.id == id).firstOrNull;
+    if (item == null) {
+      if (loaded) feedOpenRequest.clear();
+      return;
+    }
+    feedOpenRequest.clear();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _openProfile(item);
+    });
   }
 
   @override
@@ -386,6 +414,7 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
           ..addAll(items);
         _page = last;
       });
+      _openAsked(loaded: true);
     } catch (e) {
       if (!mounted || generation != _generation) return;
       setState(() => _error = e);

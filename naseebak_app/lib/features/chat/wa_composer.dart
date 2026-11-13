@@ -167,7 +167,7 @@ class WaComposerPill extends StatelessWidget {
               child: ComposerMediaButton(
                 key: const Key('chat-attach'),
                 tagKey: const Key('chat-media-pro-tag'),
-                icon: Icons.attach_file_rounded,
+                icon: Icons.image_outlined,
                 tooltip: locked ? 'إرفاق · متاح لأعضاء Pro' : 'إرفاق',
                 locked: locked,
                 onPressed: locked ? onOpenPro : onAttach,

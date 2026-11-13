@@ -2,7 +2,7 @@
 
 import { forwardRef, useEffect, useId, useImperativeHandle, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import dynamic from "next/dynamic";
-import { Camera, ChevronRight, ChevronUp, ImageIcon, Keyboard, Loader2, Lock, Mic, Paperclip, SendHorizontal, Smile, Trash2, X } from "lucide-react";
+import { Camera, ChevronRight, ChevronUp, ImageIcon, Keyboard, Loader2, Lock, Mic, SendHorizontal, Smile, Trash2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -315,7 +315,7 @@ export const WaComposer = forwardRef<ChatComposerHandle, React.ComponentPropsWit
               {media &&
                 (locked ? (
                   <button type="button" onClick={media.onLocked} aria-label="إرفاق · متاح لأعضاء Pro" className={cn(ICON_BUTTON, "text-muted-foreground/60 hover:bg-muted/60")}>
-                    <Paperclip className="h-5 w-5" aria-hidden />
+                    <ImageIcon className="h-5 w-5" aria-hidden />
                     {/* One Pro tag: on the mic while it shows, else here (QA DS-14) */}
                     {!showMic && <ProLock />}
                   </button>
@@ -323,7 +323,7 @@ export const WaComposer = forwardRef<ChatComposerHandle, React.ComponentPropsWit
                   <DropdownMenu dir="rtl">
                     <DropdownMenuTrigger asChild>
                       <button type="button" aria-label="إرفاق" className={cn(ICON_BUTTON, "text-muted-foreground hover:bg-muted")}>
-                        <Paperclip className="h-5 w-5" aria-hidden />
+                        <ImageIcon className="h-5 w-5" aria-hidden />
                       </button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent side="top" align="end">

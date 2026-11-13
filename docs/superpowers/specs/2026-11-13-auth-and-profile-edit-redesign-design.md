@@ -40,7 +40,11 @@ The owner asked to "enhance the login and register ui ux and the design, also ed
 
 ## Non-goals
 
-- Partner preferences, photos, guardian and the personality quiz keep their own screens. Edit links to them; it does not absorb them.
+- Photos, guardian and the personality quiz keep their own screens, and so do partner preferences in the app.
+- On the website, partner preferences live inside edit today and have no page of their own. They become the last section of the edit list, «تفضيلات الشريك»:
+  - rows save at once;
+  - each editor holds its «شرط أساسي» toggle;
+  - a pending request never locks them.
 - No change to review rules, the matching score or the suggestion gate. Still one pending review request at a time.
 - No change to OTP delivery, rate limits, or the WhatsApp/SMS choice (`otpByWhatsapp` / `otpChannel`).
 - No change to admin screens.

@@ -84,7 +84,8 @@ class SuggestionCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    _header(context),
+                    // No answers here (sent, waiting): ⋮ sits in the header's top corner, not alone under the card
+                    _header(context, menu: menu && !actionable),
                     if (status != null) ...[
                       SizedBox(height: gap),
                       Align(alignment: AlignmentDirectional.centerStart, child: status),
@@ -172,8 +173,7 @@ class SuggestionCard extends StatelessWidget {
                         if (menu) _menu(c.firstName),
                       ],
                     ),
-                  ] else if (menu)
-                    Align(alignment: AlignmentDirectional.centerEnd, child: _menu(c.firstName)),
+                  ],
                 ],
               ),
             ),
@@ -185,7 +185,7 @@ class SuggestionCard extends StatelessWidget {
 
   /// Avatar (locked), «الاسم، العمر», «المدينة · نشطة اليوم» and the score pill; on a narrow phone with large text
   /// the pill moves under the name so the name never breaks mid-word (QA A2-M5)
-  Widget _header(BuildContext context) {
+  Widget _header(BuildContext context, {bool menu = false}) {
     final c = item.candidate;
     final title = c.age != null ? '${c.firstName}، ${c.age}' : c.firstName;
     return LayoutBuilder(builder: (context, box) {
@@ -239,6 +239,7 @@ class SuggestionCard extends StatelessWidget {
                 : who,
           ),
           if (!narrow && score != null) ...[const SizedBox(width: AppSpace.sm), score],
+          if (menu) _menu(c.firstName),
         ],
       );
     });

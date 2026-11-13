@@ -194,7 +194,7 @@ src/
 
 ## Countries and `/sa` and `/lb` routing
 
-- Countries: JO, SA and LB (Lebanon, 2026-11-10). Built switched off (an inactive country has no `/lb` page, switcher entry, sign-up or sale); **on in production since 2026-11-10** (owner): active, registration open, purchases off (no prices approved), polls off, notice SMS NONE. Fixed facts in `src/lib/countries/index.ts`, admin settings in `country_settings` (Admin → Countries, 30s cache).
+- Countries: JO, SA and LB (Lebanon, 2026-11-10). Built switched off (an inactive country has no `/lb` page, switcher entry, sign-up or sale); **on in production since 2026-11-10** (owner): active, registration open, purchases on with prices approved (seen 2026-11-13), polls on (the 15 Jordanian questions copied to LB on 2026-11-13, first one running), notice SMS NONE. Fixed facts in `src/lib/countries/index.ts`, admin settings in `country_settings` (Admin → Countries, 30s cache).
 - A member's country follows the phone number and never changes. Members are paired only within one country.
 - Jordan sits at the root, Saudi Arabia under `/sa`, Lebanon under `/lb` (same rewrites, same traps; an inactive country falls back to Jordan).
 - `/sa/...` reaches its page through `rewrites()` in `next.config.ts`. `src/proxy.ts` only sets `x-site-country`.

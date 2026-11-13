@@ -7,6 +7,8 @@ const db = vi.hoisted(() => ({
   user: { findUnique: vi.fn(async () => ({ country: member.country })) },
 }));
 vi.mock("@/lib/db", () => ({ db }));
+const flags = vi.hoisted(() => ({ religion: false }));
+vi.mock("@/lib/settings", () => ({ getReligionEnabled: vi.fn(async () => flags.religion) }));
 vi.mock("@/lib/auth", () => ({
   requireUser: vi.fn(async () => ({ session: { user: { id: "u1", role: "USER" } } })),
 }));
@@ -33,6 +35,7 @@ const patch = async (body: unknown): Promise<Response> =>
 beforeEach(() => {
   vi.clearAllMocks();
   member.country = "JO";
+  flags.religion = false;
   db.profile.upsert.mockResolvedValue({ id: "p1" });
 });
 
@@ -127,5 +130,47 @@ describe("PATCH /api/profile/draft: «المذهب» (Lebanon only)", () => {
     expect(update).toMatchObject({ city: "الرياض" });
     expect(update).not.toHaveProperty("sect");
     expect(update).not.toHaveProperty("prefSect");
+  });
+});
+
+describe("PATCH /api/profile/draft: «الديانة»", () => {
+  it("strips and clears for a Christian during setup", async () => {
+    flags.religion = true;
+    db.profile.findUnique.mockResolvedValue({ ...stored, isComplete: false, hijab: true, dealbreakers: ["age", "hijab"] });
+    const res = await patch({ religion: "مسيحي", beard: true, prefHijab: "نعم", prefReligion: "لا مانع" });
+    expect(res.status).toBe(200);
+    const { create, update } = db.profile.upsert.mock.calls[0][0];
+    const cleared = {
+      religion: "مسيحي", prefReligion: "لا مانع", hijab: null, niqab: null, beard: null, prefHijab: null, prefSect: [],
+      dealbreakers: ["age"],
+    };
+    expect(update).toMatchObject(cleared);
+    expect(create).toMatchObject(cleared);
+  });
+
+  it("drops religion while the switch is off", async () => {
+    db.profile.findUnique.mockResolvedValue({ ...stored, isComplete: false });
+    expect((await patch({ city: "عمان", religion: "مسيحي", prefReligion: "لا مانع", beard: true })).status).toBe(200);
+    const update = db.profile.upsert.mock.calls[0][0].update;
+    expect(update).toMatchObject({ city: "عمان", beard: true });
+    expect("religion" in update).toBe(false);
+    expect("prefReligion" in update).toBe(false);
+  });
+
+  it("an old app's hijab for a stored Christian is dropped, even with the switch off", async () => {
+    db.profile.findUnique.mockResolvedValue({ ...stored, religion: "مسيحي", hijab: null });
+    expect((await patch({ hijab: true, job: "مهندس" })).status).toBe(200);
+    const update = db.profile.upsert.mock.calls[0][0].update;
+    expect(update).toMatchObject({ job: "مهندس" });
+    expect("hijab" in update).toBe(false);
+  });
+
+  it("after completion a null religion switching to مسيحي needs review", async () => {
+    flags.religion = true;
+    db.profile.findUnique.mockResolvedValue({ ...stored, religion: null });
+    const res = await patch({ religion: "مسيحي" });
+    expect(res.status).toBe(409);
+    expect((await res.json()).fields).toEqual(["religion"]);
+    expect(db.profile.upsert).not.toHaveBeenCalled();
   });
 });

@@ -6,6 +6,7 @@ import { DEALBREAKER_KEYS } from "@/lib/matching/score";
 import { closeSuggestionsBreakingDealbreakers } from "@/lib/suggestions/dealbreaker-sweep";
 import { autoSuggestForUser, clearSuggestCooldown } from "@/lib/matching/auto-suggest";
 import { stripSectUnlessLebanon } from "@/lib/profile-sect";
+import { stripMuslimOnlyForChristian } from "@/lib/profile-religion";
 
 /**
  * "شروطي الأساسية": preferences the user marked as hard filters for suggestions.
@@ -38,9 +39,16 @@ export async function PUT(request: Request) {
     if ("error" in result) return result.error;
     const parsed = schema.safeParse(await request.json().catch(() => null));
     if (!parsed.success) return NextResponse.json({ error: "بيانات غير صالحة" }, { status: 400 });
-    // The «المذهب» condition exists for Lebanese members only
-    const member = await db.user.findUnique({ where: { id: result.session.user.id }, select: { country: true } });
-    const { dealbreakers: keys } = stripSectUnlessLebanon(member?.country, { dealbreakers: [...new Set(parsed.data.keys)] });
+    // The «المذهب» condition exists for Lebanese members only; hijab, beard and sect never for a Christian
+    // (whatever the «الديانة» switch says: a stored Christian stays one)
+    const member = await db.user.findUnique({
+      where: { id: result.session.user.id },
+      select: { country: true, profile: { select: { religion: true } } },
+    });
+    const { dealbreakers: keys } = stripMuslimOnlyForChristian(
+      member?.profile?.religion,
+      stripSectUnlessLebanon(member?.country, { dealbreakers: [...new Set(parsed.data.keys)] }),
+    );
     const updated = await db.profile.updateMany({
       where: { userId: result.session.user.id },
       data: { dealbreakers: keys },

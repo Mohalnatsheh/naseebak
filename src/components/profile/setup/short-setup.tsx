@@ -156,8 +156,12 @@ export function ShortSetup({ guardianStep }: { guardianStep: boolean }) {
   const religionEnabled = counts?.religionEnabled === true;
   // «شروط أساسية»: only where the legacy setup shows them (new suggestions flow)
   const dealbreakersOn = counts?.flags?.mutualSuggestions === true;
+  // The step list and «الديانة» wait for /api/me/counts
+  const countsKnown = !!counts;
   const steps = useMemo(() => setupSteps({ dealbreakers: dealbreakersOn }), [dealbreakersOn]);
   const [step, setStep] = useState(0);
+  // The highest `setupStep` stored or sent: it never goes back (the legacy wizard resumes from it)
+  const highestStored = useRef(0);
   const [form, setForm] = useState<Values>({});
   const [stored, setStored] = useState<Values>({});
   const [ticked, setTicked] = useState<string[]>([]);
@@ -207,6 +211,7 @@ export function ShortSetup({ guardianStep }: { guardianStep: boolean }) {
       setGender(userGender);
       setCountryCode(code);
       setStored(p);
+      highestStored.current = typeof p.setupStep === "number" ? p.setupStep : 0;
       setTicked(Array.isArray(p.dealbreakers) ? p.dealbreakers.map(String) : []);
       const fromServer = formFromProfile(p, userGender, code);
       const next = { ...fromServer };
@@ -245,12 +250,12 @@ export function ShortSetup({ guardianStep }: { guardianStep: boolean }) {
   }, [restoreDraft, router, steps, religionEnabled]);
   // The step count and «الديانة» follow the switches: load once they are known
   useEffect(() => {
-    if (!dataLoading) loadProfile();
-  }, [dataLoading, loadProfile]);
+    if (!dataLoading && countsKnown) loadProfile();
+  }, [dataLoading, countsKnown, loadProfile]);
 
   // The local draft follows every change (debounced in the hook)
   useEffect(() => {
-    if (autoSaveEnabled) saveToLocalStorage(form, guardian, storedStep(steps, step), ownerId);
+    if (autoSaveEnabled) saveToLocalStorage(form, guardian, Math.max(highestStored.current, storedStep(steps, step)), ownerId);
   }, [form, guardian, step, steps, autoSaveEnabled, saveToLocalStorage, ownerId]);
 
   // Each step and the done screen start at the top
@@ -346,22 +351,35 @@ export function ShortSetup({ guardianStep }: { guardianStep: boolean }) {
     return sendableChanges(out, stored, religionEnabled);
   }
 
-  /** Errors under their fields; the first one is brought into view. True when the step is fine. */
-  function check(i: number): boolean {
-    const e = validate(i);
-    setErrors(e);
+  /**
+   * Checks steps `from`..`to`: on the first one with errors, opens it with its errors under the fields and brings
+   * the first into view. True when all are fine.
+   */
+  function check(from: number, to: number): boolean {
     setError("");
-    const first = Object.keys(e)[0];
-    if (!first) return true;
-    const el = document.querySelector(`[data-field="${first}"]`);
-    el?.scrollIntoView?.({ behavior: "smooth", block: "center" });
-    return false;
+    for (let i = from; i <= to; i++) {
+      const e = validate(i);
+      const first = Object.keys(e)[0];
+      if (!first) continue;
+      setErrors(e);
+      setStep(i);
+      // After the step renders
+      setTimeout(() => document.querySelector(`[data-field="${first}"]`)?.scrollIntoView?.({ behavior: "smooth", block: "center" }), 0);
+      return false;
+    }
+    setErrors({});
+    return true;
   }
 
+  /** The stored `setupStep` for step `i`: never below what was stored or sent before */
+  const stepToStore = (i: number) => Math.max(highestStored.current, storedStep(steps, i));
+
   function goNext() {
-    if (!check(step)) return;
+    if (!check(step, step)) return;
     const nextStep = step + 1;
-    saveToServer(storedStep(steps, nextStep), payload());
+    const toStore = stepToStore(nextStep);
+    highestStored.current = toStore;
+    saveToServer(toStore, payload());
     setStep(nextStep);
   }
 
@@ -373,7 +391,8 @@ export function ShortSetup({ guardianStep }: { guardianStep: boolean }) {
   }
 
   async function finish() {
-    if (!check(step)) return;
+    // Every step up to this one (a restored draft may hold an answer an earlier step refuses)
+    if (!check(0, step)) return;
     setSaving(true);
     try {
       // Legacy cycle: the guardian first, the profile only counts as complete once it has one (the server checks)
@@ -381,14 +400,13 @@ export function ShortSetup({ guardianStep }: { guardianStep: boolean }) {
         const failed = await putJson("/api/profile/parent-info", { ...guardian, shareConsent }, "حدث خطأ أثناء حفظ بيانات ولي الأمر");
         if (failed) return setError(failed);
       }
-      const failed = await putJson("/api/profile", payload(), "حدث خطأ أثناء حفظ الملف الشخصي");
+      // «شروط أساسية» go in the same save, as the legacy setup, so the first suggestions already respect them (the
+      // server keeps the known keys and clears the Muslim-only ones for a Christian)
+      const body = steps.some((s) => s.id === "musts")
+        ? { ...payload(), dealbreakers: dealbreakerKeysToSave(ticked, prefs, form.religion as string | null | undefined, gender) }
+        : payload();
+      const failed = await putJson("/api/profile", body, "حدث خطأ أثناء حفظ الملف الشخصي");
       if (failed) return setError(failed);
-      // «شروط أساسية» after the profile, as the edit list (the religion this setup saved decides the Muslim-only keys)
-      if (steps.some((s) => s.id === "musts")) {
-        const keys = dealbreakerKeysToSave(ticked, prefs, form.religion as string | null | undefined, gender);
-        const dealbreakersFailed = await putJson("/api/profile/dealbreakers", { keys }, "تعذّر حفظ الشروط الأساسية. يمكنك المحاولة مرة أخرى.");
-        if (dealbreakersFailed) return setError(dealbreakersFailed);
-      }
       trackEvent("profile_completed");
       clearDraft();
       // The dashboard's shared profile still holds the pre-setup copy
@@ -408,7 +426,7 @@ export function ShortSetup({ guardianStep }: { guardianStep: boolean }) {
       </div>
     );
   }
-  if (dataLoading || fetching) return <PageLoading width="max-w-xl" />;
+  if (dataLoading || !countsKnown || fetching) return <PageLoading width="max-w-xl" />;
   if (done) {
     return (
       <div ref={topRef} className="scroll-mt-20">

@@ -2,13 +2,14 @@ import { describe, it, expect, vi, beforeEach, type MockInstance } from "vitest"
 import { render, screen, waitFor, fireEvent, act, within } from "@testing-library/react";
 
 const router = vi.hoisted(() => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }));
-const ctx = vi.hoisted(() => ({ refreshProfile: vi.fn(async () => {}), religionEnabled: false, mutual: true }));
+const ctx = vi.hoisted(() => ({ refreshProfile: vi.fn(async () => {}), religionEnabled: false, mutual: true, countsMissing: false }));
+const localDraft = vi.hoisted(() => ({ value: null as null | { savedAt: string; form: Record<string, unknown> } }));
 // Stable like the real hook's useCallback functions
 const autoSave = vi.hoisted(() => ({
   savedIndicatorVisible: false,
   saveToServer: vi.fn(),
   saveToLocalStorage: vi.fn(),
-  restoreDraft: () => null,
+  restoreDraft: () => localDraft.value,
   clearDraft: vi.fn(),
 }));
 const settings = vi.hoisted(() => ({ redesign: false, introRequests: true }));
@@ -20,7 +21,7 @@ vi.mock("@/contexts/dashboard-context", () => ({
     profile: { phone: "+962777000001" },
     country: "JO",
     loading: false,
-    counts: { religionEnabled: ctx.religionEnabled, flags: { mutualSuggestions: ctx.mutual } },
+    counts: ctx.countsMissing ? undefined : { religionEnabled: ctx.religionEnabled, flags: { mutualSuggestions: ctx.mutual } },
   }),
 }));
 vi.mock("@/hooks/use-auto-save", () => ({ useAutoSave: () => autoSave }));
@@ -68,11 +69,11 @@ function json(body: unknown, ok = true) {
   return Promise.resolve({ ok, status: ok ? 200 : 400, json: async () => body, clone() { return this; } } as unknown as Response);
 }
 
-function mockProfile(profile: Profile | null, { country = "JO", gender = "MALE", putOk = true } = {}) {
+function mockProfile(profile: Profile | null, { country = "JO", gender = "MALE", putOk = true, setupStep = 3 } = {}) {
   fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
     const url = String(input);
     if (url === "/api/profile" && !init?.method) {
-      return json({ user: { id: "u1", gender, country, profile: profile ? { ...profile, setupStep: 3, isComplete: false } : null } });
+      return json({ user: { id: "u1", gender, country, profile: profile ? { ...profile, setupStep, isComplete: false } : null } });
     }
     if (url === "/api/profile" && init?.method === "PUT") return putOk ? json({ success: true }) : json({ error: "تعذّر حفظ ملفك" }, false);
     return json({});
@@ -97,10 +98,13 @@ beforeEach(() => {
   ctx.refreshProfile.mockClear();
   autoSave.saveToServer.mockClear();
   autoSave.clearDraft.mockClear();
+  autoSave.saveToLocalStorage.mockClear();
   settings.redesign = false;
   settings.introRequests = true;
   ctx.religionEnabled = false;
   ctx.mutual = true;
+  ctx.countsMissing = false;
+  localDraft.value = null;
 });
 
 describe("ShortSetup: every field in 7 steps (auth_profile_redesign)", () => {
@@ -152,7 +156,7 @@ describe("ShortSetup: every field in 7 steps (auth_profile_redesign)", () => {
   });
 
   it("single → children count 0, hidden; another status asks it", async () => {
-    mockProfile({ ...STEP_YOU, maritalStatus: "", childrenCount: null });
+    mockProfile({ ...STEP_YOU, maritalStatus: "", childrenCount: null }, { setupStep: 1 });
     render(<ShortSetup guardianStep={false} />);
     await waitHeading("عنك");
     expect(screen.queryByLabelText("عدد الأبناء")).toBeNull();
@@ -276,9 +280,9 @@ describe("ShortSetup: every field in 7 steps (auth_profile_redesign)", () => {
       prefCity: ["عمّان"],
       childrenCount: 0,
     });
-    expect(body("/api/profile/dealbreakers")).toEqual({ keys: ["age", "city"] });
-    const order = fetchSpy.mock.calls.filter((c) => (c[1] as RequestInit)?.method === "PUT").map((c) => String(c[0]));
-    expect(order).toEqual(["/api/profile", "/api/profile/dealbreakers"]);
+    // «شروط أساسية» go in the same save, as the legacy setup; no separate call
+    expect(body("/api/profile").dealbreakers).toEqual(["age", "city"]);
+    expect(fetchSpy.mock.calls.some((c) => String(c[0]) === "/api/profile/dealbreakers")).toBe(false);
     expect(ctx.refreshProfile).toHaveBeenCalled();
     expect(autoSave.clearDraft).toHaveBeenCalled();
     expect(screen.getByRole("link", { name: "عرض الاقتراحات" }).getAttribute("href")).toBe("/dashboard/suggestions");
@@ -309,7 +313,9 @@ describe("ShortSetup: every field in 7 steps (auth_profile_redesign)", () => {
     const sent = body("/api/profile");
     expect(sent).toMatchObject({ religion: "مسيحي", religiosity: "ملتزم", job: "مهندس", housingType: "ملك", aboutMe: "نبذة قصيرة", prefAgeMin: 25 });
     for (const key of MUSLIM_ONLY_FIELDS) expect(sent[key]).toBeUndefined();
-    expect(body("/api/profile/dealbreakers")).toBeUndefined();
+    // No «شروط أساسية» step (6 steps): nothing about them is sent
+    expect(sent.dealbreakers).toBeUndefined();
+    expect(fetchSpy.mock.calls.some((c) => String(c[0]) === "/api/profile/dealbreakers")).toBe(false);
   });
 
   it("a failed final PUT shows the error and not «ملفك جاهز»", async () => {
@@ -319,7 +325,6 @@ describe("ShortSetup: every field in 7 steps (auth_profile_redesign)", () => {
     await finish();
     await waitFor(() => expect(screen.getByRole("alert").textContent).toContain("تعذّر حفظ ملفك"));
     expect(screen.queryByRole("heading", { name: "ملفك جاهز" })).toBeNull();
-    expect(body("/api/profile/dealbreakers")).toBeUndefined();
     expect(autoSave.clearDraft).not.toHaveBeenCalled();
   });
 
@@ -335,6 +340,52 @@ describe("ShortSetup: every field in 7 steps (auth_profile_redesign)", () => {
     await finish();
     expect(screen.getByText("اسم ولي الأمر مطلوب")).toBeTruthy();
     expect(body("/api/profile")).toBeUndefined();
+  });
+
+  it("«حفظ والبدء» checks every earlier step and opens the first one that fails", async () => {
+    // A restored local draft with a height step 1 refuses, while the server copy opens the last step
+    localDraft.value = { savedAt: new Date().toISOString(), form: { height: "300" } };
+    mockProfile(FULL);
+    render(<ShortSetup guardianStep={false} />);
+    await waitHeading("شروط أساسية");
+    await finish();
+    expect(heading("عنك")).toBeTruthy();
+    expect(document.getElementById("height-error")?.textContent).toBe("الطول يجب أن يكون بين 100 و250 سم");
+    expect(body("/api/profile")).toBeUndefined();
+  });
+
+  it("the stored setupStep never goes back", async () => {
+    // Stored 3; «الدين ونمط الحياة» → «التعليم والعمل» maps to the legacy step 1, so 3 is kept
+    mockProfile({ ...STEP_YOU, ...STEP_FAITH, smokingStatus: null }, { setupStep: 3 });
+    render(<ShortSetup guardianStep={false} />);
+    await waitHeading("الدين ونمط الحياة");
+    fireEvent.click(screen.getByRole("button", { name: "لا أدخن" }));
+    next();
+    expect(heading("التعليم والعمل")).toBeTruthy();
+    expect(autoSave.saveToServer).toHaveBeenLastCalledWith(3, expect.anything());
+    for (const key of ["education", "job", "incomeRange"]) pickFirst(key);
+    next();
+    // «العائلة» maps to 4: higher, so it is sent
+    expect(autoSave.saveToServer).toHaveBeenLastCalledWith(4, expect.anything());
+    fireEvent.click(screen.getByRole("button", { name: /السابق/ }));
+    next();
+    expect(autoSave.saveToServer).toHaveBeenLastCalledWith(4, expect.anything());
+    for (const call of autoSave.saveToLocalStorage.mock.calls) expect(call[2]).toBeGreaterThanOrEqual(3);
+  });
+
+  it("waits for /api/me/counts before choosing the steps", async () => {
+    ctx.countsMissing = true;
+    mockProfile(null);
+    const { rerender } = render(<ShortSetup guardianStep={false} />);
+    await act(async () => {});
+    expect(screen.queryByRole("heading", { level: 1 })).toBeNull();
+    expect(screen.queryByText(/الخطوة/)).toBeNull();
+    expect(fetchSpy.mock.calls.some((c) => String(c[0]) === "/api/profile")).toBe(false);
+    ctx.countsMissing = false;
+    ctx.mutual = true;
+    rerender(<ShortSetup guardianStep={false} />);
+    await waitHeading("عنك");
+    expect(screen.getByText("الخطوة 1 من 7")).toBeTruthy();
   });
 
   it("a failed profile load shows a retry and never the form", async () => {

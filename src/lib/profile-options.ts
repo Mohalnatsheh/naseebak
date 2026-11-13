@@ -6,6 +6,7 @@
  */
 
 import { countryConfig, toCountry, type CountryCode } from "@/lib/countries";
+import { RELIGION_VALUES } from "@/lib/profile-religion";
 import { PREF_SECT_VALUES, SECT_VALUES } from "@/lib/profile-sect";
 
 export interface Opt {
@@ -32,6 +33,8 @@ export const OPTION_VALUES = {
   lifestyle: ["نشيط", "هادئ", "متوازن", "اجتماعي"],
   /** «المذهب», Lebanese members only (`sectApplies`) */
   sect: SECT_VALUES,
+  /** «الديانة» (shown only while `religion_enabled` is on) */
+  religion: RELIGION_VALUES,
 } as const;
 
 export type OptionField = keyof typeof OPTION_VALUES;
@@ -80,6 +83,7 @@ const SELF: Record<G, Labels> = {
     religiosity: { "ملتزم جداً": "ملتزمة جداً", "ملتزم": "ملتزمة", "متوسط": "متوسطة", "غير ملتزم": "غير ملتزمة" },
     lifestyle: { "نشيط": "نشيطة", "هادئ": "هادئة", "متوازن": "متوازنة", "اجتماعي": "اجتماعية" },
     sect: { "سني": "سنية", "شيعي": "شيعية" },
+    religion: { "مسلم": "مسلمة", "مسيحي": "مسيحية" },
   },
 };
 
@@ -103,6 +107,21 @@ export function selfLabel(field: OptionField, value: string, gender: string | nu
 /** The label of one stored value describing a person of `gender` to someone else. */
 export function describeOption(field: OptionField, value: string, gender: string | null | undefined): string {
   return OTHER[norm(gender)][field]?.[value] ?? selfLabel(field, value, gender);
+}
+
+/**
+ * The religion to show on a card: only when it differs from the viewer's (null viewer reads مسلم;
+ * a null candidate means the switch is off, so nothing).
+ */
+export function religionFact(
+  candidate: string | null | undefined,
+  viewer: string | null | undefined,
+  partnerGender: string | null | undefined,
+): string | null {
+  if (!candidate) return null;
+  const mine = viewer === "مسيحي" ? "مسيحي" : "مسلم";
+  const theirs = candidate === "مسيحي" ? "مسيحي" : "مسلم";
+  return mine === theirs ? null : describeOption("religion", theirs, partnerGender);
 }
 
 /* ---------- Per-country lists (the member's country; db-free, safe in client wizards) ---------- */

@@ -23,6 +23,8 @@ const DEFAULTS: Record<string, string> = {
   pro_enabled: "false",
   // Pro members delete a message or clear a chat (hidden from members, never erased)
   chat_delete_enabled: "false",
+  // «الديانة» field: asked, shown and stored only while on. The pair rule in matching applies either way
+  religion_enabled: "false",
   // Jordan charged in JOD instead of USD for new purchases (2026-11-11). Open checkouts and Pro subscriptions keep theirs
   jod_charging: "false",
   // Sale offer (2026-11-13): +percent% credits on purchases and the first Pro payment inside the window. 0 = off

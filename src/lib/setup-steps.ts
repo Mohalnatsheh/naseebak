@@ -32,7 +32,10 @@ export function setupSteps(opts: { dealbreakers: boolean }): SetupStep[] {
   return STEPS.filter((s) => s.id !== "musts" || opts.dealbreakers).map((s) => ({ ...s, fieldKeys: [...s.fieldKeys] }));
 }
 
-/** `ctx` may carry `profile` (the values shown) for the field's `showIf`; without it the profile is empty. */
+/**
+ * `field.showIf` reads `ctx.profile` (the values shown), so pass an `EditShowCtx` to get the shown-ness rules
+ * (Christian, «المذهب», children count). A plain `EditCtx` reads an empty profile.
+ * `ctx` may carry `profile` (the values shown) for the field's `showIf`; without it the profile is empty. */
 export function setupRequired(field: EditField, ctx: EditCtx | EditShowCtx): boolean {
   const showCtx: EditShowCtx = { ...ctx, profile: "profile" in ctx ? ctx.profile : {} };
   if (field.showIf && !field.showIf(showCtx)) return false;
@@ -53,6 +56,10 @@ export function missingOnStep(step: SetupStep, values: Record<string, unknown>, 
     const field = editField(key);
     if (!field || !setupRequired(field, showCtx)) continue;
     if (!answered(key, values[key])) missing.push(key);
+    // a required range is whole: its `pref*` companions (prefAgeMax) too; `area` and `niqab` stay optional
+    for (const companion of field.companions ?? []) {
+      if (companion.startsWith("pref") && !answered(companion, values[companion])) missing.push(companion);
+    }
   }
   return missing;
 }

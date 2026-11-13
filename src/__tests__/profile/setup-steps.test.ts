@@ -68,6 +68,35 @@ describe("missingOnStep", () => {
   });
 });
 
+describe("rules by country and religion", () => {
+  it("requires «المذهب» for a Lebanese non-Christian only", () => {
+    const lb: EditCtx = { ...ctx, country: "LB" };
+    expect(setupRequired(field("sect"), withProfile(lb, { religion: "مسلم" }))).toBe(true);
+    expect(setupRequired(field("sect"), withProfile(lb, {}))).toBe(true);
+    expect(setupRequired(field("sect"), withProfile(lb, { religion: "مسيحي" }))).toBe(false);
+    expect(setupRequired(field("sect"), withProfile(ctx, { religion: "مسلم" }))).toBe(false);
+  });
+  it("requires «الديانة» only with the switch on", () => {
+    expect(setupRequired(field("religion"), withProfile({ ...ctx, religionEnabled: true }, {}))).toBe(true);
+    expect(setupRequired(field("religion"), withProfile({ ...ctx, religionEnabled: false }, {}))).toBe(false);
+    expect(setupRequired(field("religion"), withProfile({ gender: "MALE", country: "JO" }, {}))).toBe(false);
+  });
+});
+
+describe("age range", () => {
+  const looking = () => setupSteps({ dealbreakers: true }).find((s) => s.id === "looking")!;
+  it("needs both ends", () => {
+    expect(missingOnStep(looking(), { prefAgeMin: 20 }, ctx)).toEqual(["prefAgeMax"]);
+    expect(missingOnStep(looking(), {}, ctx)).toEqual(["prefAgeMin", "prefAgeMax"]);
+    expect(missingOnStep(looking(), { prefAgeMin: 20, prefAgeMax: 30 }, ctx)).toEqual([]);
+  });
+  it("does not require the city area", () => {
+    const you = setupSteps({ dealbreakers: true })[0];
+    const values = { dateOfBirth: "x", nationality: "x", city: "x", maritalStatus: "أعزب/عزباء", skinColor: "x" };
+    expect(missingOnStep(you, values, ctx)).toEqual([]);
+  });
+});
+
 describe("firstIncompleteStep", () => {
   const steps = setupSteps({ dealbreakers: true });
   const basics = {

@@ -32,6 +32,7 @@ void main() {
             candidateFemale: false,
             onInterested: () {},
             onDecline: () {},
+            onOpen: () {},
           ),
         ),
       ));

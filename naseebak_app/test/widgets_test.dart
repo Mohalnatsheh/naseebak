@@ -177,12 +177,13 @@ void main() {
       },
     });
 
-    testWidgets('shows the details and the score, never a photo', (tester) async {
-      // A regular phone height (a short one folds the details: suggestions_flow_test)
+    testWidgets('shows the key facts, «عنه» and the score, never a photo; a tap opens the profile', (tester) async {
+      // A regular phone height (a short one shows four facts: suggestions_flow_test)
       tester.view.physicalSize = const Size(400, 900);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
       var taps = 0;
+      var opened = 0;
       await tester.pumpWidget(rtlApp(Scaffold(
         body: SingleChildScrollView(
           child: SuggestionCard(
@@ -191,24 +192,27 @@ void main() {
             candidateFemale: false,
             onInterested: () => taps++,
             onDecline: () {},
+            onOpen: () => opened++,
           ),
         ),
       )));
-      // The shared card (design P1-4): name, «33 سنة · city», the ring, up to 3 chips, the "why" line; the rest
-      // of the details one tap away
-      expect(find.text('أحمد'), findsOneWidget);
-      expect(find.textContaining('33 سنة'), findsOneWidget);
-      expect(find.text('72%'), findsOneWidget);
-      expect(find.text('يوافق ما تبحثين عنه في العمر والمدينة'), findsOneWidget);
-      // Third-person label for a man, as a chip
-      expect(find.text('أعزب'), findsOneWidget);
+      // The short card: «الاسم، العمر», the city, the score pill, the facts, «عنه»; the why line is in the profile
+      expect(find.text('أحمد، 33'), findsOneWidget);
+      expect(find.text('إربد'), findsOneWidget);
+      expect(find.text('توافق 72%'), findsOneWidget);
+      expect(find.text('يوافق ما تبحثين عنه في العمر والمدينة'), findsNothing);
+      expect(find.text('طبيب'), findsOneWidget);
+      expect(find.text('دكتوراه'), findsOneWidget);
+      expect(find.text('عنه'), findsOneWidget);
+      expect(find.text('طبيب متخصص'), findsOneWidget);
       expect(find.byType(Image), findsNothing);
-      expect(find.text('الصور تظهر بعد التوافق المتبادل فقط'), findsNothing);
-      await tester.tap(find.byKey(const Key('card-details-open')));
-      await tester.pumpAndSettle();
-      expect(find.text('الصور تظهر بعد التوافق المتبادل فقط'), findsOneWidget);
+      expect(find.byKey(const Key('card-details-open')), findsNothing);
+      await tester.tap(find.byKey(const Key('card-full-s1')));
+      await tester.tap(find.text('أحمد، 33'));
+      expect(opened, 2);
       await tester.tap(find.byKey(const Key('interested-s1')));
       expect(taps, 1);
+      expect(opened, 2);
     });
 
     testWidgets('busy disables both answers; the waiting tab has none', (tester) async {
@@ -222,6 +226,7 @@ void main() {
             busy: true,
             onInterested: () => taps++,
             onDecline: () => taps++,
+            onOpen: () {},
           ),
         ),
       )));
@@ -237,6 +242,7 @@ void main() {
             candidateFemale: false,
             onInterested: () {},
             onDecline: () {},
+            onOpen: () {},
           ),
         ),
       )));

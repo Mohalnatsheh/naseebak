@@ -22,6 +22,7 @@ class CandidateProfileScreen extends StatelessWidget {
     required this.answerNote,
     required this.interestEnabled,
     this.interestLabel = 'مهتم',
+    this.declineLabel = 'لا',
     this.onReport,
     this.onBlock,
   });
@@ -37,6 +38,7 @@ class CandidateProfileScreen extends StatelessWidget {
   /// False at 0 credits with the lock: «مهتم» is greyed, «لا» stays free
   final bool interestEnabled;
   final String interestLabel;
+  final String declineLabel;
   final VoidCallback? onReport;
   final VoidCallback? onBlock;
 
@@ -137,7 +139,7 @@ class CandidateProfileScreen extends StatelessWidget {
           ],
         ),
       ),
-      bottomNavigationBar: !actionable && tab != FeedTab.waiting
+      bottomNavigationBar: !actionable && tab != FeedTab.waiting && !item.declined
           ? null
           : Material(
               color: AppColors.surface,
@@ -176,7 +178,7 @@ class CandidateProfileScreen extends StatelessWidget {
                                 key: Key('profile-decline-${item.id}'),
                                 style: OutlinedButton.styleFrom(foregroundColor: AppColors.ink, minimumSize: const Size(0, 52)),
                                 onPressed: () => Navigator.of(context).pop(ProfileAnswer.declined),
-                                child: const Text('لا'),
+                                child: Text(declineLabel),
                               ),
                             ),
                           ],

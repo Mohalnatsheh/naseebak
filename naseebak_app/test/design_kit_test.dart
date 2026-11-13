@@ -29,7 +29,7 @@ final _item = FeedItem.fromJson({
 
 void main() {
   for (final (width, scale) in [(274.0, 1.3), (320.0, 1.3), (390.0, 2.0)]) {
-    testWidgets('the card lays out at $width dp with ${scale}x text: no overflow, ring under the name when narrow',
+    testWidgets('the card lays out at $width dp with ${scale}x text: no overflow, score under the name when narrow',
         (tester) async {
       tester.view.physicalSize = Size(width, 1400);
       tester.view.devicePixelRatio = 1;
@@ -44,6 +44,7 @@ void main() {
             candidateFemale: false,
             onInterested: () {},
             onDecline: () {},
+            onOpen: () {},
             onBlock: () {},
             onReport: () {},
           ),
@@ -52,23 +53,24 @@ void main() {
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
       final name = tester.getRect(find.byKey(const Key('card-name-s1')));
-      final ring = tester.getRect(find.text('86%'));
-      if (width < 360) expect(ring.top, greaterThan(name.bottom));
+      final score = tester.getRect(find.text('توافق 86%'));
+      if (width < 360) expect(score.top, greaterThan(name.bottom));
       // 48 px answers and a 44 px menu
       expect(tester.getSize(find.byKey(const Key('interested-s1'))).height, greaterThanOrEqualTo(48));
       expect(tester.getSize(find.byKey(const Key('card-menu-s1'))).width, greaterThanOrEqualTo(44));
     });
   }
 
-  testWidgets('the card shows at most three chips and the why line in accent-ink', (tester) async {
+  testWidgets('the card\'s score pill is accent-ink on accent-soft, and the facts show', (tester) async {
     tester.view.physicalSize = const Size(390, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     await tester.pumpWidget(rtlApp(SingleChildScrollView(
-      child: SuggestionCard(item: _item, tab: FeedTab.newTab, candidateFemale: false, onInterested: () {}, onDecline: () {}),
+      child: SuggestionCard(
+          item: _item, tab: FeedTab.newTab, candidateFemale: false, onInterested: () {}, onDecline: () {}, onOpen: () {}),
     )));
-    final why = tester.widget<Text>(find.descendant(of: find.byKey(const Key('card-why-s1')), matching: find.byType(Text)));
-    expect(why.style?.color, const Color(0xFF7A5420));
+    final score = tester.widget<Text>(find.text('توافق 86%'));
+    expect(score.style?.color, const Color(0xFF7A5420));
     expect(find.text('بكالوريوس'), findsOneWidget);
   });
 

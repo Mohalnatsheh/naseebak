@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:naseebak_app/core/auth/auth_controller.dart';
 import 'package:naseebak_app/core/push/push_permission.dart';
 import 'package:naseebak_app/core/storage/token_store.dart';
+import 'package:naseebak_app/features/discovery/candidate_profile_screen.dart';
 import 'package:naseebak_app/features/discovery/suggestion_card.dart';
 import 'package:naseebak_app/features/discovery/suggestion_models.dart';
 import 'package:naseebak_app/features/discovery/suggestions_screen.dart';
@@ -337,16 +338,22 @@ void main() {
     addTearDown(tester.view.reset);
     final long = {
       ...card('s1'),
+      'expiresAt': '2026-11-20T10:00:00.000Z',
       'reason': 'يوافق ما تبحث عنه في التعليم والمدينة والتدين والعمر',
       'candidate': {
         'id': 'c-s1', 'firstName': 'أحمد', 'age': 30, 'city': 'عمّان', 'education': 'بكالوريوس',
-        'job': 'مهندس', 'maritalStatus': 'أعزب', 'religiosity': 'ملتزم', 'height': 178, 'about': 'نبذة طويلة ' * 20,
+        'job': 'مهندس', 'maritalStatus': 'أعزب', 'religiosity': 'ملتزم', 'height': 178, 'aboutMe': 'نبذة طويلة ' * 20,
       },
     };
     final h = Harness(items: [long]);
     await h.pump(tester);
     bool onScreen(Finder f) => tester.getRect(f).bottom <= 640;
-    // ignore: avoid_print
+    // A short phone: the first four facts only (job, education, religiosity, height), never the fifth
+    for (final k in ['job', 'education', 'religiosity', 'height']) {
+      expect(find.byKey(Key('card-fact-s1-$k')), findsOneWidget);
+    }
+    expect(find.byKey(const Key('card-fact-s1-maritalStatus')), findsNothing);
+    expect(find.byKey(const Key('card-details-open')), findsNothing);
     expect(onScreen(find.byKey(const Key('interested-s1'))), isTrue);
     expect(onScreen(find.byKey(const Key('decline-s1'))), isTrue);
     await tester.tap(find.byKey(const Key('interested-s1')));
@@ -355,10 +362,10 @@ void main() {
     expect(onScreen(find.byKey(const Key('interest-cancel'))), isTrue);
     await tester.tap(find.byKey(const Key('interest-cancel')));
     await pumpFor(tester);
-    // The details are one tap away
-    await tester.tap(find.byKey(const Key('card-details-open')));
+    // Everything else is one tap away, in the full profile
+    await tester.tap(find.byKey(const Key('card-full-s1')));
     await pumpFor(tester);
-    expect(find.byKey(const Key('card-details-open')), findsNothing);
+    expect(find.byType(CandidateProfileScreen), findsOneWidget);
     expect(find.text('الصور تظهر بعد التوافق المتبادل فقط'), findsOneWidget);
   });
 
@@ -574,6 +581,157 @@ void main() {
     });
   });
 
+  group('short card and the full profile', () {
+    Map<String, dynamic> full(String id, {bool likedYou = false}) => {
+          ...card(id, likedYou: likedYou),
+          'candidate': {
+            'id': 'c-$id', 'firstName': 'أحمد', 'age': 30, 'city': 'عمّان', 'job': 'مهندس', 'education': 'بكالوريوس',
+            'religiosity': 'ملتزم', 'beard': true, 'height': 178, 'maritalStatus': 'أعزب', 'smokingStatus': 'لا يدخن',
+            'tribe': 'العتوم', 'aboutMe': 'أحب القراءة',
+          },
+        };
+
+    Future<void> open(WidgetTester tester, String id) async {
+      await tester.tap(find.byKey(Key('card-full-$id')));
+      await pumpFor(tester);
+      expect(find.byType(CandidateProfileScreen), findsOneWidget);
+    }
+
+    testWidgets('the card shows eight facts, «عنه» and «الملف كاملاً», and no details button', (tester) async {
+      tester.view.physicalSize = const Size(400, 1200);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final h = Harness(items: [full('s1')]);
+      await h.pump(tester);
+      for (final label in ['العمل', 'التعليم', 'الالتزام', 'اللحية', 'الطول', 'الحالة الاجتماعية', 'التدخين', 'العشيرة']) {
+        expect(find.text(label), findsOneWidget, reason: label);
+      }
+      expect(find.text('عنه'), findsOneWidget);
+      expect(find.text('أحب القراءة'), findsOneWidget);
+      expect(find.text('الملف كاملاً'), findsOneWidget);
+      expect(find.text('توافق 70%'), findsOneWidget);
+      expect(find.byKey(const Key('card-details-open')), findsNothing);
+      // The why line lives in the profile now
+      expect(find.text('يوافق ما تبحث عنه'), findsNothing);
+    });
+
+    testWidgets('a tap on the card opens the profile; its «مهتم» runs the card\'s sheet and the card leaves',
+        (tester) async {
+      final h = Harness();
+      h.adapter.handlers['POST /api/suggestions/s1/decide'] = (_) {
+        h.items.clear();
+        return const FakeResponse(200, {'match': false});
+      };
+      await h.pump(tester);
+      await tester.tap(find.byKey(const Key('card-open-s1')));
+      await pumpFor(tester);
+      expect(find.byType(CandidateProfileScreen), findsOneWidget);
+      // Same credit line as the card
+      expect(find.descendant(of: find.byKey(const Key('profile-answer-note-s1')), matching: find.text('«مهتم» يستخدم رصيداً واحداً')),
+          findsOneWidget);
+      await tester.tap(find.byKey(const Key('profile-interested-s1')));
+      await pumpFor(tester);
+      expect(find.byType(CandidateProfileScreen), findsNothing);
+      expect(find.byKey(const Key('send-interest')), findsOneWidget);
+      await tester.tap(find.byKey(const Key('pref-chat')));
+      await tester.tap(find.byKey(const Key('send-interest')));
+      await pumpFor(tester, 30);
+      expect(h.adapter.to('POST', '/api/suggestions/s1/decide').single.data['interested'], true);
+      expect(find.byKey(const Key('interested-s1')), findsNothing);
+      expect(find.text('تم إرسال اهتمامك. نُعلمك عند التوافق.'), findsOneWidget);
+    });
+
+    testWidgets('«لا» from the profile: the card\'s confirmation, then the same snack', (tester) async {
+      final h = Harness();
+      h.adapter.handlers['POST /api/suggestions/s1/decide'] = (_) {
+        h.items.clear();
+        return const FakeResponse(200, {'match': false});
+      };
+      await h.pump(tester);
+      await open(tester, 's1');
+      await tester.tap(find.byKey(const Key('profile-decline-s1')));
+      await pumpFor(tester);
+      await tester.tap(find.text('نعم، لا يناسبني'));
+      await pumpFor(tester, 30);
+      expect(h.adapter.to('POST', '/api/suggestions/s1/decide').single.data, {'interested': false});
+      expect(find.text('تم. لن يظهر هذا الاقتراح مجدداً.'), findsOneWidget);
+      expect(find.byKey(const Key('interested-s1')), findsNothing);
+    });
+
+    testWidgets('back from the profile changes nothing', (tester) async {
+      final h = Harness();
+      await h.pump(tester);
+      await open(tester, 's1');
+      await tester.tap(find.byKey(const Key('profile-back')));
+      await pumpFor(tester);
+      expect(find.byType(CandidateProfileScreen), findsNothing);
+      expect(find.byKey(const Key('interested-s1')), findsOneWidget);
+      expect(h.adapter.to('POST', '/api/suggestions/s1/decide'), isEmpty);
+    });
+
+    testWidgets('0 credits, no paywall: the profile\'s «مهتم» is disabled and says why; «لا» stays free',
+        (tester) async {
+      final h = Harness(credits: 0);
+      await h.pump(tester);
+      await open(tester, 's1');
+      expect(tester.widget<FilledButton>(find.byKey(const Key('profile-interested-s1'))).onPressed, isNull);
+      expect(tester.widget<OutlinedButton>(find.byKey(const Key('profile-decline-s1'))).onPressed, isNotNull);
+      expect(find.byKey(const Key('profile-zero-balance')), findsOneWidget);
+    });
+
+    testWidgets('0 credits with the paywall: the profile\'s «مهتم» opens «انتهى رصيدكِ», nothing sent',
+        (tester) async {
+      final h = Harness(credits: 0, interestPaywall: true);
+      await h.pump(tester);
+      await open(tester, 's1');
+      expect(tester.widget<FilledButton>(find.byKey(const Key('profile-interested-s1'))).onPressed, isNotNull);
+      await tester.tap(find.byKey(const Key('profile-interested-s1')));
+      await pumpFor(tester);
+      expect(find.byKey(const Key('recharge-sheet')), findsOneWidget);
+      expect(find.byKey(const Key('send-interest')), findsNothing);
+      expect(h.adapter.to('POST', '/api/suggestions/s1/decide'), isEmpty);
+    });
+
+    testWidgets('0 credits, a card that liked you with the free reply: enabled, the free line and the status',
+        (tester) async {
+      final h = Harness(
+          credits: 0, freeReply: true, itemsTab: 'interested', items: [card('s1', likedYou: true)], likedYou: 1);
+      await h.pump(tester, tab: FeedTab.interested);
+      await open(tester, 's1');
+      expect(tester.widget<FilledButton>(find.byKey(const Key('profile-interested-s1'))).onPressed, isNotNull);
+      final note = find.byKey(const Key('profile-answer-note-s1'));
+      expect(find.descendant(of: note, matching: find.text('الرد بـ«مهتم» مجاني')), findsOneWidget);
+      expect(find.descendant(of: note, matching: find.text('أبدى اهتمامه بك')), findsOneWidget);
+      expect(find.byKey(const Key('profile-zero-balance')), findsNothing);
+    });
+
+    testWidgets('«بانتظار ردّهم»: the profile has no answers, only the waiting line', (tester) async {
+      final h = Harness(itemsTab: 'waiting');
+      await h.pump(tester, tab: FeedTab.waiting);
+      await open(tester, 's1');
+      expect(find.byKey(const Key('profile-interested-s1')), findsNothing);
+      expect(find.byKey(const Key('profile-decline-s1')), findsNothing);
+      expect(
+          find.descendant(of: find.byKey(const Key('profile-answer-note-s1')), matching: find.textContaining('بانتظار الطرف الآخر')),
+          findsOneWidget);
+    });
+
+    testWidgets('«حظر» from the profile closes it, confirms, then removes the card', (tester) async {
+      final h = Harness(gender: 'MALE');
+      await h.pump(tester);
+      await open(tester, 's1');
+      await tester.tap(find.byKey(const Key('profile-menu-s1')));
+      await pumpFor(tester);
+      await tester.tap(find.text('حظر'));
+      await pumpFor(tester);
+      expect(find.byType(CandidateProfileScreen), findsNothing);
+      await tester.tap(find.widgetWithText(FilledButton, 'حظر'));
+      await pumpFor(tester, 30);
+      expect(h.adapter.to('POST', '/api/blocks'), hasLength(1));
+      expect(find.byKey(const Key('interested-s1')), findsNothing);
+    });
+  });
+
   group('gendered copy on the card', () {
     final item = FeedItem.fromJson(card('s1', likedYou: true));
     Widget cardFor({required bool candidateFemale}) => rtlApp(Scaffold(
@@ -584,6 +742,7 @@ void main() {
               candidateFemale: candidateFemale,
               onInterested: () {},
               onDecline: () {},
+              onOpen: () {},
             ),
           ),
         ));

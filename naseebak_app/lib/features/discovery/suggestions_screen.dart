@@ -18,6 +18,7 @@ import '../home/counts.dart';
 import '../home/gendered_copy.dart';
 import '../matches/safety_actions.dart';
 import '../profile/preferences_screen.dart';
+import 'candidate_profile_screen.dart';
 import 'interest_sheet.dart';
 import 'recharge_sheet.dart';
 import 'preferences_bar.dart';
@@ -264,6 +265,89 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
   /// Switch interest_paywall, for a member who can buy (the server decides; the app also needs its payments on):
   /// at 0 credits «مهتم» stays tappable and opens the «انتهى رصيدك» step
   bool _paywall(Counts? counts) => (counts?.interestPaywall ?? false) && ref.read(appPaymentsProvider);
+
+  /// The answer block of one card: whether «مهتم» can be pressed, the line above the answers, and whether the balance
+  /// is spent. One place for the card and the full profile, so the profile never shows a different line, nor
+  /// bypasses the 0-credit lock or the paywall.
+  ({bool interestEnabled, String? note, bool zeroBalance}) _answerState(
+    FeedItem item, {
+    required Counts? counts,
+    required int? credits,
+    required bool appPayments,
+  }) {
+    final outOfCredits = _outOfCredits(counts, credits);
+    final free = _freeReply(counts, item);
+    final paywall = (counts?.interestPaywall ?? false) && appPayments;
+    return (
+      interestEnabled: !(outOfCredits && !free && !paywall),
+      note: free
+          ? _freeReplyNote
+          : ((counts?.flags.creditOnInterest ?? false) && !outOfCredits ? '«مهتم» يستخدم رصيداً واحداً' : null),
+      zeroBalance: outOfCredits && !free,
+    );
+  }
+
+  /// The full profile's answer block: the card's status line, then the card's credit line (or, at 0 credits, the
+  /// list's zero-balance line, since the profile has no banner)
+  Widget _answerNote(FeedItem item, ({bool interestEnabled, String? note, bool zeroBalance}) state,
+      {required bool candidateFemale, required bool appPayments}) {
+    final status = suggestionStatus(item, widget.tab, candidateFemale: candidateFemale);
+    final actionable = item.actionableIn(widget.tab);
+    final lines = <Widget>[
+      if (status != null) Align(alignment: AlignmentDirectional.centerStart, child: status),
+      if (actionable && state.note != null) Text(state.note!, style: AppText.caption.copyWith(color: AppColors.muted)),
+      if (actionable && state.zeroBalance)
+        Text(
+          'رصيدك صفر: «لا» مجاني، و«مهتم» ${appPayments ? 'يحتاج شحن الرصيد.' : 'يحتاج رصيداً.'}',
+          key: const Key('profile-zero-balance'),
+          style: AppText.caption.copyWith(color: AppColors.warning),
+        ),
+    ];
+    return Column(
+      key: Key('profile-answer-note-${item.id}'),
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (var i = 0; i < lines.length; i++) ...[if (i > 0) const SizedBox(height: AppSpace.sm), lines[i]],
+      ],
+    );
+  }
+
+  /// One tap on a card: the full profile over the tab (root navigator, above the tab bar). Its «مهتم» / «لا» run the
+  /// card's own handlers after it closes, so the sheet, paywall, confirmation, snack and errors are the card's.
+  Future<void> _openProfile(FeedItem item) async {
+    if (_busy.contains(item.id)) return;
+    final answer = await Navigator.of(context, rootNavigator: true).push<ProfileAnswer>(MaterialPageRoute(
+      builder: (_) => Consumer(builder: (context, ref, _) {
+        // Watched like the list: a balance or switch that changes while the profile is open follows at once
+        final me = ref.watch(authControllerProvider).me;
+        final counts = ref.watch(countsProvider).valueOrNull;
+        final appPayments = ref.watch(appPaymentsProvider);
+        final female = !(me?.isFemale ?? false);
+        final state = _answerState(item, counts: counts, credits: me?.credits, appPayments: appPayments);
+        return CandidateProfileScreen(
+          item: item,
+          tab: widget.tab,
+          candidateFemale: female,
+          tribeLabel: me?.country.tribeWord ?? 'العائلة',
+          answerNote: _answerNote(item, state, candidateFemale: female, appPayments: appPayments),
+          interestEnabled: state.interestEnabled,
+          interestLabel: item.interestLabel,
+          declineLabel: item.declineLabel,
+          // The list may be gone by then (signed out meanwhile): nothing to block from
+          onBlock: () => mounted ? _safety(item, report: false) : null,
+          onReport: () => mounted ? _safety(item, report: true) : null,
+        );
+      }),
+    ));
+    if (!mounted || answer == null) return;
+    switch (answer) {
+      case ProfileAnswer.interested:
+        await _interested(item);
+      case ProfileAnswer.declined:
+        await _decline(item);
+    }
+  }
 
   /// [keepPages]: read every page already loaded again (in order) instead of only the first
   Future<void> _load({bool keepPages = false}) async {
@@ -564,9 +648,7 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
     if (_error != null && _items.isEmpty) return ErrorView(error: _error!, onRetry: _load);
     final onEdit = widget.onEditPreferences;
     final outOfCredits = _outOfCredits(counts, me?.credits);
-    final paywall = (counts?.interestPaywall ?? false) && ref.watch(appPaymentsProvider);
-    final creditNote =
-        (counts?.flags.creditOnInterest ?? false) && !outOfCredits ? '«مهتم» يستخدم رصيداً واحداً' : null;
+    final appPayments = ref.watch(appPaymentsProvider);
     final bar = widget.tab == FeedTab.newTab && onEdit != null ? PreferencesBar(onEdit: onEdit) : null;
     // «مهتمون بك» with the free reply on: every card here can be answered, so no recharge banner
     final freeTab = widget.tab == FeedTab.interested && (counts?.flags.freeInterestReply ?? false);
@@ -611,14 +693,17 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
                     return const SizedBox.shrink();
                   }
                   final item = _items[i];
+                  final state = _answerState(item, counts: counts, credits: me?.credits, appPayments: appPayments);
                   return SuggestionCard(
                     item: item,
                     tab: widget.tab,
                     candidateFemale: !(me?.isFemale ?? false),
                     tribeLabel: me?.country.tribeWord ?? 'العائلة',
+                    lebanon: me?.country.code == 'LB',
                     busy: _busy.contains(item.id),
-                    interestDisabled: outOfCredits && !_freeReply(counts, item) && !paywall,
-                    creditNote: _freeReply(counts, item) ? _freeReplyNote : creditNote,
+                    interestDisabled: !state.interestEnabled,
+                    creditNote: state.note,
+                    onOpen: () => _openProfile(item),
                     onInterested: () => _interested(item),
                     onDecline: () => _decline(item),
                     onBlock: () => _safety(item, report: false),

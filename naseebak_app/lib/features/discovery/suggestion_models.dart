@@ -99,6 +99,10 @@ class FeedItem {
   /// The other person is a Pro member (badge only)
   final bool isPro;
 
+  /// The answer buttons' words, the same on the card and the full profile («قبول» / «اعتذار» on an older interest)
+  String get interestLabel => kind == FeedKind.legacyInterest ? 'قبول' : 'مهتم';
+  String get declineLabel => kind == FeedKind.legacyInterest ? 'اعتذار' : 'لا';
+
   /// Whether «مهتم» / «لا» can be pressed on this card (the waiting tab holds my own «مهتم»).
   bool actionableIn(FeedTab tab) {
     if (declined) return false;

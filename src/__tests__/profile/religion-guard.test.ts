@@ -3,7 +3,8 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 
 const ROOT = process.cwd();
-const WRITE = /\b(db|tx)\.profile\.(update|upsert|updateMany|create)\b/;
+// Any receiver (db, tx, prisma, client …), any write
+const WRITE = /\b\w+\.profile\.(update|upsert|updateMany|create|createMany)\b/;
 const GUARDED = /stripMuslimOnlyForChristian|buildProfileUpdate/;
 
 /** Profile write paths that may skip the Christian strip, with the reason */
@@ -37,6 +38,13 @@ describe("religion guard", () => {
 
   it("admin approval strips Muslim-only answers", () => {
     expect(readFileSync(join(ROOT, "src/lib/admin/profile-changes.ts"), "utf8")).toContain("stripMuslimOnlyForChristian");
+  });
+
+  it("the write pattern catches any receiver", () => {
+    for (const line of ["prisma.profile.update(", "client.profile.createMany(", "tx.profile.upsert(", "db.profile.create("]) {
+      expect(WRITE.test(line), line).toBe(true);
+    }
+    expect(WRITE.test("db.profile.findUnique(")).toBe(false);
   });
 
   it("allowlist has no stale entries", () => {

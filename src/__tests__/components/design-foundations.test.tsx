@@ -239,3 +239,21 @@ describe("AuthShell", () => {
     expect(container.innerHTML).toContain("from-accent");
   });
 });
+
+/* ─── WhatsApp-style chat tokens ─── */
+
+describe("chat design tokens", async () => {
+  const { readFileSync } = await import("node:fs");
+  const css = readFileSync("src/app/globals.css", "utf8");
+  const darkStart = css.indexOf("\n.dark {");
+  const themeStart = css.indexOf("@theme inline");
+  const light = css.slice(css.indexOf(":root {"), darkStart);
+  const dark = css.slice(darkStart, themeStart);
+  for (const name of ["bubble-mine", "bubble-mine-quote", "chat-select", "chat-chip", "safety-chip"]) {
+    it(`--${name} is defined in light and dark and mapped to a colour`, () => {
+      expect(light).toMatch(new RegExp(`--${name}:`));
+      expect(dark).toMatch(new RegExp(`--${name}:`));
+      expect(css).toContain(`--color-${name}: var(--${name});`);
+    });
+  }
+});

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import {
@@ -640,6 +640,149 @@ export function MutualSuggestionsView({
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
+  /** The status badges of a suggestion (declined, waiting, liked you), or null when it has none */
+  function renderStatus(item: FeedItem): ReactNode {
+    const waiting = tab === "waiting";
+    const declined = waiting && !!item.declined;
+    const liked = item.kind === "legacy_interest" || !!item.likedYou;
+    if (!declined && !waiting && !liked) return null;
+    return (
+      <>
+        {declined ? (
+          <Badge className="bg-muted text-muted-foreground border border-border text-caption gap-1">
+            <X className="h-3 w-3" /> لم يحصل توافق
+          </Badge>
+        ) : waiting ? (
+          <Badge className="bg-amber-100 text-amber-800 border border-amber-200/60 text-caption gap-1">
+            <Hourglass className="h-3 w-3" /> بانتظار الطرف الآخر
+          </Badge>
+        ) : null}
+        {liked && (
+          <Badge variant="news" className="text-caption gap-1">
+            <Heart className="h-3 w-3" /> {partnerGender === "FEMALE" ? "أبدت اهتمامها بك" : "أبدى اهتمامه بك"}
+          </Badge>
+        )}
+      </>
+    );
+  }
+
+  /** ⋮ on a suggestion: report (with a block) or block */
+  function renderMenu(item: FeedItem): ReactNode {
+    const c = item.candidate;
+    return (
+    <DropdownMenu dir="rtl">
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon" aria-label={`خيارات إضافية: ${c.firstName}`} className="h-12 w-11 rounded-xl text-muted-ink">
+          <MoreVertical className="h-5 w-5" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-44">
+        <DropdownMenuItem className="min-h-11 gap-2 text-amber-700" onSelect={() => setReport({ userId: c.id, name: c.firstName })}>
+          <ShieldAlert className="h-4 w-4" /> إبلاغ وحظر
+        </DropdownMenuItem>
+        <DropdownMenuItem className="min-h-11 gap-2 text-destructive" onSelect={() => setBlockFor(item)}>
+          <Ban className="h-4 w-4" /> حظر
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+    );
+  }
+
+  /**
+   * The answers to a suggestion: credit / free-reply / recharge lines, «مهتم» / «لا» and ⋮ (in «بانتظار ردّهم» the
+   * waiting or declined note only). `onDone` runs right after «مهتم» / «لا» is handed on (the profile sheet closes);
+   * `noMenu` leaves out ⋮ (the sheet has it in its header).
+   */
+  function renderAnswers(item: FeedItem, index: number, opts: { onDone?: () => void; noMenu?: boolean } = {}): ReactNode {
+    const c = item.candidate;
+    const waiting = tab === "waiting";
+    const declined = waiting && !!item.declined;
+    return (
+      <>
+        {declined && (
+          <p className="mb-3 text-xs text-muted-foreground leading-relaxed">
+            {partnerGender === "FEMALE" ? "اختارت «لا» هذه المرة." : "اختار «لا» هذه المرة."}{" "}
+            {g("لا يُسترجع الرصيد، وتصلك اقتراحات جديدة تباعاً.", "لا يُسترجع الرصيد، وتصلكِ اقتراحات جديدة تباعاً.")}
+          </p>
+        )}
+        {waiting && !declined && (
+          <p className="mb-3 text-xs text-muted-foreground leading-relaxed">
+            {partnerGender === "FEMALE" ? "إذا أبدت اهتمامها أيضاً" : "إذا أبدى اهتمامه أيضاً"} يصبح توافقاً متبادلاً ونخبرك فوراً.
+            {item.expiresAt && ` يُغلق الاقتراح تلقائياً يوم ${formatNextDate(item.expiresAt, country)} إن لم يكتمل.`}
+          </p>
+        )}
+        {tab === "interested" && (!outOfCredits || isFreeReply(item)) && (
+          <p className="mb-3 flex items-center gap-1.5 text-xs font-medium text-foreground/85">
+            <Heart className="h-3.5 w-3.5 text-accent-ink" aria-hidden="true" />
+            «مهتم» الآن توافق فوري
+          </p>
+        )}
+        {!waiting && creditOnInterest && (
+          isFreeReply(item) ? (
+            <p className="mb-3 flex items-center gap-1.5 text-xs font-medium text-emerald-700">
+              <Coins className="h-3.5 w-3.5" aria-hidden="true" />
+              {FREE_REPLY_SHORT}
+            </p>
+          ) : outOfCredits ? (
+            <p className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-amber-800 max-md:mb-0">
+              <Coins className="h-3.5 w-3.5" aria-hidden="true" />
+              {/* 44px tap target on phones (it takes the line's bottom margin, so the card grows little) */}
+              <Link href="/dashboard/payments" className="font-semibold underline underline-offset-4 max-md:inline-flex max-md:min-h-11 max-md:items-center">
+                {rechargeToContinue(viewerFemale)}
+              </Link>
+            </p>
+          ) : (
+            <p className="mb-3 flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Coins className="h-3.5 w-3.5 text-accent-ink" aria-hidden="true" />
+              «مهتم» يستخدم رصيداً واحداً
+            </p>
+          )
+        )}
+        {(!waiting || !opts.noMenu) && (
+        <div className="flex gap-2">
+          {!waiting && (
+            <>
+              <Button
+                data-primary-action=""
+                // The person's name in the button's name: one «مهتم» per card on the page (QA PA-L2)
+                aria-label={`مهتم · ${c.firstName}`}
+                onClick={() => {
+                  onInterested(item);
+                  opts.onDone?.();
+                }}
+                disabled={acting === item.id || (outOfCredits && !isFreeReply(item) && !interestPaywall)}
+                size="cta"
+                className="flex-[2]"
+              >
+                {acting === item.id ? <Loader2 className="h-5 w-5 animate-spin" /> : <><HeartHandshake className="h-5 w-5 me-2" />مهتم</>}
+              </Button>
+              <Button
+                variant="neutral"
+                size="cta"
+                aria-label={`لا · ${c.firstName}`}
+                onClick={() => {
+                  declineWithUndo(item, index);
+                  opts.onDone?.();
+                }}
+                // «لا» is always free, also at 0 credits. Neutral, as in the app: red is for errors only (QA DS-09)
+                disabled={acting === item.id}
+                className="flex-1"
+              >
+                لا
+              </Button>
+            </>
+          )}
+          {!opts.noMenu && (
+            <div className={waiting ? "ms-auto" : ""}>
+              {renderMenu(item)}
+            </div>
+          )}
+        </div>
+        )}
+      </>
+    );
+  }
+
   return (
     <div className="space-y-5 pb-8">
       <PageHeader
@@ -883,20 +1026,7 @@ export function MutualSuggestionsView({
                   badges={
                     <>
                       {item.isPro && <ProBadge />}
-                      {declined ? (
-                        <Badge className="bg-muted text-muted-foreground border border-border text-caption gap-1">
-                          <X className="h-3 w-3" /> لم يحصل توافق
-                        </Badge>
-                      ) : waiting ? (
-                        <Badge className="bg-amber-100 text-amber-800 border border-amber-200/60 text-caption gap-1">
-                          <Hourglass className="h-3 w-3" /> بانتظار الطرف الآخر
-                        </Badge>
-                      ) : null}
-                      {(item.kind === "legacy_interest" || item.likedYou) && (
-                        <Badge variant="news" className="text-caption gap-1">
-                          <Heart className="h-3 w-3" /> {partnerGender === "FEMALE" ? "أبدت اهتمامها بك" : "أبدى اهتمامه بك"}
-                        </Badge>
-                      )}
+                      {renderStatus(item)}
                     </>
                   }
                   tone={declined ? "muted" : waiting ? "pending" : "default"}
@@ -921,94 +1051,7 @@ export function MutualSuggestionsView({
                     })
                   }
                   details={<CandidateDetails c={c} />}
-                  actions={
-                    <>
-                      {declined && (
-                        <p className="mb-3 text-xs text-muted-foreground leading-relaxed">
-                          {partnerGender === "FEMALE" ? "اختارت «لا» هذه المرة." : "اختار «لا» هذه المرة."}{" "}
-                          {g("لا يُسترجع الرصيد، وتصلك اقتراحات جديدة تباعاً.", "لا يُسترجع الرصيد، وتصلكِ اقتراحات جديدة تباعاً.")}
-                        </p>
-                      )}
-                      {waiting && !declined && (
-                        <p className="mb-3 text-xs text-muted-foreground leading-relaxed">
-                          {partnerGender === "FEMALE" ? "إذا أبدت اهتمامها أيضاً" : "إذا أبدى اهتمامه أيضاً"} يصبح توافقاً متبادلاً ونخبرك فوراً.
-                          {item.expiresAt && ` يُغلق الاقتراح تلقائياً يوم ${formatNextDate(item.expiresAt, country)} إن لم يكتمل.`}
-                        </p>
-                      )}
-                      {tab === "interested" && (!outOfCredits || isFreeReply(item)) && (
-                        <p className="mb-3 flex items-center gap-1.5 text-xs font-medium text-foreground/85">
-                          <Heart className="h-3.5 w-3.5 text-accent-ink" aria-hidden="true" />
-                          «مهتم» الآن توافق فوري
-                        </p>
-                      )}
-                      {!waiting && creditOnInterest && (
-                        isFreeReply(item) ? (
-                          <p className="mb-3 flex items-center gap-1.5 text-xs font-medium text-emerald-700">
-                            <Coins className="h-3.5 w-3.5" aria-hidden="true" />
-                            {FREE_REPLY_SHORT}
-                          </p>
-                        ) : outOfCredits ? (
-                          <p className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-amber-800 max-md:mb-0">
-                            <Coins className="h-3.5 w-3.5" aria-hidden="true" />
-                            {/* 44px tap target on phones (it takes the line's bottom margin, so the card grows little) */}
-                            <Link href="/dashboard/payments" className="font-semibold underline underline-offset-4 max-md:inline-flex max-md:min-h-11 max-md:items-center">
-                              {rechargeToContinue(viewerFemale)}
-                            </Link>
-                          </p>
-                        ) : (
-                          <p className="mb-3 flex items-center gap-1.5 text-xs text-muted-foreground">
-                            <Coins className="h-3.5 w-3.5 text-accent-ink" aria-hidden="true" />
-                            «مهتم» يستخدم رصيداً واحداً
-                          </p>
-                        )
-                      )}
-                      <div className="flex gap-2">
-                        {!waiting && (
-                          <>
-                            <Button
-                              data-primary-action=""
-                              // The person's name in the button's name: one «مهتم» per card on the page (QA PA-L2)
-                              aria-label={`مهتم · ${c.firstName}`}
-                              onClick={() => onInterested(item)}
-                              disabled={acting === item.id || (outOfCredits && !isFreeReply(item) && !interestPaywall)}
-                              size="cta"
-                              className="flex-[2]"
-                            >
-                              {acting === item.id ? <Loader2 className="h-5 w-5 animate-spin" /> : <><HeartHandshake className="h-5 w-5 me-2" />مهتم</>}
-                            </Button>
-                            <Button
-                              variant="neutral"
-                              size="cta"
-                              aria-label={`لا · ${c.firstName}`}
-                              onClick={() => declineWithUndo(item, index)}
-                              // «لا» is always free, also at 0 credits. Neutral, as in the app: red is for errors only (QA DS-09)
-                              disabled={acting === item.id}
-                              className="flex-1"
-                            >
-                              لا
-                            </Button>
-                          </>
-                        )}
-                        <div className={waiting ? "ms-auto" : ""}>
-                          <DropdownMenu dir="rtl">
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" aria-label={`خيارات إضافية: ${c.firstName}`} className="h-12 w-11 rounded-xl text-muted-ink">
-                                <MoreVertical className="h-5 w-5" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-44">
-                              <DropdownMenuItem className="min-h-11 gap-2 text-amber-700" onSelect={() => setReport({ userId: c.id, name: c.firstName })}>
-                                <ShieldAlert className="h-4 w-4" /> إبلاغ وحظر
-                              </DropdownMenuItem>
-                              <DropdownMenuItem className="min-h-11 gap-2 text-destructive" onSelect={() => setBlockFor(item)}>
-                                <Ban className="h-4 w-4" /> حظر
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
-                      </div>
-                    </>
-                  }
+                  actions={renderAnswers(item, index)}
                 >
                   {/* Why this suggestion: one line in soft gold (P1-4) */}
                   {item.reason && (

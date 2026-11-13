@@ -18,12 +18,15 @@ const db = vi.hoisted(() => ({
   supportTicket: { update: vi.fn(), findMany: vi.fn(), count: vi.fn(), findUnique: vi.fn() },
   accountDeletionRequest: { findUnique: vi.fn() },
   profileUpdateRequest: { findUnique: vi.fn() },
+  profile: { findUnique: vi.fn() },
 }));
+const religionEnabled = vi.hoisted(() => ({ value: true }));
 const notifyMock = vi.hoisted(() => ({ notify: vi.fn(), notifyMany: vi.fn() }));
 const refundsCreate = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/notify", () => notifyMock);
+vi.mock("@/lib/settings", () => ({ getReligionEnabled: async () => religionEnabled.value }));
 vi.mock("@/lib/auth", () => ({
   requireAdmin: vi.fn(async () => ({ session: { user: { id: "admin1", role: "ADMIN" } } })),
 }));
@@ -183,6 +186,28 @@ describe("profile request review", () => {
     });
     tx.profileUpdateRequest.updateMany.mockResolvedValue({ count: 1 });
     tx.profileUpdateRequest.findUnique.mockResolvedValue({ id: "r1", status: "APPROVED" });
+    db.profile.findUnique.mockResolvedValue({ religion: null, dealbreakers: [] });
+    religionEnabled.value = true;
+  });
+
+  it("an approved switch to مسيحي clears the Muslim-only values in the same write", async () => {
+    db.profileUpdateRequest.findUnique.mockResolvedValue({
+      id: "r1", userId: "u1", status: "PENDING", changes: { religion: "مسيحي", hijab: true },
+    });
+    db.profile.findUnique.mockResolvedValue({ religion: null, dealbreakers: ["hijab", "age"] });
+    const res = await reviewProfileRequest(jsonReq({ requestId: "r1", action: "APPROVED" }));
+    expect(res?.status).toBe(200);
+    const arg = tx.profile.upsert.mock.calls[0][0];
+    expect(arg.update).toMatchObject({ religion: "مسيحي", hijab: null, dealbreakers: ["age"] });
+  });
+
+  it("drops religion from the request while the switch is off", async () => {
+    religionEnabled.value = false;
+    db.profileUpdateRequest.findUnique.mockResolvedValue({
+      id: "r1", userId: "u1", status: "PENDING", changes: { religion: "مسيحي", city: "إربد" },
+    });
+    await reviewProfileRequest(jsonReq({ requestId: "r1", action: "APPROVED" }));
+    expect(tx.profile.upsert.mock.calls.at(-1)?.[0].update).toEqual({ city: "إربد" });
   });
 
   it("applies the changes and notifies with the admin note", async () => {

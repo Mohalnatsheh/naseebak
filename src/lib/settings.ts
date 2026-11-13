@@ -25,6 +25,8 @@ const DEFAULTS: Record<string, string> = {
   chat_delete_enabled: "false",
   // Jordan charged in JOD instead of USD for new purchases (2026-11-11). Open checkouts and Pro subscriptions keep theirs
   jod_charging: "false",
+  // Home + suggestions redesign (2026-11-13). Off = the current home and suggestion cards
+  dashboard_redesign: "false",
   // Sale offer (2026-11-13): +percent% credits on purchases and the first Pro payment inside the window. 0 = off
   offer_bonus_percent: "0",
   offer_starts_at: "",
@@ -97,6 +99,11 @@ export interface CycleFlags {
   freeInterestReply?: boolean;
   /** Countries whose members are suggested without the score minimum (switches `sa_relaxed_matching`, `lb_relaxed_matching`). «شروط أساسية» still apply */
   relaxedCountries?: string[];
+}
+
+/** Home + suggestions redesign switch (`dashboard_redesign`, Admin → Settings). Default off */
+export async function getDashboardRedesign(): Promise<boolean> {
+  return (await getSetting("dashboard_redesign")) === "true";
 }
 
 /** Pro chat delete switch (`chat_delete_enabled`, Admin → Settings). Default off */

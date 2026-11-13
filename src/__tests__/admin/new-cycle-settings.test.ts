@@ -152,6 +152,16 @@ describe("new-cycle settings PATCH", () => {
     expect((await res.json()).chatDeleteEnabled).toBe(true);
   });
 
+  it("reads and saves dashboard_redesign", async () => {
+    store.value.dashboard_redesign = "true";
+    expect((await (await GET()).json()).dashboardRedesign).toBe(true);
+    store.value.dashboard_redesign = "false";
+    expect((await (await GET()).json()).dashboardRedesign).toBe(false);
+    const res = await patch({ dashboardRedesign: true });
+    expect(settings.setSetting).toHaveBeenCalledWith("dashboard_redesign", "true");
+    expect((await res.json()).dashboardRedesign).toBe(true);
+  });
+
   it("reads and saves jod_charging", async () => {
     store.value.jod_charging = "true";
     expect((await (await GET()).json()).jodCharging).toBe(true);

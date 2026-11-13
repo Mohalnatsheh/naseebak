@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2, HeartHandshake, MessageCircle, Info, TriangleAlert, Users, Coins, ListOrdered, Globe, Crown, Trash2, Banknote } from "lucide-react";
+import { Loader2, HeartHandshake, MessageCircle, Info, TriangleAlert, Users, Coins, ListOrdered, Globe, Crown, Trash2, Banknote, LayoutDashboard } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
@@ -29,11 +29,12 @@ interface State {
   interestPaywall: boolean;
   proEnabled: boolean;
   chatDeleteEnabled: boolean;
+  dashboardRedesign: boolean;
   jodCharging: boolean;
   creditsMigratedAt: string | null;
 }
 
-type Key = "introRequests" | "chat" | "mutualSuggestions" | "creditOnInterest" | "activeFirstFeed" | "saRelaxedMatching" | "lbRelaxedMatching" | "freeInterestReply" | "interestPaywall" | "proEnabled" | "chatDeleteEnabled" | "jodCharging";
+type Key = "introRequests" | "chat" | "mutualSuggestions" | "creditOnInterest" | "activeFirstFeed" | "saRelaxedMatching" | "lbRelaxedMatching" | "freeInterestReply" | "interestPaywall" | "proEnabled" | "chatDeleteEnabled" | "dashboardRedesign" | "jodCharging";
 
 /** Admin → Settings: the switches for the new user cycle, in plain words. */
 export function NewCycleSettingsCard() {
@@ -70,7 +71,7 @@ export function NewCycleSettingsCard() {
 
   function toggle(key: Key, value: boolean) {
     // The feed order, Saudi and Lebanese relaxed matching, the free reply and Pro sales are safe to turn off at once: nothing in flight depends on them
-    const quickOff = key === "activeFirstFeed" || key === "saRelaxedMatching" || key === "lbRelaxedMatching" || key === "freeInterestReply" || key === "interestPaywall" || key === "proEnabled" || key === "chatDeleteEnabled" || key === "jodCharging";
+    const quickOff = key === "activeFirstFeed" || key === "saRelaxedMatching" || key === "lbRelaxedMatching" || key === "freeInterestReply" || key === "interestPaywall" || key === "proEnabled" || key === "chatDeleteEnabled" || key === "dashboardRedesign" || key === "jodCharging";
     if (!value && !quickOff) setConfirmOff(key);
     else if (value && key === "introRequests") setConfirmIntroOn(true);
     else save(key, value);
@@ -185,6 +186,14 @@ export function NewCycleSettingsCard() {
       title: "Pro: delete messages and clear chats",
       text: "Pro members can delete a message or clear a chat, for themselves or for everyone. Nothing is erased: it is only hidden from members. Off by default. Members' existing deletions stay hidden when off.",
       on: !!state?.chatDeleteEnabled,
+      disabled: false,
+    },
+    {
+      key: "dashboardRedesign" as const,
+      icon: LayoutDashboard,
+      title: "Dashboard redesign (home + suggestions)",
+      text: "Off = the current home and suggestion cards.",
+      on: !!state?.dashboardRedesign,
       disabled: false,
     },
     {

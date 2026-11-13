@@ -55,6 +55,8 @@ export interface CycleCounts {
   likedYou?: number;
   /** At 0 credits «مهتم» opens the «انتهى رصيدك» step instead of being greyed (switch interest_paywall, can buy) */
   interestPaywall?: boolean;
+  /** Home + suggestions redesign switch (`dashboard_redesign`). Missing/false = the current pages */
+  dashboardRedesign?: boolean;
   /** My own Pro state, for the badge (independent of the `pro_enabled` switch). `showPage`: link the Pro page
    * (plans I can buy right now, or my subscription) */
   pro?: { isPro: boolean; cancelAtPeriodEnd: boolean; showPage?: boolean };

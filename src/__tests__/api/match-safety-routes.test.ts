@@ -15,6 +15,7 @@ vi.mock("@/lib/auth", () => ({
   requireUser: vi.fn(async () => ({ session: { user: { id: "u1" } } })),
 }));
 vi.mock("@/lib/settings", () => ({
+  getDashboardRedesign: vi.fn(async () => false),
   getCycleFlags: vi.fn(async () => ({ introRequests: true, chat: true, mutualSuggestions: true })),
 }));
 vi.mock("@/lib/chat/service", () => ({ chatHousekeepingForUser: vi.fn(async () => {}) }));

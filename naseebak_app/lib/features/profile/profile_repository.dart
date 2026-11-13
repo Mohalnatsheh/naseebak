@@ -81,6 +81,7 @@ class PartnerPrefs {
     this.beard,
     this.children,
     this.dealbreakers = const {},
+    this.prefReligion,
   });
 
   factory PartnerPrefs.fromJson(Map<String, dynamic> p) => PartnerPrefs(
@@ -96,6 +97,7 @@ class PartnerPrefs {
         beard: _yesNo(p['prefBeard']),
         children: _children(p['prefChildrenAcceptance']),
         dealbreakers: asStringList(p['dealbreakers']).toSet(),
+        prefReligion: asString(p['prefReligion']),
       );
 
   /// Older rows store yes / no in English (score.ts `prefYesNo`)
@@ -123,6 +125,10 @@ class PartnerPrefs {
   final String? children;
   final Set<String> dealbreakers;
 
+  /// «الديانة لدى الشريك» (`prefReligion`); null reads «نفس ديانتي». `/api/profile/dealbreakers` doesn't send it:
+  /// the screen overlays it from `/api/profile`.
+  final String? prefReligion;
+
   /// Whether the preference behind a «شرط أساسي» key is filled in, so it can work as a filter (the website's
   /// `dealbreakerSummary` ≠ null). [female] is the member: her lock is on the man's beard, his on the woman's hijab.
   bool dealbreakerFilled(String key, {required bool female}) => switch (key) {
@@ -141,21 +147,32 @@ class PartnerPrefs {
 
   /// The ticked keys whose preference is filled in (the website's `activeDealbreakers`): an emptied preference never
   /// keeps a lock that would filter on nothing
-  List<String> activeDealbreakers({required bool female}) =>
-      [for (final k in dealbreakers) if (dealbreakerFilled(k, female: female)) k];
+  /// A Christian ([christian]) never keeps a Muslim-only key.
+  List<String> activeDealbreakers({required bool female, bool christian = false}) => [
+        for (final k in dealbreakers)
+          if (dealbreakerFilled(k, female: female) && !(christian && muslimOnlyDealbreakers.contains(k))) k,
+      ];
 
   /// The `changes` for `POST /api/profile/update-request` (preferences only, so the server saves them at once).
   /// [withSect]: the country offers «المذهب» (older servers and other countries never get `prefSect`).
-  Map<String, dynamic> toChanges({required bool female, bool withSect = false}) => {
+  /// [withReligion]: the server offers «الديانة لدى الشريك». [christian]: no `prefSect`, `prefHijab`, `prefBeard`.
+  Map<String, dynamic> toChanges({
+    required bool female,
+    bool withSect = false,
+    bool withReligion = false,
+    bool christian = false,
+  }) =>
+      {
         'prefAgeMin': ageMin,
         'prefAgeMax': ageMax,
         'prefCity': cities,
         'prefEducation': education,
         'prefMaritalStatus': maritalStatus,
         'prefReligiosity': religiosity,
-        if (withSect) 'prefSect': sect,
+        if (withSect && !christian) 'prefSect': sect,
         'prefSmokingStatus': smoking,
-        if (female) 'prefBeard': beard ?? '' else 'prefHijab': hijab ?? '',
+        if (!christian) (female ? 'prefBeard' : 'prefHijab'): (female ? beard : hijab) ?? '',
+        if (withReligion) 'prefReligion': prefReligion ?? prefReligionSame,
         'prefChildrenAcceptance': children ?? '',
       };
 }
@@ -218,10 +235,14 @@ class ProfileRepository {
     required bool female,
     required bool withDealbreakers,
     bool withSect = false,
+    bool withReligion = false,
+    bool christian = false,
   }) async {
-    await _api.post('/api/profile/update-request', body: {'changes': prefs.toChanges(female: female, withSect: withSect)});
+    await _api.post('/api/profile/update-request', body: {
+      'changes': prefs.toChanges(female: female, withSect: withSect, withReligion: withReligion, christian: christian),
+    });
     if (withDealbreakers) {
-      await _api.put('/api/profile/dealbreakers', body: {'keys': prefs.activeDealbreakers(female: female)});
+      await _api.put('/api/profile/dealbreakers', body: {'keys': prefs.activeDealbreakers(female: female, christian: christian)});
     }
   }
 

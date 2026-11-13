@@ -7,13 +7,14 @@ import 'package:naseebak_app/features/onboarding/setup_screen.dart';
 import 'package:naseebak_app/features/country_selection/country.dart';
 import 'package:naseebak_app/features/profile/profile_edit_plan.dart';
 import 'package:naseebak_app/features/profile/profile_edit_screen.dart';
-import 'package:naseebak_app/features/profile/profile_repository.dart' show MyProfile;
+import 'package:naseebak_app/features/profile/preferences_screen.dart';
+import 'package:naseebak_app/features/profile/profile_repository.dart' show MyProfile, PartnerPrefs;
 import 'package:naseebak_app/shared/person.dart';
 import 'package:naseebak_app/shared/religion.dart';
 
 import 'helpers/fake_api.dart';
 import 'account_parity_test.dart' show lists, profileWith, storedProfile;
-import 'lebanon_test.dart' show bodyOf, lbBasics, lbDetails, lbSetupWith, sectOptions;
+import 'lebanon_test.dart' show bodyOf, lbBasics, lbDetails, lbSetupWith, prefSectOptions, sectOptions;
 import 'suggestions_flow_test.dart' show Harness, card;
 
 Future<(FakeAdapter, List<Override>)> religionSetupWith(Map<String, dynamic>? profile, {int? savedStep}) async {
@@ -188,6 +189,128 @@ void main() {
       final h = Harness(gender: 'FEMALE');
       await h.pump(tester);
       expect(h.adapter.to('GET', '/api/profile'), isEmpty);
+    });
+  });
+
+  group('preferences', () {
+    const religionOptions = ['نفس ديانتي', 'لا مانع'];
+
+    Future<FakeAdapter> openPrefs(
+      WidgetTester tester,
+      PartnerPrefs initial, {
+      String? religion,
+      List<String> options = religionOptions,
+      List<String> sect = const [],
+      String? stored,
+    }) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(const SizedBox()); // a fresh State when a test opens the screen twice
+      final adapter = FakeAdapter()
+        ..on('POST', '/api/profile/update-request', const FakeResponse(200, {'message': 'ok', 'requested': false}))
+        ..on('PUT', '/api/profile/dealbreakers', const FakeResponse(200, {'keys': []}))
+        ..on('GET', '/api/profile/dealbreakers', const FakeResponse(200, {'profile': {}}));
+      await tester.pumpWidget(ProviderScope(
+        overrides: await testOverrides(adapter),
+        child: rtlApp(Scaffold(
+          body: PreferencesForm(
+            initial: initial,
+            cities: const ['عمّان'],
+            female: false,
+            withDealbreakers: true,
+            sectOptions: sect,
+            religionOptions: options,
+            religion: religion,
+            initialPrefReligion: stored,
+          ),
+        )),
+      ));
+      await tester.pumpAndSettle();
+      return adapter;
+    }
+
+    Future<void> savePrefs(WidgetTester tester) async {
+      await tester.scrollUntilVisible(find.byKey(const Key('save-prefs')), 300, scrollable: find.byType(Scrollable).first);
+      await tester.tap(find.byKey(const Key('save-prefs')));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('«لا مانع» shows the hint; the hijab note only with a hijab «شرط أساسي»', (tester) async {
+      final adapter = await openPrefs(
+        tester,
+        const PartnerPrefs(ageMin: 24, ageMax: 34, hijab: 'نعم', dealbreakers: {'hijab'}),
+      );
+      ChoiceChip chip(String v) => tester.widget<ChoiceChip>(find.byKey(Key('pref-religion-$v')));
+      expect(chip('نفس ديانتي').selected, isTrue);
+      expect(find.text(prefReligionAnyHint), findsNothing);
+      await tester.tap(find.byKey(const Key('pref-religion-لا مانع')));
+      await tester.pump();
+      expect(chip('لا مانع').selected, isTrue);
+      expect(find.text(prefReligionAnyHint), findsOneWidget);
+      expect(find.text(dealbreakersStillApplyHint), findsOneWidget);
+      await tester.scrollUntilVisible(find.byKey(const Key('db-hijab')), 300, scrollable: find.byType(Scrollable).first);
+      await tester.tap(find.byKey(const Key('db-hijab')));
+      await tester.pump();
+      await tester.scrollUntilVisible(find.text(prefReligionAnyHint), -300, scrollable: find.byType(Scrollable).first);
+      expect(find.text(prefReligionAnyHint), findsOneWidget);
+      expect(find.text(dealbreakersStillApplyHint), findsNothing);
+      await savePrefs(tester);
+      final changes = bodyOf(adapter.to('POST', '/api/profile/update-request').single)['changes'] as Map;
+      expect(changes['prefReligion'], 'لا مانع');
+    });
+
+    testWidgets('a Christian: no hijab or sect question, nothing Muslim-only sent', (tester) async {
+      // Positive control: the same screen for a Muslim does show both rows
+      await openPrefs(tester, const PartnerPrefs(ageMin: 24, ageMax: 34), religion: 'مسلم', sect: prefSectOptions);
+      final scroll = find.byType(Scrollable).first;
+      await tester.scrollUntilVisible(find.text('هل تفضل محجبة؟'), 300, scrollable: scroll);
+      expect(find.text('هل تفضل محجبة؟'), findsOneWidget);
+      await tester.scrollUntilVisible(find.text('المذهب'), 300, scrollable: scroll);
+      expect(find.text('المذهب'), findsOneWidget);
+
+      final adapter = await openPrefs(
+        tester,
+        const PartnerPrefs(ageMin: 24, ageMax: 34, dealbreakers: {'age'}),
+        religion: 'مسيحي',
+        sect: prefSectOptions,
+      );
+      // Scroll to the neighbouring rows so the absence is real, not just off-screen
+      final s2 = find.byType(Scrollable).first;
+      await tester.scrollUntilVisible(find.text('مستوى التدين'), 300, scrollable: s2);
+      await tester.scrollUntilVisible(find.text('التدخين'), 300, scrollable: s2);
+      expect(find.text('هل تفضل محجبة؟'), findsNothing);
+      expect(find.text('المذهب'), findsNothing);
+      expect(find.byKey(const Key('db-hijab')), findsNothing);
+      await savePrefs(tester);
+      final changes = bodyOf(adapter.to('POST', '/api/profile/update-request').single)['changes'] as Map;
+      for (final k in ['prefHijab', 'prefBeard', 'prefSect']) {
+        expect(changes.containsKey(k), isFalse, reason: k);
+      }
+      expect(bodyOf(adapter.to('PUT', '/api/profile/dealbreakers').single)['keys'], ['age']);
+    });
+
+    testWidgets('a pending change to مسيحي keeps the hijab question (stored religion is مسلم)', (tester) async {
+      await openPrefs(tester, const PartnerPrefs(ageMin: 24, ageMax: 34), religion: 'مسلم');
+      await tester.scrollUntilVisible(find.text('هل تفضل محجبة؟'), 300, scrollable: find.byType(Scrollable).first);
+      expect(find.text('هل تفضل محجبة؟'), findsOneWidget);
+    });
+
+    testWidgets('no prefReligion list (switch off, older server): not shown, not sent', (tester) async {
+      final adapter = await openPrefs(tester, const PartnerPrefs(ageMin: 24, ageMax: 34), options: const []);
+      expect(find.text('الديانة لدى الشريك'), findsNothing);
+      await savePrefs(tester);
+      final changes = bodyOf(adapter.to('POST', '/api/profile/update-request').single)['changes'] as Map;
+      expect(changes.containsKey('prefReligion'), isFalse);
+    });
+
+    test('PartnerPrefs: prefReligion read; a Christian keeps no Muslim-only lock', () {
+      expect(PartnerPrefs.fromJson({'prefReligion': 'لا مانع'}).prefReligion, 'لا مانع');
+      expect(
+        const PartnerPrefs(hijab: 'نعم', dealbreakers: {'hijab', 'age'}, ageMin: 20)
+            .activeDealbreakers(female: false, christian: true),
+        ['age'],
+      );
     });
   });
 

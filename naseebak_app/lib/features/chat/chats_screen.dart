@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/localization/digits.dart';
 import '../../core/privacy/screen_privacy.dart';
 import '../../core/theme/app_theme.dart';
+import '../../shared/widgets/alpha_fade.dart';
 import '../../shared/widgets/brand_kit.dart';
 import '../../shared/widgets/common.dart';
 import '../../core/auth/auth_controller.dart';
@@ -19,6 +20,23 @@ import 'chat_models.dart';
 /// A chat she can still write in: «النشطة». Ended, expired and read-only (blocked) chats are «المنتهية».
 bool isActiveChat(ChatSummary c) => c.status == 'ACTIVE' && !c.blocked;
 
+/// The list's filter chips (the website's «الكل» / «غير مقروءة» / «المنتهية»)
+enum ChatsChip { all, unread, ended }
+
+/// The chats a chip shows, in the list's order: «الكل» = active, «غير مقروءة» = active with unread, «المنتهية» = the rest.
+List<ChatSummary> chatsForChip(List<ChatSummary> chats, ChatsChip chip) => [
+  for (final c in chats)
+    if (switch (chip) {
+      ChatsChip.all => isActiveChat(c),
+      ChatsChip.unread => isActiveChat(c) && c.unread > 0,
+      ChatsChip.ended => !isActiveChat(c),
+    })
+      c,
+];
+
+/// «غير مقروءة» or «غير مقروءة 3»: counts chats, not messages
+String unreadChipLabel(int chats) => chats > 0 ? 'غير مقروءة $chats' : 'غير مقروءة';
+
 class ChatsScreen extends ConsumerStatefulWidget {
   const ChatsScreen({super.key});
 
@@ -30,11 +48,11 @@ class ChatsScreen extends ConsumerStatefulWidget {
   ConsumerState<ChatsScreen> createState() => _ChatsScreenState();
 }
 
-class _ChatsScreenState extends ConsumerState<ChatsScreen> with WidgetsBindingObserver, SingleTickerProviderStateMixin {
+class _ChatsScreenState extends ConsumerState<ChatsScreen> with WidgetsBindingObserver {
   Timer? _timer;
 
-  /// «النشطة» (0, the default) and «المنتهية» (1)
-  late final TabController _tabs = TabController(length: 2, vsync: this);
+  /// «الكل» (the default), «غير مقروءة» and «المنتهية»
+  ChatsChip _chip = ChatsChip.all;
 
   @override
   void initState() {
@@ -46,7 +64,6 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> with WidgetsBindingOb
   @override
   void dispose() {
     _timer?.cancel();
-    _tabs.dispose();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -60,8 +77,8 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> with WidgetsBindingOb
     super.didChangeDependencies();
     final shown = TickerMode.valuesOf(context).enabled;
     if (_shown == false && shown) {
-      // Back on Chats: it opens on the active chats again
-      _tabs.index = 0;
+      // Back on Chats: it opens on «الكل» again
+      setState(() => _chip = ChatsChip.all);
       WidgetsBinding.instance.addPostFrameCallback((_) => _refresh());
     }
     _shown = shown;
@@ -86,66 +103,95 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> with WidgetsBindingOb
     final chats = ref.watch(chatListProvider);
     final female = ref.watch(authControllerProvider).me?.isFemale ?? false;
     final list = chats.valueOrNull ?? const <ChatSummary>[];
-    final active = [
-      for (final c in list)
-        if (isActiveChat(c)) c,
-    ];
-    final ended = [
-      for (final c in list)
-        if (!isActiveChat(c)) c,
-    ];
-    int unread(List<ChatSummary> l) => l.fold(0, (n, c) => n + c.unread);
-    Tab tab(String label, int count) => Tab(
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Flexible(child: Text(label, overflow: TextOverflow.ellipsis)),
-          if (count > 0) ...[const SizedBox(width: 6), CountBadge(count: count)],
-        ],
+    final unreadChats = chatsForChip(list, ChatsChip.unread).length;
+    Widget chip(ChatsChip c, String key, String label) {
+      final on = _chip == c;
+      return Semantics(
+        button: true,
+        selected: on,
+        label: label,
+        excludeSemantics: true,
+        onTap: () => setState(() => _chip = c),
+        child: Material(
+          color: on ? AppColors.navy : AppColors.chatChip,
+          shape: StadiumBorder(side: BorderSide(color: on ? AppColors.navy : AppColors.line)),
+          child: InkWell(
+            key: Key(key),
+            customBorder: const StadiumBorder(),
+            onTap: () => setState(() => _chip = c),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 44, minWidth: 44),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Center(
+                  widthFactor: 1,
+                  child: Text(label, style: AppText.label.copyWith(color: on ? Colors.white : AppColors.ink)),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    final (title, body) = switch (_chip) {
+      ChatsChip.all => (
+        'لا توجد محادثات نشطة',
+        'تُفتح المحادثة بعد التوافق المتبادل وقبول طلب المحادثة. مراقبة ولمدة محدودة.',
       ),
-    );
+      ChatsChip.unread => ('لا توجد رسائل غير مقروءة', ''),
+      ChatsChip.ended => ('لا توجد محادثات منتهية', 'تظهر هنا المحادثات التي انتهت مدتها أو أُنهيت، للقراءة فقط.'),
+    };
     return Scaffold(
       appBar: AppBar(
         title: const Text('المحادثات'),
-        bottom: TabBar(controller: _tabs, tabs: [tab('النشطة', unread(active)), tab('المنتهية', unread(ended))]),
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
       ),
       // The last messages show here: private like the chat itself, but only while this tab is the one on screen (the
       // tab bar keeps it alive behind the others, with its tickers off)
-      body: SecureArea(onlyWhileShown: true, child: chats.when(
-        loading: () => const SkeletonList(count: 4, itemHeight: 72),
-        error: (e, _) => ErrorView(error: e, onRetry: () => ref.invalidate(chatListProvider)),
-        data: (_) => TabBarView(
-          controller: _tabs,
+      body: SecureArea(
+        onlyWhileShown: true,
+        child: Column(
           children: [
-            _list(
-              key: const PageStorageKey('chats-active'),
-              items: active,
-              female: female,
-              emptyTitle: 'لا توجد محادثات نشطة',
-              emptyBody: 'تُفتح المحادثة بعد التوافق المتبادل وقبول طلب المحادثة. مراقبة ولمدة محدودة.',
+            Padding(
+              padding: const EdgeInsetsDirectional.fromSTEB(16, 8, 16, 8),
+              child: Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    chip(ChatsChip.all, 'chats-chip-all', 'الكل'),
+                    chip(ChatsChip.unread, 'chats-chip-unread', unreadChipLabel(unreadChats)),
+                    chip(ChatsChip.ended, 'chats-chip-ended', 'المنتهية'),
+                  ],
+                ),
+              ),
             ),
-            _list(
-              key: const PageStorageKey('chats-ended'),
-              items: ended,
-              female: female,
-              emptyTitle: 'لا توجد محادثات منتهية',
-              emptyBody: 'تظهر هنا المحادثات التي انتهت مدتها أو أُنهيت، للقراءة فقط.',
+            Expanded(
+              // A failed background reload keeps the list she already has (audit B21)
+              child: chats.hasValue
+                  ? _list(items: chatsForChip(list, _chip), female: female, emptyTitle: title, emptyBody: body)
+                  : chats.when(
+                      loading: () => const SkeletonList(count: 4, itemHeight: 72),
+                      error: (e, _) => ErrorView(error: e, onRetry: () => ref.invalidate(chatListProvider)),
+                      data: (_) => const SizedBox.shrink(),
+                    ),
             ),
           ],
         ),
-      )),
+      ),
     );
   }
 
   Widget _list({
-    required Key key,
     required List<ChatSummary> items,
     required bool female,
     required String emptyTitle,
     required String emptyBody,
   }) {
     return RefreshIndicator(
-      key: key,
       onRefresh: () async {
         ref.invalidate(countsProvider);
         ref.invalidate(chatListProvider);
@@ -180,9 +226,10 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> with WidgetsBindingOb
       'EXPIRED' => 'انتهت المدة',
       _ => c.blocked ? 'للقراءة فقط' : null,
     };
-    final left = status == null && c.status == 'ACTIVE' ? chatTimeLeft(c.expiresAt) : null;
+    final timeLeft = status == null && c.status == 'ACTIVE' ? chatTimeLeft(c.expiresAt) : null;
+    final left = timeLeft != null && timeLeft.urgent ? timeLeft : null;
     final ended = status != null;
-    return ListTile(
+    final tile = ListTile(
       minVerticalPadding: 12,
       contentPadding: const EdgeInsetsDirectional.fromSTEB(16, 0, 16, 0),
       // The same avatar as the chat header (P2-5): the days left as a gold arc, grey once the chat is over
@@ -245,7 +292,7 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> with WidgetsBindingOb
               // Every ended chat carries its status label, with or without messages
               if (status != null) Pill(text: status, color: AppColors.muted),
               // The same navy as my bubbles
-              if (c.unread > 0) ...[const SizedBox(width: 6), CountBadge(count: c.unread, color: AppColors.navy)],
+              if (!ended && c.unread > 0) ...[const SizedBox(width: 6), CountBadge(count: c.unread, color: AppColors.navy)],
             ],
           ),
           if (left != null)
@@ -267,5 +314,6 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> with WidgetsBindingOb
         ref.invalidate(countsProvider);
       },
     );
+    return ended ? AlphaFade(opacity: 0.7, child: tile) : tile;
   }
 }

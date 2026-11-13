@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:naseebak_app/core/auth/auth_controller.dart';
 import 'package:naseebak_app/core/storage/token_store.dart';
+import 'package:naseebak_app/features/chat/chat_models.dart';
 import 'package:naseebak_app/features/chat/chats_screen.dart';
+import 'package:naseebak_app/shared/widgets/alpha_fade.dart';
 
 import 'helpers/fake_api.dart';
 
@@ -134,66 +136,80 @@ void main() {
     expect(find.text('ابدئي المحادثة بالسلام'), findsOneWidget);
   });
 
-  group('active and ended tabs', () {
+  group('chips', () {
     List<Map<String, dynamic>> mixed() => [
       chat(id: 'a', name: 'عمر'),
-      chat(id: 'e', name: 'خالد', status: 'EXPIRED', last: 'إلى اللقاء'),
+      chat(id: 'e', name: 'خالد', status: 'EXPIRED', last: 'إلى اللقاء', unread: 3),
       chat(id: 'n', name: 'سامي', status: 'ENDED'),
       chat(id: 'b', name: 'ماهر', blocked: true, last: 'مرحبا'),
     ];
 
-    testWidgets('opens on «النشطة» with only the chats she can still write in', (tester) async {
+    test('chatsForChip and unreadChipLabel', () {
+      final list = [
+        for (final m in mixed()) ChatSummary.fromJson(m),
+        ChatSummary.fromJson(chat(id: 'u', name: 'يوسف', last: 'هلا', unread: 2)),
+      ];
+      expect(chatsForChip(list, ChatsChip.all).map((c) => c.id), ['a', 'u']);
+      expect(chatsForChip(list, ChatsChip.unread).map((c) => c.id), ['u']);
+      expect(chatsForChip(list, ChatsChip.ended).map((c) => c.id), ['e', 'n', 'b']);
+      expect(unreadChipLabel(0), 'غير مقروءة');
+      expect(unreadChipLabel(2), 'غير مقروءة 2');
+    });
+
+    testWidgets('opens on «الكل» with only the chats she can still write in', (tester) async {
       final adapter = FakeAdapter()..on('GET', '/api/chats', FakeResponse(200, {'conversations': mixed()}));
       await openList(tester, adapter);
-      expect(find.text('النشطة'), findsOneWidget);
-      expect(find.text('المنتهية'), findsOneWidget);
+      expect(find.byKey(const Key('chats-chip-all')), findsOneWidget);
+      expect(find.byKey(const Key('chats-chip-unread')), findsOneWidget);
+      expect(find.byKey(const Key('chats-chip-ended')), findsOneWidget);
+      expect(tester.getSize(find.byKey(const Key('chats-chip-all'))).height, 44);
       expect(find.text('عمر'), findsOneWidget);
       expect(find.text('خالد'), findsNothing);
       expect(find.text('سامي'), findsNothing);
       expect(find.text('ماهر'), findsNothing);
     });
 
-    testWidgets('«المنتهية» lists ended, expired and read-only chats', (tester) async {
+    testWidgets('«غير مقروءة 1» lists the active chat with unread only', (tester) async {
+      final adapter = FakeAdapter()
+        ..on('GET', '/api/chats', FakeResponse(200, {
+          'conversations': [...mixed(), chat(id: 'u', name: 'يوسف', last: 'هلا', unread: 4)],
+        }));
+      await openList(tester, adapter);
+      expect(find.text('غير مقروءة 1'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('chats-chip-unread')));
+      await tester.pumpAndSettle();
+      expect(find.text('يوسف'), findsOneWidget);
+      expect(find.text('عمر'), findsNothing);
+      expect(find.text('خالد'), findsNothing);
+    });
+
+    testWidgets('«المنتهية» lists ended, expired and read-only chats, dimmed, with no unread badge', (tester) async {
       final adapter = FakeAdapter()..on('GET', '/api/chats', FakeResponse(200, {'conversations': mixed()}));
       await openList(tester, adapter);
-      await tester.tap(find.text('المنتهية'));
+      await tester.tap(find.byKey(const Key('chats-chip-ended')));
       await tester.pumpAndSettle();
       expect(find.text('خالد'), findsOneWidget);
       expect(find.text('سامي'), findsOneWidget);
       expect(find.text('ماهر'), findsOneWidget);
       expect(find.text('عمر'), findsNothing);
+      expect(find.text('3'), findsNothing);
+      expect(find.byType(AlphaFade), findsWidgets);
     });
 
-    testWidgets('each tab has its own empty message', (tester) async {
+    testWidgets('each chip has its own empty message', (tester) async {
       final adapter = FakeAdapter()
-        ..on(
-          'GET',
-          '/api/chats',
-          FakeResponse(200, {
-            'conversations': [chat(id: 'e', name: 'خالد', status: 'EXPIRED')],
-          }),
-        );
+        ..on('GET', '/api/chats', FakeResponse(200, {'conversations': [chat(id: 'e', name: 'خالد', status: 'EXPIRED')]}));
       await openList(tester, adapter);
       expect(find.text('لا توجد محادثات نشطة'), findsOneWidget);
-      await tester.tap(find.text('المنتهية'));
+      await tester.tap(find.byKey(const Key('chats-chip-unread')));
+      await tester.pumpAndSettle();
+      expect(find.text('لا توجد رسائل غير مقروءة'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('chats-chip-ended')));
       await tester.pumpAndSettle();
       expect(find.text('خالد'), findsOneWidget);
     });
 
-    testWidgets('an unread message shows on its tab', (tester) async {
-      final adapter = FakeAdapter()
-        ..on(
-          'GET',
-          '/api/chats',
-          FakeResponse(200, {
-            'conversations': [chat(id: 'a', name: 'عمر', last: 'السلام', unread: 2)],
-          }),
-        );
-      await openList(tester, adapter);
-      expect(find.descendant(of: find.byType(Tab), matching: find.text('2')), findsOneWidget);
-    });
-
-    testWidgets('coming back to Chats opens on «النشطة» again', (tester) async {
+    testWidgets('coming back to Chats opens on «الكل» again', (tester) async {
       final adapter = FakeAdapter()..on('GET', '/api/chats', FakeResponse(200, {'conversations': mixed()}));
       adapter.on('GET', '/api/mobile/me', FakeResponse(200, {'user': meJson()}));
       final overrides = await testOverrides(adapter, store: MemoryTokenStore('t1'));
@@ -219,7 +235,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.text('المنتهية'));
+      await tester.tap(find.byKey(const Key('chats-chip-ended')));
       await tester.pumpAndSettle();
       expect(find.text('خالد'), findsOneWidget);
 
@@ -231,13 +247,26 @@ void main() {
       expect(find.text('خالد'), findsNothing);
     });
 
+    testWidgets('the days-left line shows only in the last 3 days', (tester) async {
+      final soon = DateTime.now().add(const Duration(days: 2, hours: 5)).toUtc().toIso8601String();
+      final adapter = FakeAdapter()
+        ..on('GET', '/api/chats', FakeResponse(200, {
+          'conversations': [
+            chat(id: 'a', name: 'عمر'),
+            {...chat(id: 's', name: 'سعد'), 'expiresAt': soon},
+          ],
+        }));
+      await openList(tester, adapter);
+      expect(find.textContaining('تبقّى'), findsOneWidget);
+    });
+
     testWidgets('an ended chat with no messages shows its status label like the others', (tester) async {
       final adapter = FakeAdapter()
         ..on('GET', '/api/chats', FakeResponse(200, {
           'conversations': [chat(id: 'n', name: 'سامي', status: 'ENDED'), chat(id: 'e', name: 'خالد', status: 'ENDED', last: 'إلى اللقاء')],
         }));
       await openList(tester, adapter);
-      await tester.tap(find.text('المنتهية'));
+      await tester.tap(find.byKey(const Key('chats-chip-ended')));
       await tester.pumpAndSettle();
       expect(find.text('منتهية'), findsNWidgets(2));
       expect(find.text('لا توجد رسائل'), findsOneWidget);

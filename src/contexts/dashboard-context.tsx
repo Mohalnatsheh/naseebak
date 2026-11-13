@@ -36,7 +36,7 @@ export interface DashboardProfile {
 
 /** New-cycle badges from /api/me/counts */
 export interface CycleCounts {
-  flags: { introRequests: boolean; chat: boolean; mutualSuggestions: boolean; creditOnInterest?: boolean; freeInterestReply?: boolean };
+  flags: { introRequests: boolean; chat: boolean; mutualSuggestions: boolean; creditOnInterest?: boolean; freeInterestReply?: boolean; authRedesign?: boolean };
   pendingIntros: number;
   /** Match of the pending request that expires first, for the dashboard card link */
   pendingIntroMatchId?: string | null;

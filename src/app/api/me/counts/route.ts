@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { getCycleFlags, getDashboardRedesign } from "@/lib/settings";
+import { getAuthRedesignEnabled, getCycleFlags, getDashboardRedesign } from "@/lib/settings";
 import { chatHousekeepingForUser } from "@/lib/chat/service";
 import { cancelDeadPendingFor, hiddenPartnerIds, loadMatchStates, visibleConversationsWhere } from "@/lib/matches/state";
 import { touchLastActive } from "@/lib/activity";
@@ -33,13 +33,16 @@ export async function GET(request: Request) {
 
     // One read of the member serves the balance and the Pro lookup (country, phone), so the 30 s poll costs one Pro
     // query on top of cached settings
-    const [flags, me, hidden, dashboardRedesign] = await Promise.all([
+    const [cycleFlags, me, hidden, dashboardRedesign, authRedesign] = await Promise.all([
       getCycleFlags(),
       db.user.findUnique({ where: { id: userId }, select: { matchCredits: true, country: true, phone: true } }),
       hiddenPartnerIds(userId),
       // Home + suggestions redesign switch. A failed read keeps today's pages
       getDashboardRedesign().catch(() => false),
+      // Website only (older consumers ignore it); a failure leaves today's pages
+      getAuthRedesignEnabled().catch(() => false),
     ]);
+    const flags = { ...cycleFlags, authRedesign };
     // Badge and Pro link only. A failure is logged and leaves `pro` out of the answer: the website keeps the badge it
     // showed, and older apps treat a missing `pro` as before
     const proState = await getMyProState(userId, { app: isAppRequest(request), me }).catch((e) => {

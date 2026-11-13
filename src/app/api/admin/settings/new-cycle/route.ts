@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 import { closeLegacyInFlight } from "@/lib/suggestions/mutual";
 
 async function state() {
-  const [flags, chatRaw, mutualRaw, creditRaw, activeFirstRaw, saRelaxedRaw, lbRelaxedRaw, freeReplyRaw, paywallRaw, proRaw, chatDeleteRaw, redesignRaw, chatWaRaw, jodRaw, migration] = await Promise.all([
+  const [flags, chatRaw, mutualRaw, creditRaw, activeFirstRaw, saRelaxedRaw, lbRelaxedRaw, freeReplyRaw, paywallRaw, proRaw, chatDeleteRaw, redesignRaw, chatWaRaw, authRedesignRaw, jodRaw, migration] = await Promise.all([
     getCycleFlags(),
     getSetting("chat_enabled"),
     getSetting("new_suggestions_flow"),
@@ -20,6 +20,7 @@ async function state() {
     getSetting("chat_delete_enabled"),
     getSetting("dashboard_redesign"),
     getSetting("chat_whatsapp_layout"),
+    getSetting("auth_profile_redesign"),
     getSetting("jod_charging"),
     db.systemSetting.findUnique({ where: { key: "migration_new_cycle_v1" } }),
   ]);
@@ -37,6 +38,7 @@ async function state() {
     chatDeleteEnabled: chatDeleteRaw === "true",
     dashboardRedesign: redesignRaw === "true",
     chatWhatsappLayout: chatWaRaw === "true",
+    authRedesign: authRedesignRaw === "true",
     jodCharging: jodRaw === "true",
     creditsMigratedAt: migration?.value ?? null,
   };
@@ -71,6 +73,8 @@ const schema = z.object({
   dashboardRedesign: z.boolean().optional(),
   /** WhatsApp-style chat layout on the website; off = the classic chat */
   chatWhatsappLayout: z.boolean().optional(),
+  /** Redesigned sign-in, sign-up and profile edit pages (website); off = today's pages */
+  authRedesign: z.boolean().optional(),
   /** New Jordanian purchases charged in JOD instead of USD; open checkouts and existing Pro subscriptions keep theirs */
   jodCharging: z.boolean().optional(),
 });
@@ -126,6 +130,9 @@ export async function PATCH(request: Request) {
     if (parsed.data.chatWhatsappLayout !== undefined) {
       await setSetting("chat_whatsapp_layout", String(parsed.data.chatWhatsappLayout));
       console.log(`[admin settings] chat_whatsapp_layout=${parsed.data.chatWhatsappLayout} by ${result.session.user.id}`);
+    if (parsed.data.authRedesign !== undefined) {
+      await setSetting("auth_profile_redesign", String(parsed.data.authRedesign));
+      console.log(`[admin settings] auth_profile_redesign=${parsed.data.authRedesign} by ${result.session.user.id}`);
     }
     if (parsed.data.jodCharging !== undefined) {
       await setSetting("jod_charging", String(parsed.data.jodCharging));

@@ -25,6 +25,8 @@ const DEFAULTS: Record<string, string> = {
   chat_delete_enabled: "false",
   // WhatsApp-style chat layout on the website (2026-11-13), off = today's chat
   chat_whatsapp_layout: "false",
+  // Redesigned sign-in, sign-up and profile edit pages on the website (off = today's pages)
+  auth_profile_redesign: "false",
   // Jordan charged in JOD instead of USD for new purchases (2026-11-11). Open checkouts and Pro subscriptions keep theirs
   jod_charging: "false",
   // Home + suggestions redesign (2026-11-13). Off = the current home and suggestion cards
@@ -116,6 +118,11 @@ export async function getChatDeleteEnabled(): Promise<boolean> {
 /** WhatsApp-style chat layout on the website (`chat_whatsapp_layout`, Admin → Settings). Default off */
 export async function getChatWhatsappLayout(): Promise<boolean> {
   return (await getSetting("chat_whatsapp_layout")) === "true";
+}
+
+/** Redesigned sign-in, sign-up and profile edit (`auth_profile_redesign`, Admin → Settings). Default off */
+export async function getAuthRedesignEnabled(): Promise<boolean> {
+  return (await getSetting("auth_profile_redesign")) === "true";
 }
 
 /** Whether a new purchase by a member of this country is charged in JOD (switch `jod_charging`, Jordan only) */

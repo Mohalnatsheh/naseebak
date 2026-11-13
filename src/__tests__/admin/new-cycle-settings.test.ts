@@ -172,6 +172,16 @@ describe("new-cycle settings PATCH", () => {
     expect((await res.json()).authRedesign).toBe(true);
   });
 
+  it("reads and saves religion_enabled", async () => {
+    store.value.religion_enabled = "true";
+    expect((await (await GET()).json()).religionEnabled).toBe(true);
+    store.value.religion_enabled = "false";
+    expect((await (await GET()).json()).religionEnabled).toBe(false);
+    const res = await patch({ religionEnabled: true });
+    expect(settings.setSetting).toHaveBeenCalledWith("religion_enabled", "true");
+    expect((await res.json()).religionEnabled).toBe(true);
+  });
+
   it("reads and saves jod_charging", async () => {
     store.value.jod_charging = "true";
     expect((await (await GET()).json()).jodCharging).toBe(true);

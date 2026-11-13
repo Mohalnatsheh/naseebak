@@ -3,6 +3,8 @@ import { requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { notify } from "@/lib/notify";
 import { refreshOpenSuggestionsInBackground } from "@/lib/suggestions/refresh";
+import { getReligionEnabled } from "@/lib/settings";
+import { stripReligionUnlessEnabled } from "@/lib/profile-religion";
 import { buildProfileUpdate } from "@/lib/admin/profile-changes";
 import { enumParam, safePagination } from "@/lib/admin/query";
 import { byUserCountry, getAdminCountry } from "@/lib/admin/country-filter";
@@ -70,8 +72,18 @@ export async function PATCH(request: Request) {
     }
 
     const note = typeof adminNote === "string" && adminNote.trim() ? adminNote.trim() : null;
-    const updateData =
-      action === "APPROVED" ? buildProfileUpdate((updateRequest.changes ?? {}) as Record<string, unknown>) : {};
+    let updateData: Record<string, unknown> = {};
+    if (action === "APPROVED") {
+      const [stored, religionEnabled] = await Promise.all([
+        db.profile.findUnique({
+          where: { userId: updateRequest.userId },
+          select: { religion: true, dealbreakers: true },
+        }),
+        getReligionEnabled(),
+      ]);
+      const changes = stripReligionUnlessEnabled(religionEnabled, (updateRequest.changes ?? {}) as Record<string, unknown>);
+      updateData = buildProfileUpdate(changes, stored);
+    }
 
     // Apply the changes and close the request together; the PENDING guard stops a double review
     const updated = await db.$transaction(async (tx) => {

@@ -331,6 +331,8 @@ model Profile {
   smokingStatus       String?
   /// «المذهب», Lebanese members only (SECT_VALUES in src/lib/profile-sect.ts; «أفضّل عدم الذكر» is never shown on cards)
   sect                String?
+  /// «الديانة»: "مسلم" / "مسيحي"; null reads مسلم (RELIGION_VALUES in src/lib/profile-religion.ts)
+  religion            String?
   aboutMe             String?
 
   area                String?
@@ -359,6 +361,8 @@ model Profile {
   prefSmokingStatus       String[]
   /// Partner's «المذهب», Lebanese members only (PREF_SECT_VALUES)
   prefSect                String[] @default([])
+  /// "نفس ديانتي" / "لا مانع"; null reads نفس ديانتي
+  prefReligion            String?
   prefChildrenAcceptance  String?
   /// Preference keys the user marked as hard filters (DEALBREAKER_KEYS in src/lib/matching/score.ts)
   dealbreakers            String[] @default([])

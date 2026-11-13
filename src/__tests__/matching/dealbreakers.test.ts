@@ -110,3 +110,22 @@ describe("sect «شرط أساسي» (Lebanon)", () => {
     expect(passesDealbreakers({ dealbreakers: ["sect"], prefSect: [] }, {}, "FEMALE")).toBe(true);
   });
 });
+
+describe("religion in mutuallyAcceptable", () => {
+  const muslimMan = { id: "m", gender: "MALE", profile: { religion: "مسلم" as string | null, prefReligion: null as string | null } };
+  const christianWoman = { id: "w", gender: "FEMALE", profile: { religion: "مسيحي" as string | null, prefReligion: "لا مانع" as string | null } };
+
+  it("religion is a hard rule in mutuallyAcceptable", () => {
+    expect(mutuallyAcceptable(muslimMan, christianWoman)).toBe(false);
+    expect(mutuallyAcceptable({ ...muslimMan, profile: { ...muslimMan.profile, prefReligion: "لا مانع" } }, christianWoman)).toBe(true);
+    const c1 = { id: "a", gender: "MALE", profile: { religion: "مسيحي", prefReligion: null } };
+    const c2 = { id: "b", gender: "FEMALE", profile: { religion: "مسيحي", prefReligion: null } };
+    expect(mutuallyAcceptable(c1, c2)).toBe(true);
+  });
+
+  it("a Muslim's hijab condition still excludes a Christian when both opened", () => {
+    const man = { id: "m", gender: "MALE", profile: { religion: "مسلم", prefReligion: "لا مانع", prefHijab: "نعم", dealbreakers: ["hijab"] } };
+    const woman = { id: "w", gender: "FEMALE", profile: { religion: "مسيحي", prefReligion: "لا مانع", hijab: null } };
+    expect(mutuallyAcceptable(man, woman)).toBe(false);
+  });
+});

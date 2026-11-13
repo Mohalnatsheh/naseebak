@@ -7,6 +7,8 @@ import { sendAdminAlert } from "@/lib/admin-alert";
 import { arabicIssueMessage } from "@/lib/validations/issue-message";
 import { applyNiqabRule } from "@/lib/profile-veil";
 import { stripSectUnlessLebanon } from "@/lib/profile-sect";
+import { getReligionEnabled } from "@/lib/settings";
+import { stripMuslimOnlyForChristian, stripReligionUnlessEnabled } from "@/lib/profile-religion";
 
 /**
  * Partner preferences are a private matching filter (like «شروط أساسية»): they save directly, no
@@ -15,6 +17,7 @@ import { stripSectUnlessLebanon } from "@/lib/profile-sect";
 const PREF_KEYS = [
   "prefAgeMin", "prefAgeMax", "prefCity", "prefEducation", "prefMaritalStatus",
   "prefHijab", "prefBeard", "prefReligiosity", "prefSmokingStatus", "prefSect", "prefChildrenAcceptance",
+  "prefReligion",
 ] as const;
 const LIST_PREFS = new Set(["prefCity", "prefEducation", "prefMaritalStatus", "prefReligiosity", "prefSmokingStatus", "prefSect"]);
 
@@ -51,9 +54,15 @@ export async function POST(request: Request) {
     }
     const { message } = parsed.data;
     const userId = session.user.id;
-    // «المذهب» is a Lebanese field: other countries never store it or its preference (nor ask for it)
-    const member = await db.user.findUnique({ where: { id: userId }, select: { country: true } });
-    const changes = stripSectUnlessLebanon(member?.country, parsed.data.changes);
+    // «المذهب» is a Lebanese field: other countries never store it or its preference (nor ask for it).
+    // «الديانة» is dropped while its switch is off. A Christian (the religion asked for here, else the
+    // stored one) never asks for the Muslim-only answers; the approval clears the stored ones.
+    const [member, religionEnabled] = await Promise.all([
+      db.user.findUnique({ where: { id: userId }, select: { country: true, profile: { select: { religion: true } } } }),
+      getReligionEnabled(),
+    ]);
+    const religionChanges = stripReligionUnlessEnabled(religionEnabled, stripSectUnlessLebanon(member?.country, parsed.data.changes));
+    const changes = stripMuslimOnlyForChristian(religionChanges.religion ?? member?.profile?.religion, religionChanges);
     if (Object.keys(changes).length === 0) {
       return NextResponse.json({ error: "يرجى تحديد التعديلات المطلوبة" }, { status: 400 });
     }

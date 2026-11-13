@@ -17,6 +17,7 @@ import { localizedPath } from "@/lib/site-paths";
 import { isTestPhone } from "@/lib/test-accounts";
 import { parseEmailList } from "@/lib/validations/country-settings";
 import { areasFor, citiesFor } from "@/lib/countries/places";
+import { PREF_RELIGION_VALUES, RELIGION_VALUES } from "@/lib/profile-religion";
 import { PREF_SECT_VALUES, SECT_VALUES, sectApplies } from "@/lib/profile-sect";
 import { HOUSING_TYPES, OPTION_VALUES, SKIN_COLORS, expenseRangesFor, incomeRangesFor, nationalityOptions, tribeLabel } from "@/lib/profile-options";
 import { EDUCATION_ORDER } from "@/lib/matching/score";
@@ -234,7 +235,7 @@ export function publicCountry(s: CountrySettings) {
 }
 
 /** Public detail of one country: the list fields plus page content, support and legal links */
-export function publicCountryDetail(s: CountrySettings, content: { heroTitle: string; heroSubtitle: string; seoTitle: string; seoDescription: string }, siteUrl: string) {
+export function publicCountryDetail(s: CountrySettings, content: { heroTitle: string; heroSubtitle: string; seoTitle: string; seoDescription: string }, siteUrl: string, opts: { religion?: boolean } = {}) {
   const code = s.code as CountryCode;
   const abs = (p: string) => `${siteUrl.replace(/\/$/, "")}${localizedPath(p, code)}`;
   return {
@@ -277,6 +278,8 @@ export function publicCountryDetail(s: CountrySettings, content: { heroTitle: st
       housingType: HOUSING_TYPES,
       // «المذهب»: Lebanon only (absent elsewhere, so the app shows no sect question there)
       ...(sectApplies(code) && { sect: SECT_VALUES, prefSect: PREF_SECT_VALUES }),
+      // «الديانة»: only while the switch is on (absent = the app asks nothing)
+      ...(opts.religion && { religion: RELIGION_VALUES, prefReligion: PREF_RELIGION_VALUES }),
     },
   };
 }

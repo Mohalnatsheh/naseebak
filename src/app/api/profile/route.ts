@@ -7,10 +7,13 @@ import { refreshOpenSuggestionsInBackground } from "@/lib/suggestions/refresh";
 import { DEALBREAKER_KEYS, type DealbreakerKey } from "@/lib/matching/score";
 import { maybeAwardReferral } from "@/lib/referral";
 import { needsReviewBody, reviewedChanges } from "@/lib/profile-review";
-import { getCycleFlags } from "@/lib/settings";
+import { getCycleFlags, getReligionEnabled } from "@/lib/settings";
 import { arabicIssueMessage } from "@/lib/validations/issue-message";
 import { applyNiqabRule } from "@/lib/profile-veil";
 import { stripSectUnlessLebanon } from "@/lib/profile-sect";
+import {
+  RELIGION_CHRISTIAN, muslimOnlyClears, religionOf, stripMuslimOnlyForChristian, stripReligionUnlessEnabled,
+} from "@/lib/profile-religion";
 
 /** The fields `profileSchema` requires (the short setup). */
 const REQUIRED_BASICS = [
@@ -96,12 +99,17 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: "بيانات غير صالحة" }, { status: 400 });
     }
 
-    const [existing, member] = await Promise.all([
+    const [existing, member, religionEnabled] = await Promise.all([
       db.profile.findUnique({ where: { userId: session.user.id } }),
       db.user.findUnique({ where: { id: session.user.id }, select: { country: true } }),
+      getReligionEnabled(),
     ]);
-    // «المذهب» is a Lebanese field: other countries never store it, its preference or its «شرط أساسي»
-    const body = stripSectUnlessLebanon(member?.country, raw);
+    // «المذهب» is a Lebanese field: other countries never store it, its preference or its «شرط أساسي».
+    // «الديانة» is dropped while its switch is off. A Christian (this save's religion, else the stored
+    // one: an old app never sends it) never stores the Muslim-only answers.
+    const religionBody = stripReligionUnlessEnabled(religionEnabled, stripSectUnlessLebanon(member?.country, raw));
+    const effectiveReligion = (religionBody as Record<string, unknown>).religion ?? existing?.religion;
+    const body = stripMuslimOnlyForChristian(effectiveReligion as string | null | undefined, religionBody);
     // Finished profile: a required basic the save leaves out stays as stored. The app keeps the
     // profile it loaded at the start of the setup, so its «تعديل ملفي» fills arrive without the
     // basics saved since (partner ages, or all of them) and failed with Zod's English message.
@@ -121,6 +129,7 @@ export async function PUT(request: Request) {
       beard, cookingAbility, drivingLicense, healthConditions, monthlyExpenses, wantsPhoto,
       prefAgeMin, prefAgeMax, prefCity, prefEducation, prefMaritalStatus,
       prefHijab, prefBeard, prefReligiosity, prefSmokingStatus, prefSect, prefChildrenAcceptance,
+      religion, prefReligion,
     } = body;
 
     // niqab ⇒ hijab; hijab false ⇒ no niqab; a body without niqab (app 1.0.0) leaves it as stored
@@ -163,13 +172,17 @@ export async function PUT(request: Request) {
       prefSmokingStatus: Array.isArray(prefSmokingStatus) ? prefSmokingStatus : undefined,
       prefSect: Array.isArray(prefSect) ? prefSect : undefined,
       prefChildrenAcceptance: prefChildrenAcceptance ?? undefined,
+      ...(religion !== undefined && { religion }),
+      ...(prefReligion !== undefined && { prefReligion }),
     };
 
     // After the setup is finished, steps 1–4 changes go through /api/profile/update-request
     // (admin review). This save stays open for a retry of the setup submit and for filling in
     // optional fields that are still empty — see reviewedChanges().
     if (existing?.isComplete) {
-      const changed = reviewedChanges(existing as unknown as Record<string, unknown>, updateData);
+      // A null religion reads «مسلم»: choosing «مسيحي» is a change for review, never an empty field filled in
+      const stored = { ...(existing as unknown as Record<string, unknown>), religion: religionOf(existing) };
+      const changed = reviewedChanges(stored, updateData);
       if (changed.length > 0) return NextResponse.json(needsReviewBody(changed), { status: 409 });
     } else if (!(await getCycleFlags()).introRequests) {
       // Legacy: finishing the setup needs the guardian (step 5) saved first, for the admin-arranged visits.
@@ -179,6 +192,12 @@ export async function PUT(request: Request) {
         return NextResponse.json({ error: "يلزم إكمال بيانات وليّ الأمر أولاً", code: "GUARDIAN_REQUIRED" }, { status: 400 });
       }
     }
+
+    // A member who becomes a Christian during the setup: clear the Muslim-only answers saved before
+    // (dealbreaker checks still read them). After the setup the change goes through review.
+    const clears = !existing?.isComplete && effectiveReligion === RELIGION_CHRISTIAN
+      ? muslimOnlyClears(dealbreakers ?? existing?.dealbreakers)
+      : {};
 
     const profile = await db.profile.upsert({
       where: { userId: session.user.id },
@@ -214,9 +233,11 @@ export async function PUT(request: Request) {
         prefSect: Array.isArray(prefSect) ? prefSect : [],
         prefChildrenAcceptance: prefChildrenAcceptance ?? null,
         ...(dealbreakers && { dealbreakers }),
+        ...(religionEnabled && { religion: religion ?? null, prefReligion: prefReligion ?? null }),
+        ...clears,
         isComplete: true,
       },
-      update: { ...updateData, isComplete: true },
+      update: { ...updateData, ...clears, isComplete: true },
     });
 
     // Profile is filled in: bring unanswered suggestions up to date with the new data and fill

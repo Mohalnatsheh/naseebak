@@ -38,7 +38,8 @@ import { normalizePhone } from "@/lib/phone";
 import { splitProfileEdit, buildFillBody } from "@/lib/profile-edit-split";
 import { forViewer } from "@/lib/gendered-copy";
 import { VEIL_CHOICES, veilChoice, veilFromChoice } from "@/lib/profile-veil";
-import { PREF_SECT_VALUES, SECT_VALUES, sectApplies } from "@/lib/profile-sect";
+import { PREF_SECT_VALUES, SECT_VALUES } from "@/lib/profile-sect";
+import { dealbreakerPrefsFor, MUSLIM_ONLY_FIELDS, PREF_RELIGION_ANY, PREF_RELIGION_SAME, PREF_RELIGION_VALUES, RELIGION_CHRISTIAN, RELIGION_VALUES, religionOf, sectAsked, showsDealbreakerHint } from "@/lib/profile-religion";
 import { PageLoading } from "@/components/shared/page-loading";
 import { sharedGet } from "@/lib/shared-get";
 import { PageHeader } from "@/components/shared/page-header";
@@ -106,6 +107,8 @@ interface ProfileForm {
   willingToRelocate: string;
   maritalStatus: string;
   religiosity: string;
+  /** «الديانة» (switch `religion_enabled`): a stored null reads «مسلم» */
+  religion: string;
   /** «المذهب»: Lebanese members only (sectApplies) */
   sect: string;
   /** null = never answered (only «نعم» / «لا» fill it) */
@@ -135,6 +138,7 @@ interface ProfileForm {
   prefBeard: string;
   prefReligiosity: string[];
   prefSect: string[];
+  prefReligion: string;
   prefSmokingStatus: string[];
   prefChildrenAcceptance: string;
   // Guardian fields
@@ -160,6 +164,7 @@ const emptyForm: ProfileForm = {
   willingToRelocate: "",
   maritalStatus: "",
   religiosity: "",
+  religion: "",
   sect: "",
   hijab: null,
   niqab: null,
@@ -186,6 +191,7 @@ const emptyForm: ProfileForm = {
   prefBeard: "",
   prefReligiosity: [],
   prefSect: [],
+  prefReligion: PREF_RELIGION_SAME,
   prefSmokingStatus: [],
   prefChildrenAcceptance: "",
   parentName: "",
@@ -253,8 +259,11 @@ export default function ProfileEditPage() {
   // Places, money, wording and the guardian's phone follow the member's country (from the loaded profile)
   const [loadedCountry, setLoadedCountry] = useState<CountryCode | null>(null);
   const country = COUNTRIES[toCountry(loadedCountry ?? contextCountry)];
-  // «المذهب» is asked of Lebanese members only
-  const sectOn = sectApplies(country.code);
+  // «الديانة» shows only while the switch is on; a Christian is never asked the Muslim-only questions
+  const religionEnabled = counts.religionEnabled === true;
+  const christian = form.religion === RELIGION_CHRISTIAN;
+  // «المذهب» is asked of Lebanese members only, never of a Christian
+  const sectOn = sectAsked(country.code, form.religion);
   const cities = citiesFor(country.code);
   const incomeRanges = incomeRangesFor(country.code);
   const expenseRanges = expenseRangesFor(country.code);
@@ -330,6 +339,8 @@ export default function ProfileEditPage() {
             willingToRelocate: p.willingToRelocate || "",
             maritalStatus: p.maritalStatus || "",
             religiosity: p.religiosity || "",
+            // A null column shows «مسلم» selected: a switch to «مسيحي» is a change (review), never a fill
+            religion: religionOf(p),
             sect: p.sect || "",
             hijab: typeof p.hijab === "boolean" ? p.hijab : null,
             niqab: typeof p.niqab === "boolean" ? p.niqab : null,
@@ -357,6 +368,7 @@ export default function ProfileEditPage() {
             prefBeard: p.prefBeard || "",
             prefReligiosity: Array.isArray(p.prefReligiosity) ? p.prefReligiosity : [],
             prefSect: Array.isArray(p.prefSect) ? p.prefSect : [],
+            prefReligion: p.prefReligion || PREF_RELIGION_SAME,
             prefSmokingStatus: Array.isArray(p.prefSmokingStatus) ? p.prefSmokingStatus : [],
             prefChildrenAcceptance: p.prefChildrenAcceptance || "",
             parentName: pi?.parentName || "",
@@ -493,8 +505,12 @@ export default function ProfileEditPage() {
     const arrayFields = ["prefCity", "prefEducation", "prefMaritalStatus", "prefReligiosity", "prefSect", "prefSmokingStatus"] as const;
     const guardianFields = ["parentName", "parentPhone", "relationship", "parentAddress"];
 
+    const muslimOnly: readonly string[] = MUSLIM_ONLY_FIELDS;
     for (const key of Object.keys(form) as (keyof ProfileForm)[]) {
       if (key === "jobCustom") continue;
+      if (!religionEnabled && (key === "religion" || key === "prefReligion")) continue;
+      // Hidden for a Christian (the server clears them when the change is approved)
+      if (christian && muslimOnly.includes(key)) continue;
       if (guardianFields.includes(key)) continue;
       if (arrayFields.includes(key as typeof arrayFields[number])) {
         const formArr = form[key] as string[];
@@ -629,7 +645,7 @@ export default function ProfileEditPage() {
           fetch("/api/profile/dealbreakers", {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ keys: activeDealbreakers(dealbreakers, form, gender) }),
+            body: JSON.stringify({ keys: activeDealbreakers(dealbreakers, savedDealbreakerPrefs, gender) }),
           })
         );
       }
@@ -674,13 +690,18 @@ export default function ProfileEditPage() {
   // The button counts what it sends for review when there is a review; the fills are saved with it
   const buttonCount = willNeedReview ? reviewedCount : changedCount;
   const partnerGender = oppositeGender(gender);
+  // A Christian's hidden Muslim-only preferences never count as «شرط أساسي» (what the toggles show)
+  const dealbreakerPrefs = dealbreakerPrefsFor(form.religion, form);
+  // What the save sends follows the STORED religion: a change to «مسيحي» waits for review, and the approval clears
+  // the Muslim-only keys; dropping them now would lose them even if the change is refused
+  const savedDealbreakerPrefs = dealbreakerPrefsFor(originalForm.religion, form);
   /** "شرط أساسي" chip for one preference; disabled until that preference is filled in. */
   const dealbreaker = (key: DealbreakerKey, fieldId: string) =>
     showDealbreakers ? (
       <DealbreakerToggle
         id={fieldId}
         checked={dealbreakers.includes(key)}
-        disabled={activeDealbreakers([key], form, gender).length === 0}
+        disabled={activeDealbreakers([key], dealbreakerPrefs, gender).length === 0}
         onChange={(v) => setDealbreakers((prev) => (v ? [...new Set([...prev, key])] : prev.filter((k) => k !== key)))}
       />
     ) : null;
@@ -1003,6 +1024,25 @@ export default function ProfileEditPage() {
             <CardDescription>معلومات عن أسلوب حياتك</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {religionEnabled && (
+              <div className="space-y-2">
+                <RequiredLabel>الديانة</RequiredLabel>
+                <div role="group" aria-label="الديانة" {...inv("religion")} className="grid grid-cols-2 gap-2">
+                  {RELIGION_VALUES.map((r) => (
+                    <button
+                      key={r}
+                      aria-pressed={form.religion === r}
+                      type="button"
+                      onClick={() => update("religion", r)}
+                      className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.religion === r ? "border-primary bg-primary/15 ring-1 ring-primary text-primary font-bold" : "border-border hover:border-primary/50"}`}
+                    >
+                      {selfLabel("religion", r, gender)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="space-y-2">
               <RequiredLabel>الحالة الاجتماعية</RequiredLabel>
               <div role="group" aria-label="الحالة الاجتماعية" {...inv("maritalStatus")} className="grid grid-cols-3 gap-2">
@@ -1091,7 +1131,7 @@ export default function ProfileEditPage() {
               </div>
             </div>
 
-            {gender === "FEMALE" && (
+            {gender === "FEMALE" && !christian && (
               <div className="space-y-2">
                 <Label>الحجاب <OptionalTag /></Label>
                 <div role="group" aria-label="الحجاب" className="grid grid-cols-3 gap-2">
@@ -1123,7 +1163,7 @@ export default function ProfileEditPage() {
               </div>
             )}
 
-            {gender === "MALE" && (
+            {gender === "MALE" && !christian && (
               <div className="space-y-2">
                 <Label>اللحية <OptionalTag /></Label>
                 <div role="group" aria-label="اللحية" className="grid grid-cols-2 gap-2">
@@ -1264,6 +1304,26 @@ export default function ProfileEditPage() {
               )}
             </div>
 
+            {religionEnabled && (
+              <div className="space-y-2">
+                <Label className="block leading-relaxed">الديانة</Label>
+                <div role="group" aria-label="الديانة لدى الشريك" className="grid grid-cols-2 gap-2">
+                  {PREF_RELIGION_VALUES.map((o) => (
+                    <button key={o} type="button" onClick={() => update("prefReligion", o)}
+                      aria-pressed={form.prefReligion === o}
+                      className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.prefReligion === o ? "border-primary bg-primary/15 ring-1 ring-primary text-primary font-bold" : "border-border hover:border-primary/50"}`}
+                    >{o}</button>
+                  ))}
+                </div>
+                {form.prefReligion === PREF_RELIGION_ANY && (
+                  <p className="text-xs leading-relaxed text-muted-foreground">ستظهر لك اقتراحات من الديانة الأخرى ممن اختاروا ذلك أيضاً</p>
+                )}
+                {showsDealbreakerHint(form.religion, form.prefReligion, activeDealbreakers(dealbreakers, dealbreakerPrefs, gender)) && (
+                  <p className="text-xs leading-relaxed text-muted-foreground">شروطك الأساسية مثل الحجاب تبقى سارية</p>
+                )}
+              </div>
+            )}
+
             <div className="flex items-start justify-between gap-3">
               <span className="min-w-0 flex-1 text-sm font-medium leading-relaxed">العمر المفضل</span>
               {dealbreaker("age", "prefAge")}
@@ -1356,7 +1416,7 @@ export default function ProfileEditPage() {
               </div>
             </div>
 
-            {gender === "MALE" && (
+            {gender === "MALE" && !christian && (
               <div className="space-y-2">
                 <div className="flex items-start justify-between gap-3">
                 <Label className="block min-w-0 flex-1 leading-relaxed">هل تفضل محجبة؟ <OptionalTag /></Label>
@@ -1373,7 +1433,7 @@ export default function ProfileEditPage() {
               </div>
             )}
 
-            {gender === "FEMALE" && (
+            {gender === "FEMALE" && !christian && (
               <div className="space-y-2">
                 <div className="flex items-start justify-between gap-3">
                 <Label className="block min-w-0 flex-1 leading-relaxed">هل تفضلين ملتحياً؟ <OptionalTag /></Label>

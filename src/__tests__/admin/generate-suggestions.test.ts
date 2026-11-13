@@ -176,4 +176,17 @@ describe("admin Generate per country (multi-country)", () => {
     expect(pairs.length).toBeGreaterThan(0);
     for (const [a, b] of pairs) expect(a.slice(0, 2)).toBe(b.slice(0, 2));
   });
+
+  it("legacy generate skips pairs of different religions", async () => {
+    flags.getCycleFlags.mockResolvedValue({ introRequests: true, chat: true, mutualSuggestions: false, creditOnInterest: false });
+    const withProfile = (id: string, gender: "MALE" | "FEMALE", profile: object) => ({ ...person(id, gender), profile: { isComplete: true, ...profile } });
+    db.user.findMany.mockResolvedValue([
+      withProfile("m", "MALE", { religion: "مسلم", prefReligion: "نفس ديانتي" }),
+      withProfile("f", "FEMALE", { religion: "مسيحي", prefReligion: "لا مانع" }),
+    ]);
+    const res = await generate(req());
+    const body = await res.json();
+    expect(body.count ?? body.created ?? 0).toBe(0);
+    expect(db.suggestion.create).not.toHaveBeenCalled();
+  });
 });

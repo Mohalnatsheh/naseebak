@@ -63,7 +63,8 @@ import { ConfirmActionDialog } from "@/components/intro/confirm-action-dialog";
 import { SealMark } from "@/components/shared/match-seal";
 import { ProBadge } from "@/components/shared/pro-badge";
 import { PersonCard, type PersonCardTone } from "@/components/shared/person-card";
-import { describeOption, nationalityLabel, skinColorLabel, tribeLabel } from "@/lib/profile-options";
+import { describeOption, nationalityLabel, religionFact, skinColorLabel, tribeLabel } from "@/lib/profile-options";
+import { religionOf, type ReligionProfile } from "@/lib/profile-religion";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useDashboardData } from "@/contexts/dashboard-context";
 import { countryConfig, formatDate } from "@/lib/countries";
@@ -104,6 +105,8 @@ interface Match {
     maritalStatus: string | null;
     childrenCount: number;
     religiosity: string | null;
+    /** «الديانة»: null while `religion_enabled` is off */
+    religion?: string | null;
     /** «المذهب»: Lebanese members only, null when not shown */
     sect?: string | null;
     smokingStatus: string | null;
@@ -268,6 +271,7 @@ export function MatchesView({ embedded = false }: { embedded?: boolean } = {}) {
   // flashes the legacy / masculine wording first
   const { counts, profile, loading: switchesLoading, country } = useDashboardData();
   const isFemale = profile?.gender === "FEMALE";
+  const viewerReligion = religionOf(profile?.profile as ReligionProfile | null | undefined);
   const { words } = countryConfig(country);
   const introMode = counts.flags.introRequests;
   // Opened from a notification link (?match=<id>): scroll to and highlight that card
@@ -644,6 +648,7 @@ export function MatchesView({ embedded = false }: { embedded?: boolean } = {}) {
                     ) : undefined
                   }
                   tags={[
+                    { icon: Moon, label: religionFact(c.religion, viewerReligion, isFemale ? "MALE" : "FEMALE") },
                     { icon: User, label: c.maritalStatus && describeOption("maritalStatus", c.maritalStatus, isFemale ? "MALE" : "FEMALE") },
                     { icon: GraduationCap, label: c.education },
                     { icon: Moon, label: c.religiosity && describeOption("religiosity", c.religiosity, isFemale ? "MALE" : "FEMALE") },
@@ -683,6 +688,7 @@ export function MatchesView({ embedded = false }: { embedded?: boolean } = {}) {
                         </Section>
 
                         <Section title="الدين ونمط الحياة" icon={Moon} defaultOpen={true}>
+                          <InfoRow icon={Moon} label="الديانة" value={c.religion && describeOption("religion", c.religion, isFemale ? "MALE" : "FEMALE")} />
                           <InfoRow icon={Moon} label="مستوى التدين" value={c.religiosity && describeOption("religiosity", c.religiosity, isFemale ? "MALE" : "FEMALE")} />
                           <InfoRow icon={Moon} label="المذهب" value={c.sect && describeOption("sect", c.sect, isFemale ? "MALE" : "FEMALE")} />
                           <InfoRow icon={Cigarette} label="التدخين" value={c.smokingStatus && describeOption("smokingStatus", c.smokingStatus, isFemale ? "MALE" : "FEMALE")} />

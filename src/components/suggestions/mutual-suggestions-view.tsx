@@ -34,7 +34,8 @@ import { FREE_REPLY_SHORT } from "@/lib/suggestions/copy";
 import { trackEvent } from "@/lib/analytics";
 import { useDashboardData } from "@/contexts/dashboard-context";
 import { formatDate } from "@/lib/countries";
-import { describeOption, nationalityLabel, oppositeGender } from "@/lib/profile-options";
+import { describeOption, nationalityLabel, oppositeGender, religionFact } from "@/lib/profile-options";
+import { religionOf, type ReligionProfile } from "@/lib/profile-religion";
 import type { FeedItem, FeedTab, OpenFeedItem } from "@/lib/suggestions/feed-types";
 import type { SuggestEmptyReason } from "@/lib/matching/auto-suggest";
 import { markPageNotificationsRead } from "@/lib/notifications-client";
@@ -150,6 +151,7 @@ export function MutualSuggestionsView({
 
   const viewerGender = profile?.gender;
   const partnerGender = oppositeGender(viewerGender);
+  const viewerReligion = religionOf(profile?.profile as ReligionProfile | null | undefined);
   const viewerFemale = viewerGender === "FEMALE";
   const g = (masculine: string, feminine: string) => (viewerFemale ? feminine : masculine);
   // Credit on interest: my balance, kept in step with each "مهتم"
@@ -1030,6 +1032,7 @@ export function MutualSuggestionsView({
                     item={declined ? { ...item, activity: undefined } : item}
                     partnerGender={partnerGender}
                     country={country}
+                    viewerReligion={viewerReligion}
                     status={status && <div className="flex flex-wrap items-center gap-1.5">{status}</div>}
                     onOpen={() => setOpenId(item.id)}
                     actions={renderAnswers(item, index)}
@@ -1065,6 +1068,8 @@ export function MutualSuggestionsView({
                   /* Third-person, gender-correct labels about the other person */
                   tags={[
                     // The first three are the card's chips (P1-4); the rest wait under the details
+                    // «الديانة» leads, only when it differs from mine
+                    { icon: Moon, label: religionFact(c.religion, viewerReligion, partnerGender) },
                     { icon: GraduationCap, label: c.education },
                     { icon: User, label: c.maritalStatus && describeOption("maritalStatus", c.maritalStatus, partnerGender) },
                     { icon: Moon, label: c.religiosity && describeOption("religiosity", c.religiosity, partnerGender) },

@@ -27,6 +27,8 @@ const DEFAULTS: Record<string, string> = {
   chat_whatsapp_layout: "false",
   // Redesigned sign-in, sign-up and profile edit pages on the website (off = today's pages)
   auth_profile_redesign: "false",
+  // «الديانة» field: asked, shown and stored only while on. The pair rule in matching applies either way
+  religion_enabled: "false",
   // Jordan charged in JOD instead of USD for new purchases (2026-11-11). Open checkouts and Pro subscriptions keep theirs
   jod_charging: "false",
   // Home + suggestions redesign (2026-11-13). Off = the current home and suggestion cards
@@ -123,6 +125,11 @@ export async function getChatWhatsappLayout(): Promise<boolean> {
 /** Redesigned sign-in, sign-up and profile edit (`auth_profile_redesign`, Admin → Settings). Default off */
 export async function getAuthRedesignEnabled(): Promise<boolean> {
   return (await getSetting("auth_profile_redesign")) === "true";
+}
+
+/** «الديانة» question switch (`religion_enabled`, Admin → Settings). Default off: nothing asked, shown or stored */
+export async function getReligionEnabled(): Promise<boolean> {
+  return (await getSetting("religion_enabled")) === "true";
 }
 
 /** Whether a new purchase by a member of this country is charged in JOD (switch `jod_charging`, Jordan only) */

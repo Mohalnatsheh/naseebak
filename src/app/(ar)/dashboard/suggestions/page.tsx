@@ -42,7 +42,8 @@ import { blockConfirmText, forViewer } from "@/lib/gendered-copy";
 import { trackEvent } from "@/lib/analytics";
 import { useDashboardData } from "@/contexts/dashboard-context";
 import { formatDate } from "@/lib/countries";
-import { describeOption, nationalityLabel, oppositeGender } from "@/lib/profile-options";
+import { describeOption, nationalityLabel, oppositeGender, religionFact } from "@/lib/profile-options";
+import { religionOf, type ReligionProfile } from "@/lib/profile-religion";
 import { CandidateDetails } from "@/components/suggestions/candidate-details";
 import { MutualSuggestionsView } from "@/components/suggestions/mutual-suggestions-view";
 import { rechargeToContinue } from "@/components/suggestions/interest-dialog";
@@ -72,6 +73,8 @@ interface Suggestion {
     maritalStatus: string | null;
     childrenCount: number;
     religiosity: string | null;
+    /** «الديانة»: null while `religion_enabled` is off */
+    religion?: string | null;
     sect?: string | null;
     smokingStatus: string | null;
     aboutMe: string | null;
@@ -115,6 +118,8 @@ interface Interest {
     maritalStatus: string | null;
     childrenCount: number;
     religiosity: string | null;
+    /** «الديانة»: null while `religion_enabled` is off */
+    religion?: string | null;
     sect?: string | null;
     smokingStatus: string | null;
     aboutMe: string | null;
@@ -178,6 +183,7 @@ export default function SuggestionsPage() {
   const sharedFeed = !!cycleCounts.flags.mutualSuggestions;
   // Candidates are the other gender: describe their options in third person
   const partnerGender = oppositeGender(me?.gender);
+  const viewerReligion = religionOf(me?.profile as ReligionProfile | null | undefined);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [credits, setCredits] = useState<number | null>(null);
   // Simultaneous suggestions flow: the API says so, and the page shows the two-tab view instead
@@ -764,6 +770,7 @@ toast.success("تهانينا! لديك توافق متبادل!", {
                         ) : undefined
                       }
                       tags={[
+                        { icon: Moon, label: religionFact(c.religion, viewerReligion, partnerGender) },
                         { icon: User, label: c.maritalStatus && describeOption("maritalStatus", c.maritalStatus, partnerGender) },
                         { icon: GraduationCap, label: c.education },
                         { icon: Moon, label: c.religiosity && describeOption("religiosity", c.religiosity, partnerGender) },
@@ -1001,6 +1008,7 @@ toast.success("تهانينا! لديك توافق متبادل!", {
                       score={score}
                       photoLocked
                       tags={[
+                        { icon: Moon, label: religionFact(c.religion, viewerReligion, partnerGender) },
                         { icon: User, label: c.maritalStatus && describeOption("maritalStatus", c.maritalStatus, partnerGender) },
                         { icon: GraduationCap, label: c.education },
                         { icon: Moon, label: c.religiosity && describeOption("religiosity", c.religiosity, partnerGender) },

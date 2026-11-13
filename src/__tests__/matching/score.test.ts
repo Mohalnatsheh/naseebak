@@ -339,3 +339,53 @@ describe("sect preference (Lebanon)", () => {
     );
   });
 });
+
+const PINNED_NULL_RELIGION_SCORE = 95;
+
+describe("religion (الديانة)", () => {
+  const person = (id: string, gender: string, profile: Partial<ProfileForScoring>): UserForScoring => ({
+    id,
+    gender,
+    profile: {
+      isComplete: true,
+      dateOfBirth: gender === "MALE" ? "1993-01-01" : "1996-01-01",
+      city: "عمان",
+      education: "بكالوريوس",
+      maritalStatus: gender === "MALE" ? "أعزب" : "عزباء",
+      religiosity: "متدين",
+      smokingStatus: "غير مدخن",
+      prefAgeMin: 20,
+      prefAgeMax: 40,
+      prefCity: ["عمان"],
+      prefEducation: ["بكالوريوس"],
+      ...profile,
+    },
+    personalityResult: { vector: [0.8, 0.6, 0.7, 0.5, 0.9] },
+    photos: [{ id: "p1" }],
+    identityDoc: { status: "APPROVED" },
+  });
+
+  it("two compatible Christian profiles reach the minimum", () => {
+    const man = person("m", "MALE", { religion: "مسيحي" });
+    const woman = person("w", "FEMALE", { religion: "مسيحي" });
+    expect(calculateCompatibility(man, woman)).toBeGreaterThanOrEqual(60);
+  });
+
+  it("a Christian is not scored down for the skipped Muslim questions", () => {
+    const man = person("m", "MALE", { prefHijab: "نعم", prefReligion: "لا مانع", prefSect: ["شيعي"] });
+    const leftover = person("w", "FEMALE", { religion: "مسيحي", prefReligion: "لا مانع", hijab: false, sect: "سني" });
+    const clean = person("w", "FEMALE", { religion: "مسيحي", prefReligion: "لا مانع", hijab: null, sect: null });
+    expect(calculateCompatibility(man, leftover)).toBe(calculateCompatibility(man, clean));
+    const fields = checkPreferenceMatchDetailed(man.profile!, leftover.profile!, "FEMALE").details.map((d) => d.field);
+    expect(fields).not.toContain("hijab");
+    expect(fields).not.toContain("sect");
+  });
+
+  it("scores are unchanged while every religion is null", () => {
+    const man = person("m", "MALE", { prefHijab: "نعم", prefSect: ["شيعي"], prefReligiosity: ["متدينة"] });
+    const woman = person("w", "FEMALE", { hijab: true, sect: "سني", religiosity: "متدينة" });
+    const details = checkPreferenceMatchDetailed(man.profile!, woman.profile!, "FEMALE").details.map((d) => d.field);
+    expect(details).toEqual(expect.arrayContaining(["hijab", "sect", "religiosity"]));
+    expect(calculateCompatibility(man, woman)).toBe(PINNED_NULL_RELIGION_SCORE);
+  });
+});

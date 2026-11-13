@@ -26,6 +26,17 @@ describe("missingSetupSteps", () => {
     expect(missingSetupSteps({ country: "LB", profile: { ...basics, ...status, ...prefs, sect: "أفضّل عدم الذكر" } })).toEqual([]);
   });
 
+  it("a Lebanese Christian finishes step 2 without «المذهب»", () => {
+    expect(missingSetupSteps({ country: "LB", profile: { ...basics, ...status, ...prefs, religion: "مسيحي" } })).toEqual([]);
+    // a null or Muslim religion keeps today's rule
+    expect(missingSetupSteps({ country: "LB", profile: { ...basics, ...status, ...prefs, religion: null } })).toEqual([
+      { step: 2, label: "الحالة الاجتماعية والتدين" },
+    ]);
+    expect(missingSetupSteps({ country: "LB", profile: { ...basics, ...status, ...prefs, religion: "مسلم" } })).toEqual([
+      { step: 2, label: "الحالة الاجتماعية والتدين" },
+    ]);
+  });
+
   it("«المذهب» is never required in Jordan or Saudi Arabia", () => {
     expect(missingSetupSteps({ country: "JO", profile: { ...basics, ...status, ...prefs } })).toEqual([]);
     expect(missingSetupSteps({ country: "SA", profile: { ...basics, ...status, ...prefs } })).toEqual([]);

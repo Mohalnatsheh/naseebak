@@ -18,6 +18,7 @@ vi.mock("@/lib/settings", () => ({
   getDashboardRedesign: vi.fn(async () => false),
   getCycleFlags: vi.fn(async () => ({ introRequests: true, chat: true, mutualSuggestions: true })),
   getAuthRedesignEnabled: vi.fn(async () => false),
+  getReligionEnabled: vi.fn(async () => false),
 }));
 vi.mock("@/lib/chat/service", () => ({ chatHousekeepingForUser: vi.fn(async () => {}) }));
 

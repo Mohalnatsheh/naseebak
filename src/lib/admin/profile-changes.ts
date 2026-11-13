@@ -1,4 +1,5 @@
 import { applyNiqabRule } from "@/lib/profile-veil";
+import { RELIGION_CHRISTIAN, muslimOnlyClears, stripMuslimOnlyForChristian } from "@/lib/profile-religion";
 
 /**
  * Turns the `changes` of a ProfileUpdateRequest (sent by the user's profile edit form)
@@ -11,7 +12,7 @@ const STRING_FIELDS = [
   "maritalStatus", "religiosity", "smokingStatus", "sect", "aboutMe", "partnerExpectations",
   "hobbies", "interests", "lifestyle", "familyValues", "tribe", "familyOriginArea",
   "housingType", "monthlyExpenses", "healthConditions", "cookingAbility", "skinColor",
-  "willingToRelocate", "prefHijab", "prefBeard", "prefChildrenAcceptance",
+  "willingToRelocate", "prefHijab", "prefBeard", "prefChildrenAcceptance", "religion", "prefReligion",
 ] as const;
 
 const INT_FIELDS = ["height", "weight", "numberOfSiblings", "childrenCount", "prefAgeMin", "prefAgeMax"] as const;
@@ -32,9 +33,17 @@ function cleared(key: string): unknown {
   return key in CLEARED_DEFAULTS ? CLEARED_DEFAULTS[key] : null;
 }
 
-export function buildProfileUpdate(changes: Record<string, unknown>): Record<string, unknown> {
+export function buildProfileUpdate(
+  rawChanges: Record<string, unknown>,
+  current?: { religion?: string | null; dealbreakers?: string[] | null } | null,
+): Record<string, unknown> {
+  // Effective religion: the request's if it carries one, else the stored one; a Christian never gets a Muslim-only value
+  const requested = rawChanges && "religion" in rawChanges ? rawChanges.religion : undefined;
+  const effective = requested !== undefined ? (isEmpty(requested) ? null : String(requested)) : (current?.religion ?? null);
+  const changes = stripMuslimOnlyForChristian(effective, rawChanges ?? {});
+  const becomesChristian = effective === RELIGION_CHRISTIAN && requested !== undefined;
   const data: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(changes ?? {})) {
+  for (const [key, value] of Object.entries(changes)) {
     if ((STRING_FIELDS as readonly string[]).includes(key)) {
       data[key] = isEmpty(value) ? null : String(value);
     } else if ((INT_FIELDS as readonly string[]).includes(key)) {
@@ -55,5 +64,7 @@ export function buildProfileUpdate(changes: Record<string, unknown>): Record<str
     }
   }
   // niqab ⇒ hijab, no hijab ⇒ no niqab (a request from app 1.0.0 carries only hijab)
-  return applyNiqabRule(data);
+  const out = applyNiqabRule(data);
+  // A switch to مسيحي clears the stored Muslim-only answers and conditions in the same write
+  return becomesChristian ? { ...out, ...muslimOnlyClears(current?.dealbreakers) } : out;
 }

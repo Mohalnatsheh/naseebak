@@ -38,4 +38,14 @@ describe("CandidateDetails sections", () => {
     render(<CandidateDetails c={{ ...base, beard: false }} />);
     expect(screen.getByText("لا")).toBeTruthy();
   });
+
+  it("shows «الديانة» in the full profile when sent, and no hijab row for a Christian", () => {
+    const { unmount } = render(<CandidateDetails c={{ ...base, religion: "مسيحي", hijab: null, niqab: null }} />);
+    expect(screen.getByText("الديانة")).toBeTruthy();
+    expect(screen.getByText("مسيحية")).toBeTruthy();
+    expect(screen.queryByText("الحجاب")).toBeNull();
+    unmount();
+    render(<CandidateDetails c={{ ...base, religion: null }} />);
+    expect(screen.queryByText("الديانة")).toBeNull();
+  });
 });

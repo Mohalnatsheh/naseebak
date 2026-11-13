@@ -25,6 +25,8 @@ export interface FeedCandidate {
   smokingStatus: string | null;
   /** «المذهب» (Lebanon); null when empty or «أفضّل عدم الذكر» (`visibleSect`) */
   sect: string | null;
+  /** «الديانة»: null while `religion_enabled` is off */
+  religion: string | null;
   aboutMe: string | null;
   hobbies: string | null;
   interests: string | null;

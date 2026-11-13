@@ -18,8 +18,10 @@ vi.mock("@/lib/profile-completeness", () => ({ meetsSuggestionGate: () => true }
 vi.mock("@/lib/matching/score", () => ({
   calculateCompatibility: vi.fn(() => 80),
   mutuallyAcceptable: vi.fn(() => true),
+  passesDealbreakers: vi.fn(() => true),
 }));
 
+import { mutuallyAcceptable } from "@/lib/matching/score";
 import { memberSuggestStatus } from "@/lib/admin/members-suggest-reason";
 
 const member = {
@@ -67,6 +69,15 @@ describe("memberSuggestStatus", () => {
     expect(await memberSuggestStatus("u1")).toMatchObject({ reason: "ready", candidates: 2 });
     db.user.findMany.mockResolvedValue([]);
     expect(await memberSuggestStatus("u1")).toMatchObject({ reason: "no_candidates", candidates: 0 });
+  });
+
+  it("names religion when it is the only thing keeping people apart", async () => {
+    db.user.findUnique.mockResolvedValue({ ...member, profile: { isComplete: true, religion: "مسلم", prefReligion: "نفس ديانتي" } });
+    db.user.findMany.mockResolvedValue([{ id: "u2", gender: "FEMALE", profile: { isComplete: true, religion: "مسيحي", prefReligion: "لا مانع" } }]);
+    vi.mocked(mutuallyAcceptable).mockReturnValue(false);
+    const s = await memberSuggestStatus("u1");
+    expect(s).toMatchObject({ reason: "no_candidates", candidates: 0, blockedByReligion: 1 });
+    vi.mocked(mutuallyAcceptable).mockReturnValue(true);
   });
 
   it("counts a «مهتم» waiting to come back as something to show", async () => {

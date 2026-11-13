@@ -30,6 +30,9 @@ export const REASON_LABEL: Record<NoSuggestionsReason, string> = {
 function reasonText(s: Status): string {
   if (s.reason === "ready") return `${REASON_LABEL.ready} (${s.candidates} found)`;
   if (s.reason === "weekly_cap" && s.nextSuggestionsAt) return `${REASON_LABEL.weekly_cap}: next on ${fmtDate(s.nextSuggestionsAt)}`;
+  if (s.reason === "no_candidates" && s.blockedByReligion) {
+    return `${REASON_LABEL.no_candidates}. «الديانة» keeps ${s.blockedByReligion} more apart (religion preference)`;
+  }
   return s.reason ? REASON_LABEL[s.reason] : "";
 }
 

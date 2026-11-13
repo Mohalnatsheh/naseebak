@@ -18,6 +18,7 @@ import '../home/counts.dart';
 import '../home/gendered_copy.dart';
 import '../matches/safety_actions.dart';
 import '../profile/preferences_screen.dart';
+import '../profile/profile_repository.dart';
 import 'candidate_profile_screen.dart';
 import 'interest_sheet.dart';
 import 'recharge_sheet.dart';
@@ -693,6 +694,8 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
     final onEdit = widget.onEditPreferences;
     final outOfCredits = _outOfCredits(counts, me?.credits);
     final appPayments = ref.watch(appPaymentsProvider);
+    // Only read my profile when a card carries a religion (switch on)
+    final viewerReligion = _items.any((e) => e.candidate.religion != null) ? ref.watch(viewerReligionProvider) : null;
     final bar = widget.tab == FeedTab.newTab && onEdit != null ? PreferencesBar(onEdit: onEdit) : null;
     // «مهتمون بك» with the free reply on: every card here can be answered, so no recharge banner
     final freeTab = widget.tab == FeedTab.interested && (counts?.flags.freeInterestReply ?? false);
@@ -744,6 +747,7 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
                     candidateFemale: !(me?.isFemale ?? false),
                     tribeLabel: me?.country.tribeWord ?? 'العائلة',
                     lebanon: me?.country.code == 'LB',
+                    viewerReligion: viewerReligion,
                     busy: _busy.contains(item.id),
                     interestDisabled: !state.interestEnabled,
                     creditNote: state.note,

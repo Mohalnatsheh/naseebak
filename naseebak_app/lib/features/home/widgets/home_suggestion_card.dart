@@ -8,6 +8,7 @@ import '../../../shared/widgets/brand_kit.dart';
 import '../../discovery/card_facts.dart';
 import '../../discovery/suggestion_card.dart' show ScorePill;
 import '../../discovery/suggestion_models.dart';
+import '../../profile/profile_repository.dart';
 import '../../notifications/notifications_screen.dart' show openAppRoute;
 import '../../pro/pro_badge.dart';
 import 'home_block_header.dart';
@@ -54,6 +55,8 @@ class HomeSuggestionsCarousel extends ConsumerWidget {
     final candidateFemale = !(me?.isFemale ?? false);
     final tribeLabel = me?.country.tribeWord ?? 'العائلة';
     final lebanon = me?.country.code == 'LB';
+    // Only read my profile when a card carries a religion (switch on)
+    final viewerReligion = shown.any((e) => e.candidate.religion != null) ? ref.watch(viewerReligionProvider) : null;
     return Padding(
       key: const Key('home-suggestions'),
       padding: const EdgeInsets.only(bottom: AppSpace.xl),
@@ -82,6 +85,7 @@ class HomeSuggestionsCarousel extends ConsumerWidget {
                         candidateFemale: candidateFemale,
                         tribeLabel: tribeLabel,
                         lebanon: lebanon,
+                        viewerReligion: viewerReligion,
                         onOpen: () => openOnSuggestions(context, FeedTab.newTab, shown[i].id),
                       ),
                     ),
@@ -106,6 +110,7 @@ class HomeSuggestionCard extends StatelessWidget {
     required this.onOpen,
     this.tribeLabel = 'العائلة',
     this.lebanon = false,
+    this.viewerReligion,
   });
 
   final FeedItem item;
@@ -115,12 +120,13 @@ class HomeSuggestionCard extends StatelessWidget {
   final VoidCallback onOpen;
   final String tribeLabel;
   final bool lebanon;
+  final String? viewerReligion;
 
   @override
   Widget build(BuildContext context) {
     final c = item.candidate;
     final title = c.age != null ? '${c.firstName}، ${c.age}' : c.firstName;
-    final facts = cardFacts(c, female: candidateFemale, tribeLabel: tribeLabel, lebanon: lebanon).take(3).toList();
+    final facts = cardFacts(c, female: candidateFemale, tribeLabel: tribeLabel, lebanon: lebanon, viewerReligion: viewerReligion).take(3).toList();
     final reason = item.reason.trim();
     final score = item.compatibilityScore > 0
         ? ScorePill(key: Key('home-suggestion-score-${item.id}'), score: item.compatibilityScore)

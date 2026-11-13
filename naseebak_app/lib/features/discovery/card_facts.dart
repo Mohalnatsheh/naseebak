@@ -1,4 +1,5 @@
 import '../../shared/person.dart';
+import '../../shared/religion.dart';
 
 /// One fact on a suggestion card.
 class CardFact {
@@ -8,7 +9,7 @@ class CardFact {
   final String value;
 }
 
-/// Up to eight facts in a fixed order, the same as the website's `cardFacts`
+/// Up to nine facts (a different religion leads, when [viewerReligion] is known) in a fixed order, the same as the website's `cardFacts`
 /// (src/lib/suggestions/card-facts.ts): job, education, religiosity, veil (a woman) or beard (a man), height,
 /// marital status, smoking, then «المذهب» (Lebanon, when shown) or the country's tribe word. Empty ones are left out.
 /// Values read as the app's person details do.
@@ -17,6 +18,7 @@ List<CardFact> cardFacts(
   required bool female,
   required String tribeLabel,
   required bool lebanon,
+  String? viewerReligion,
 }) {
   final facts = <CardFact>[];
   void add(String key, String label, String? value) {
@@ -25,6 +27,7 @@ List<CardFact> cardFacts(
 
   String? d(String field, String? v) => v == null || v.isEmpty ? null : OptionLabels.describe(field, v, female: female);
 
+  add('religion', 'الديانة', religionFact(p.religion, viewerReligion, female: female));
   add('job', 'العمل', d('job', p.job));
   add('education', 'التعليم', p.education);
   add('religiosity', 'الالتزام', d('religiosity', p.religiosity));

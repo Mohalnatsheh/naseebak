@@ -4,6 +4,7 @@ import '../../app/providers.dart';
 import '../../core/network/api_client.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/network/json.dart';
+import '../../shared/religion.dart';
 import '../onboarding/profile_options.dart';
 
 /// `GET /api/profile` → `{ user, completeness }`.
@@ -311,6 +312,12 @@ class ProfileRepository {
 final profileRepositoryProvider = Provider<ProfileRepository>((ref) => ProfileRepository(ref.watch(apiClientProvider)));
 
 final myProfileProvider = FutureProvider.autoDispose<MyProfile>((ref) => ref.watch(profileRepositoryProvider).load());
+
+/// My own religion as the cards compare it: null while my profile is loading or failed (no card fact then).
+final viewerReligionProvider = Provider.autoDispose<String?>((ref) {
+  final p = ref.watch(myProfileProvider).valueOrNull;
+  return p == null ? null : religionOf(p.field('religion'));
+});
 
 class PendingEdit {
   const PendingEdit({required this.id, required this.fields, this.createdAt});

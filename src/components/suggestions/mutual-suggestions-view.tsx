@@ -851,7 +851,7 @@ export function MutualSuggestionsView({
       </div>
 
       {/* «الجديد»: what I won't compromise on, as a filter bar right above the new suggestions */}
-      {!showMatches && tab === "new" && <DealbreakersCard onSaved={onDealbreakersSaved} />}
+      {!showMatches && tab === "new" && <DealbreakersCard onSaved={onDealbreakersSaved} asDialog={redesign} />}
 
       {/* Result of the last decision */}
       {notice && (

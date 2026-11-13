@@ -5,6 +5,7 @@ import Link from "next/link";
 import { SlidersHorizontal, Loader2, Check, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { DEALBREAKER_KEYS, DEALBREAKER_LABELS } from "@/lib/matching/score";
 import { dealbreakerSummary } from "@/lib/matching/dealbreaker-summary";
@@ -37,7 +38,15 @@ const HASH = "#dealbreakers";
  * «تعديل» opening a bottom sheet with one switch per condition (the preferences that must be met before
  * anyone is suggested). Same API as before (GET/PUT /api/profile/dealbreakers); private to the member.
  */
-export function DealbreakersCard({ onSaved }: { /** The conditions were saved: the server is closing and refilling cards, so the list should reload */ onSaved?: () => void } = {}) {
+export function DealbreakersCard({
+  onSaved,
+  asDialog = false,
+}: {
+  /** The conditions were saved: the server is closing and refilling cards, so the list should reload */
+  onSaved?: () => void;
+  /** Switch dashboard_redesign: the editor is a centred window (Dialog) instead of a bottom sheet; same content and saving */
+  asDialog?: boolean;
+} = {}) {
   const { profile, country } = useDashboardData();
   const gender: string | undefined = profile?.gender;
   // The «المذهب» condition exists for Lebanese members only
@@ -128,62 +137,17 @@ export function DealbreakersCard({ onSaved }: { /** The conditions were saved: t
     setSaving(false);
   }
 
-  return (
-    <div id="dealbreakers" className="scroll-mt-24">
-      {/* The filter bar */}
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={openEditor}
-          aria-haspopup="dialog"
-          className={cn(
-            "inline-flex h-10 max-md:min-h-11 shrink-0 items-center gap-1.5 rounded-full border px-3.5 text-sm font-bold transition-colors",
-            active.length > 0 ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card text-foreground hover:border-primary/40"
-          )}
-        >
-          <SlidersHorizontal className="h-4 w-4" aria-hidden />
-          شروطي الأساسية
-          {active.length > 0 && (
-            <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-accent px-1 text-caption text-accent-foreground">{active.length}</span>
-          )}
-        </button>
-        <div className="flex min-w-0 flex-1 gap-1.5 overflow-hidden">
-          {active.length > 0 ? (
-            active.map((a) => (
-              <button
-                key={a.key}
-                type="button"
-                onClick={openEditor}
-                className="h-8 max-md:min-h-11 max-w-[11rem] shrink-0 truncate rounded-full border border-primary/20 bg-primary/5 px-3 text-xs font-semibold text-primary"
-                title={`${DEALBREAKER_LABELS[a.key]}: ${a.summary}`}
-              >
-                {DEALBREAKER_LABELS[a.key]}: {a.summary}
-              </button>
-            ))
-          ) : prefs && !loadFailed ? (
-            <button type="button" onClick={openEditor} className="inline-flex h-8 max-md:min-h-11 min-w-0 items-center gap-1 truncate rounded-full border border-dashed border-border px-3 text-xs font-semibold text-muted-foreground">
-              <Plus className="h-3.5 w-3.5 shrink-0" aria-hidden /> <span className="truncate">{g("حدّد ما لا تتنازل عنه", "حدّدي ما لا تتنازلين عنه")}</span>
-            </button>
-          ) : null}
-        </div>
-      </div>
-
-      {/* The editor */}
-      <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent side="bottom" className="max-h-[85vh] overflow-y-auto rounded-t-3xl px-0 pb-[env(safe-area-inset-bottom)]">
-          <SheetHeader className="px-5 text-start">
-            <SheetTitle className="flex items-center gap-2 text-lg">
-              <SlidersHorizontal className="h-5 w-5 text-primary" aria-hidden /> شروطي الأساسية
-            </SheetTitle>
-            <SheetDescription className="leading-relaxed">
-              {g(
-                "لن نقترح عليك أي شخص لا يحقّق الشرط المفعّل. كثرة الشروط تقلّل الاقتراحات. شروطك خاصة ولا يراها أحد.",
-                "لن نقترح عليكِ أي شخص لا يحقّق الشرط المفعّل. كثرة الشروط تقلّل الاقتراحات. شروطكِ خاصة ولا يراها أحد."
-              )}
-            </SheetDescription>
-          </SheetHeader>
-
-          <div className="space-y-2 px-5">
+  const editorTitle = (
+    <>
+      <SlidersHorizontal className="h-5 w-5 text-primary" aria-hidden /> شروطي الأساسية
+    </>
+  );
+  const editorHint = g(
+    "لن نقترح عليك أي شخص لا يحقّق الشرط المفعّل. كثرة الشروط تقلّل الاقتراحات. شروطك خاصة ولا يراها أحد.",
+    "لن نقترح عليكِ أي شخص لا يحقّق الشرط المفعّل. كثرة الشروط تقلّل الاقتراحات. شروطكِ خاصة ولا يراها أحد."
+  );
+  const editorBody = (
+          <div className={cn("space-y-2", !asDialog && "px-5")}>
             {loadFailed ? (
               <div role="alert" className="flex flex-wrap items-center gap-2 rounded-xl bg-destructive/5 p-3 text-sm text-destructive">
                 تعذّر تحميل شروطك.
@@ -235,22 +199,85 @@ export function DealbreakersCard({ onSaved }: { /** The conditions were saved: t
               </p>
             )}
           </div>
+  );
+  const editorFooter = available.length > 0 && (
+    <>
+            {justSaved && (
+              <p role="status" className="flex items-center gap-1 text-sm text-emerald-700">
+                <Check className="h-4 w-4" aria-hidden /> تم الحفظ. تُطبَّق على الاقتراحات القادمة.
+              </p>
+            )}
+            {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+            <Button onClick={save} disabled={saving} className="h-12 w-full rounded-xl text-base font-bold">
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : "حفظ الشروط"}
+            </Button>
+          </>
+  );
 
-          {available.length > 0 && (
-            <SheetFooter className="gap-2 px-5">
-              {justSaved && (
-                <p role="status" className="flex items-center gap-1 text-sm text-emerald-700">
-                  <Check className="h-4 w-4" aria-hidden /> تم الحفظ. تُطبَّق على الاقتراحات القادمة.
-                </p>
-              )}
-              {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-              <Button onClick={save} disabled={saving} className="h-12 w-full rounded-xl text-base font-bold">
-                {saving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : "حفظ الشروط"}
-              </Button>
-            </SheetFooter>
+  return (
+    <div id="dealbreakers" className="scroll-mt-24">
+      {/* The filter bar */}
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={openEditor}
+          aria-haspopup="dialog"
+          className={cn(
+            "inline-flex h-10 max-md:min-h-11 shrink-0 items-center gap-1.5 rounded-full border px-3.5 text-sm font-bold transition-colors",
+            active.length > 0 ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card text-foreground hover:border-primary/40"
           )}
-        </SheetContent>
-      </Sheet>
+        >
+          <SlidersHorizontal className="h-4 w-4" aria-hidden />
+          شروطي الأساسية
+          {active.length > 0 && (
+            <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-accent px-1 text-caption text-accent-foreground">{active.length}</span>
+          )}
+        </button>
+        <div className="flex min-w-0 flex-1 gap-1.5 overflow-hidden">
+          {active.length > 0 ? (
+            active.map((a) => (
+              <button
+                key={a.key}
+                type="button"
+                onClick={openEditor}
+                className="h-8 max-md:min-h-11 max-w-[11rem] shrink-0 truncate rounded-full border border-primary/20 bg-primary/5 px-3 text-xs font-semibold text-primary"
+                title={`${DEALBREAKER_LABELS[a.key]}: ${a.summary}`}
+              >
+                {DEALBREAKER_LABELS[a.key]}: {a.summary}
+              </button>
+            ))
+          ) : prefs && !loadFailed ? (
+            <button type="button" onClick={openEditor} className="inline-flex h-8 max-md:min-h-11 min-w-0 items-center gap-1 truncate rounded-full border border-dashed border-border px-3 text-xs font-semibold text-muted-foreground">
+              <Plus className="h-3.5 w-3.5 shrink-0" aria-hidden /> <span className="truncate">{g("حدّد ما لا تتنازل عنه", "حدّدي ما لا تتنازلين عنه")}</span>
+            </button>
+          ) : null}
+        </div>
+      </div>
+
+      {/* The editor: a window with the switch on, the bottom sheet as before with it off */}
+      {asDialog ? (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+          <DialogContent dir="rtl" className="max-h-[85dvh] overflow-y-auto">
+            <DialogHeader className="text-start">
+              <DialogTitle className="flex items-center gap-2 text-lg">{editorTitle}</DialogTitle>
+              <DialogDescription className="leading-relaxed">{editorHint}</DialogDescription>
+            </DialogHeader>
+            {editorBody}
+            {editorFooter && <DialogFooter className="gap-2 sm:flex-col">{editorFooter}</DialogFooter>}
+          </DialogContent>
+        </Dialog>
+      ) : (
+        <Sheet open={open} onOpenChange={onOpenChange}>
+          <SheetContent side="bottom" className="max-h-[85vh] overflow-y-auto rounded-t-3xl px-0 pb-[env(safe-area-inset-bottom)]">
+            <SheetHeader className="px-5 text-start">
+              <SheetTitle className="flex items-center gap-2 text-lg">{editorTitle}</SheetTitle>
+              <SheetDescription className="leading-relaxed">{editorHint}</SheetDescription>
+            </SheetHeader>
+            {editorBody}
+            {editorFooter && <SheetFooter className="gap-2 px-5">{editorFooter}</SheetFooter>}
+          </SheetContent>
+        </Sheet>
+      )}
     </div>
   );
 }

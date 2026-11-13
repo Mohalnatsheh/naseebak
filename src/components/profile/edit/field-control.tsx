@@ -99,10 +99,15 @@ export interface FieldControlProps {
   /** Job only: «أخرى» is chosen (the text box shows) */
   jobOther?: boolean;
   onJobOther?: (on: boolean) => void;
+  /**
+   * Job only, while «أخرى» is chosen: the error about the typed job, shown under its text box (id `${id}-other-error`)
+   * instead of marking the whole choice list. The row editor leaves it out and shows its errors itself.
+   */
+  otherError?: string;
 }
 
 /** The control for one field: choice pills, a number, a date, a text, with the row's companions (area, niqab, «أخرى») */
-export function FieldControl({ id, field, ctx, value, onChange, invalid = false, jobOther = false, onJobOther }: FieldControlProps) {
+export function FieldControl({ id, field, ctx, value, onChange, invalid = false, jobOther = false, onJobOther, otherError }: FieldControlProps) {
   const { gender, country } = ctx;
   const options = field.options?.(ctx) ?? [];
   const errorProps = invalid ? ({ "aria-invalid": true, "aria-describedby": `${id}-error` } as const) : {};
@@ -156,6 +161,8 @@ export function FieldControl({ id, field, ctx, value, onChange, invalid = false,
     );
   }
   if (field.key === "job") {
+    const textError = jobOther ? otherError : undefined;
+    const textErrorProps = textError ? ({ "aria-invalid": true, "aria-describedby": `${id}-other-error` } as const) : errorProps;
     return (
       <div className="space-y-4">
         <ChoiceGroup
@@ -166,11 +173,11 @@ export function FieldControl({ id, field, ctx, value, onChange, invalid = false,
             onJobOther?.(v === OTHER_JOB);
             onChange({ job: v === OTHER_JOB ? "" : v });
           }}
-          error={invalid}
+          error={invalid && !textError}
         />
         {jobOther && (
-          <Field id={`${id}-other`} label="ما وظيفتك؟">
-            <Input id={`${id}-other`} className={inputClass} maxLength={field.max} value={str(value.job)} onChange={(e) => onChange({ job: e.target.value })} {...errorProps} />
+          <Field id={`${id}-other`} label="ما وظيفتك؟" error={textError}>
+            <Input id={`${id}-other`} className={inputClass} maxLength={field.max} value={str(value.job)} onChange={(e) => onChange({ job: e.target.value })} {...textErrorProps} />
           </Field>
         )}
       </div>

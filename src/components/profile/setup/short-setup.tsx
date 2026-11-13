@@ -178,6 +178,8 @@ export function ShortSetup({ guardianStep }: { guardianStep: boolean }) {
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [done, setDone] = useState(false);
+  // What the final save sent: «ملفك جاهز» lists only what is still empty
+  const [savedProfile, setSavedProfile] = useState<Values | undefined>(undefined);
   const { savedIndicatorVisible, saveToLocalStorage, restoreDraft, clearDraft, saveToServer } = useAutoSave(autoSaveEnabled);
 
   const country = COUNTRIES[countryCode];
@@ -363,12 +365,20 @@ export function ShortSetup({ guardianStep }: { guardianStep: boolean }) {
       if (!first) continue;
       setErrors(e);
       setStep(i);
-      // After the step renders
-      setTimeout(() => document.querySelector(`[data-field="${first}"]`)?.scrollIntoView?.({ behavior: "smooth", block: "center" }), 0);
+      // After the step renders: the message itself mid-screen, clear of the fixed button row on phones
+      setTimeout(() => showError(first), 0);
       return false;
     }
     setErrors({});
     return true;
+  }
+
+  /** Brings a field's error into view; the «أخرى» job text box is focused (its error sits under it) */
+  function showError(key: string) {
+    const other = key === "job" ? document.getElementById("job-other") : null;
+    const target = other ? document.getElementById("job-other-error") ?? other : document.getElementById(`${key}-error`) ?? document.querySelector(`[data-field="${key}"]`);
+    target?.scrollIntoView?.({ behavior: "smooth", block: "center" });
+    other?.focus({ preventScroll: true });
   }
 
   /** The stored `setupStep` for step `i`: never below what was stored or sent before */
@@ -407,6 +417,7 @@ export function ShortSetup({ guardianStep }: { guardianStep: boolean }) {
         : payload();
       const failed = await putJson("/api/profile", body, "حدث خطأ أثناء حفظ الملف الشخصي");
       if (failed) return setError(failed);
+      setSavedProfile({ ...stored, ...body });
       trackEvent("profile_completed");
       clearDraft();
       // The dashboard's shared profile still holds the pre-setup copy
@@ -430,7 +441,7 @@ export function ShortSetup({ guardianStep }: { guardianStep: boolean }) {
   if (done) {
     return (
       <div ref={topRef} className="scroll-mt-20">
-        <SetupDone gender={gender} />
+        <SetupDone gender={gender} profile={savedProfile} />
       </div>
     );
   }
@@ -504,8 +515,10 @@ export function ShortSetup({ guardianStep }: { guardianStep: boolean }) {
           shownFields(current).map((field) => {
             const label = field.label(ctx.gender, countryCode);
             const hints = field.hints?.({ ...showCtx, dealbreakers: activeTicked }) ?? [];
+            // «أخرى» chosen: the job's error is about the text box, so it sits under it
+            const otherJobError = field.key === "job" && jobOther && !!errors.job;
             return (
-              <Field key={field.key} id={field.key} label={label} optional={!setupRequired(field, showCtx)} error={errors[field.key]}>
+              <Field key={field.key} id={field.key} label={label} optional={!setupRequired(field, showCtx)} error={otherJobError ? undefined : errors[field.key]}>
                 <FieldControl
                   id={field.key}
                   field={field}
@@ -515,6 +528,7 @@ export function ShortSetup({ guardianStep }: { guardianStep: boolean }) {
                   invalid={!!errors[field.key]}
                   jobOther={jobOther}
                   onJobOther={setJobOther}
+                  otherError={otherJobError ? errors.job : undefined}
                 />
                 {hints.map((line) => (
                   <p key={line} className="px-1 text-caption text-muted-ink">

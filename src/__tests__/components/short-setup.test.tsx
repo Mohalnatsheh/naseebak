@@ -229,7 +229,13 @@ describe("ShortSetup: every field in 7 steps (auth_profile_redesign)", () => {
     await waitHeading("التعليم والعمل");
     fireEvent.click(screen.getByRole("button", { name: "أخرى" }));
     next();
-    expect(document.getElementById("job-error")?.textContent).toBe("يرجى تحديد الوظيفة");
+    // The error sits under the text box (not a red border on the whole list), and the text box gets the focus
+    const text = screen.getByLabelText("ما وظيفتك؟");
+    expect(document.getElementById("job-other-error")?.textContent).toBe("يرجى تحديد الوظيفة");
+    expect(text.getAttribute("aria-describedby")).toBe("job-other-error");
+    expect(document.getElementById("job-error")).toBeNull();
+    expect(group("job").getAttribute("aria-describedby")).toBeNull();
+    await waitFor(() => expect(document.activeElement).toBe(text));
     expect(heading("التعليم والعمل")).toBeTruthy();
     fireEvent.change(screen.getByLabelText("ما وظيفتك؟"), { target: { value: "خبير تجميل" } });
     next();
@@ -286,6 +292,12 @@ describe("ShortSetup: every field in 7 steps (auth_profile_redesign)", () => {
     expect(ctx.refreshProfile).toHaveBeenCalled();
     expect(autoSave.clearDraft).toHaveBeenCalled();
     expect(screen.getByRole("link", { name: "عرض الاقتراحات" }).getAttribute("href")).toBe("/dashboard/suggestions");
+    // «ملفك جاهز» lists only what is still empty: no height yet, photos always; about me and preferences are filled
+    const later = screen.getAllByRole("link").map((a) => a.getAttribute("href"));
+    expect(later).toContain("/dashboard/profile/edit?field=job");
+    expect(later).toContain("/dashboard/photos");
+    expect(later).not.toContain("/dashboard/profile/edit?field=aboutMe");
+    expect(later).not.toContain("/dashboard/profile/edit?field=prefAgeMin");
   });
 
   it("a Christian's final PUT carries all steps and no Muslim-only key (6 steps, no dealbreakers call)", async () => {
@@ -410,6 +422,15 @@ describe("/dashboard/profile/setup follows auth_profile_redesign", () => {
     render(await SetupPage());
     expect(screen.queryByTestId("legacy-setup")).toBeNull();
     await waitFor(() => expect(screen.getByText("الخطوة 2 من 7")).toBeTruthy());
+  });
+
+  it("«ملفك جاهز» without the saved answers lists every row; with them, only the empty ones", () => {
+    const { unmount } = render(<SetupDone gender="MALE" />);
+    expect(screen.getAllByText("إضافة")).toHaveLength(4);
+    unmount();
+    render(<SetupDone gender="MALE" profile={{ aboutMe: "نبذة", job: "مهندس", height: 175, prefEducation: ["بكالوريوس"] }} />);
+    expect(screen.getAllByText("إضافة")).toHaveLength(1);
+    expect(screen.getByRole("link", { name: /صوري/ }).getAttribute("href")).toBe("/dashboard/photos");
   });
 
   it("«ملفك جاهز» speaks to a woman in the feminine, and its edit links are real rows", () => {

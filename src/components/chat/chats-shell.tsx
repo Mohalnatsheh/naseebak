@@ -36,25 +36,25 @@ export function ChatsShell({ layout, children }: { layout: ChatLayout; children:
   // remounted when the wide layout takes over after hydration
   return (
     <ChatLayoutProvider layout={layout}>
-    <div className={twoPanes ? "flex h-[calc(100dvh-4rem)] gap-4" : "contents"}>
-      {twoPanes && (
-        <aside className="w-72 shrink-0 xl:w-80" aria-label="قائمة المحادثات">
-          <ChatList compact activeId={openId} />
-        </aside>
-      )}
-      <div className={twoPanes ? "flex min-w-0 flex-1" : "contents"}>
-        {twoPanes && !openId ? (
-          // The majlis (S3) waiting for a chat, with the cups-on-a-tray drawing (S5)
-          <div className="majlis flex flex-1 flex-col items-center justify-center gap-3 rounded-2xl border border-border/60 text-center">
-            <LineArt kind="cupsTray" />
-            <p className="font-semibold text-foreground">يمكنك اختيار محادثة لعرضها</p>
-            <p className="max-w-xs text-sm text-muted-foreground">رسائلك خاصة، والمحادثة نصية ومحدودة المدة.</p>
-          </div>
-        ) : (
-          children
+      <div className={twoPanes ? "flex h-[calc(100dvh-4rem)] gap-4" : "contents"}>
+        {twoPanes && (
+          <aside className="w-72 shrink-0 xl:w-80" aria-label="قائمة المحادثات">
+            <ChatList compact activeId={openId} />
+          </aside>
         )}
+        <div className={twoPanes ? "flex min-w-0 flex-1" : "contents"}>
+          {twoPanes && !openId ? (
+            // The majlis (S3) waiting for a chat, with the cups-on-a-tray drawing (S5)
+            <div className="majlis flex flex-1 flex-col items-center justify-center gap-3 rounded-2xl border border-border/60 text-center">
+              <LineArt kind="cupsTray" />
+              <p className="font-semibold text-foreground">يمكنك اختيار محادثة لعرضها</p>
+              <p className="max-w-xs text-sm text-muted-foreground">رسائلك خاصة، والمحادثة نصية ومحدودة المدة.</p>
+            </div>
+          ) : (
+            children
+          )}
+        </div>
       </div>
-    </div>
     </ChatLayoutProvider>
   );
 }

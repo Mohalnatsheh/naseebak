@@ -143,7 +143,13 @@ export function useChatDelete({
     const prevCutoff = cutoff.current;
     const prevHasMore = hasMoreRef.current;
     // Until the server answers: everything loaded (its own clock decides the real point, never this device's)
-    const newest = before.findLast((m) => !m.pending)?.createdAt ?? null;
+    let newest: string | null = null;
+    for (let i = before.length - 1; i >= 0; i--) {
+      if (!before[i].pending) {
+        newest = before[i].createdAt;
+        break;
+      }
+    }
     cutoff.current = laterOf(cutoff.current, newest);
     setMessages((prev) => settle(prev));
     setHasMore(false);

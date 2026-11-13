@@ -18,7 +18,7 @@ class ReferredFriend {
     final referee = j['referee'];
     return ReferredFriend(
       firstName: referee is Map<String, dynamic> ? asStringOr(referee['firstName']) : '',
-      completed: (asInt(j['creditsAwarded']) ?? 0) > 0,
+      completed: j['creditsAwarded'] == true || (asInt(j['creditsAwarded']) ?? 0) > 0, // a Boolean on the server
     );
   }
 
@@ -94,7 +94,10 @@ class ReferralScreen extends ConsumerWidget {
                 style: AppText.labelRegular.copyWith(color: AppColors.muted),
               ),
               const SizedBox(height: AppSpace.xs),
-              Text('رصيدان لك ورصيد لصديقك، بعد أن يكمل الإعداد القصير.',
+              Text(
+                  female
+                      ? 'رصيدان لكِ ورصيد لصديقك، بعد أن يكمل الإعداد القصير، حتى $referralRewardLimit دعوات.'
+                      : 'رصيدان لك ورصيد لصديقك، بعد أن يكمل الإعداد القصير، حتى $referralRewardLimit دعوات.',
                   style: AppText.label.copyWith(color: AppColors.goldText)),
               _header('رمز الدعوة'),
               Container(
@@ -127,9 +130,13 @@ class ReferralScreen extends ConsumerWidget {
               ),
               _header('كيف تعمل'),
               GroupedSection(rows: [
-                GroupedRow(icon: Icons.looks_one_rounded, title: 'شارك رمزك مع من يبحث عن الزواج بجدية'),
+                GroupedRow(
+                    icon: Icons.looks_one_rounded,
+                    title: female ? 'شاركي رمزكِ مع من تعرفين ممن يبحث عن الزواج بجدية' : 'شارك رمزك مع من يبحث عن الزواج بجدية'),
                 GroupedRow(icon: Icons.looks_two_rounded, title: 'يسجّل صديقك ويكمل الإعداد القصير'),
-                GroupedRow(icon: Icons.looks_3_rounded, title: 'تحصل على رصيدين، وصديقك على رصيد'),
+                GroupedRow(
+                    icon: Icons.looks_3_rounded,
+                    title: female ? 'تحصلين على رصيدين، وصديقك على رصيد' : 'تحصل على رصيدين، وصديقك على رصيد'),
               ]),
               _header('دعواتك'),
               Row(children: [

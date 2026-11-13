@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { DEALBREAKERS_KEY, planSave, rowState, runSave, saveSummary } from "@/lib/profile-edit-state";
+import { DEALBREAKERS_KEY, dealbreakerKeysToSave, planSave, rowState, runSave, saveSummary, sendableChanges } from "@/lib/profile-edit-state";
 import { editField } from "@/lib/profile-edit-fields";
 
 const stored: Record<string, unknown> = {
@@ -114,6 +114,43 @@ describe("planSave", () => {
     expect(plan.fillKeys).toEqual([]);
     expect(plan.reviewChanges).toEqual({ fieldOfStudy: "طب" });
     expect(plan.reviewKeys).toEqual(["fieldOfStudy"]);
+  });
+});
+
+describe("«الديانة»", () => {
+  const nullReligion = { ...stored, religion: null, prefReligion: null };
+
+  it("a stored null religion reads «مسلم»: choosing «مسيحي» is review, never a fill", () => {
+    expect(rowState("religion", nullReligion, {}, null)).toBe("idle");
+    expect(rowState("religion", nullReligion, { religion: "مسلم" }, null)).toBe("idle");
+    expect(rowState("religion", nullReligion, { religion: "مسيحي" }, null)).toBe("review");
+    expect(rowState("religion", nullReligion, {}, ["city"])).toBe("locked");
+    const plan = planSave({ religion: "مسيحي" }, nullReligion);
+    expect(plan.fillBody).toBeNull();
+    expect(plan.reviewChanges).toEqual({ religion: "مسيحي" });
+    expect(planSave({ religion: "مسلم" }, nullReligion).reviewChanges).toBeNull();
+  });
+
+  it("a stored null prefReligion reads «نفس ديانتي»; «لا مانع» saves directly", () => {
+    expect(rowState("prefReligion", nullReligion, { prefReligion: "نفس ديانتي" }, null)).toBe("idle");
+    expect(rowState("prefReligion", nullReligion, { prefReligion: "لا مانع" }, ["city"])).toBe("fill");
+    expect(planSave({ prefReligion: "لا مانع" }, nullReligion).prefChanges).toEqual({ prefReligion: "لا مانع" });
+  });
+
+  it("sendableChanges drops religion while the switch is off and Muslim-only answers for a Christian", () => {
+    const changes = { religion: "مسيحي", prefReligion: "لا مانع", hijab: false, niqab: false, prefBeard: "نعم", hobbies: "القراءة" };
+    expect(sendableChanges(changes, nullReligion, false)).toEqual({ hijab: false, niqab: false, prefBeard: "نعم", hobbies: "القراءة" });
+    expect(sendableChanges(changes, nullReligion, true)).toEqual({ religion: "مسيحي", prefReligion: "لا مانع", hobbies: "القراءة" });
+    // A stored Christian with no religion change
+    expect(sendableChanges({ sect: "سني", hobbies: "x" }, { religion: "مسيحي" }, true)).toEqual({ hobbies: "x" });
+    // Back to «مسلم»: the answers are sent
+    expect(sendableChanges({ religion: "مسلم", hijab: true }, { religion: "مسيحي" }, true)).toEqual({ religion: "مسلم", hijab: true });
+  });
+
+  it("dealbreakerKeysToSave reads the STORED religion: a pending change to «مسيحي» keeps the hijab key", () => {
+    const prefs = { prefHijab: "نعم", prefAgeMin: 22, prefAgeMax: 30 };
+    expect([...dealbreakerKeysToSave(["hijab", "age"], prefs, null, "MALE")].sort()).toEqual(["age", "hijab"]);
+    expect(dealbreakerKeysToSave(["hijab", "age"], prefs, "مسيحي", "MALE")).toEqual(["age"]);
   });
 });
 

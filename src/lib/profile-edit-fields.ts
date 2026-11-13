@@ -11,6 +11,11 @@
  * - `fem`: the label is grammatically feminine (the save banner's «حُفظت» vs «حُفظ»).
  * - `reviewLabel`: how the save banner names a new value of this field sent for review, when
  *   «{label} الجديد/الجديدة» reads badly.
+ * - `storedDefault`: what a stored null reads as (shown selected; choosing it is no change). «الديانة» reads
+ *   «مسلم», so choosing «مسيحي» is a change that goes to review, never a fill.
+ * - «الديانة» (switch `religion_enabled`): `religion` and `prefReligion` show only while `ctx.religionEnabled` is
+ *   true (absent = off). A Christian (`profile.religion`, the value shown) never sees the Muslim-only rows
+ *   (`MUSLIM_ONLY_FIELDS`), whatever the switch says, as the legacy pages.
  */
 import { countryConfig } from "@/lib/countries";
 import { citiesFor } from "@/lib/countries/places";
@@ -26,7 +31,15 @@ import {
   tribeLabel,
   type Opt,
 } from "@/lib/profile-options";
-import { sectApplies } from "@/lib/profile-sect";
+import {
+  PREF_RELIGION_ANY,
+  PREF_RELIGION_SAME,
+  PREF_RELIGION_VALUES,
+  RELIGION_CHRISTIAN,
+  RELIGION_MUSLIM,
+  sectAsked,
+  showsDealbreakerHint,
+} from "@/lib/profile-religion";
 import { VEIL_CHOICES } from "@/lib/profile-veil";
 import { PREF_AGE_MAX } from "@/lib/validations/profile";
 
@@ -34,14 +47,34 @@ type Gender = "MALE" | "FEMALE";
 
 export type EditControl = "date" | "choice" | "multi" | "number" | "text" | "longText" | "picker" | "yesNo";
 
+/** `religionEnabled`: the «الديانة» switch (`counts.religionEnabled`); absent = off */
+export interface EditCtx {
+  gender: Gender;
+  country: string;
+  religionEnabled?: boolean;
+}
+
+/** `profile`: the values shown (stored, with unsaved changes on top) */
+export interface EditShowCtx extends EditCtx {
+  profile: Record<string, unknown>;
+}
+
+/** `dealbreakers`: the active «شروط أساسية» keys as shown (`activeDealbreakers` over the values shown) */
+export interface EditHintCtx extends EditShowCtx {
+  dealbreakers: readonly string[];
+}
+
 export interface EditField {
   key: string;
   /** The row's label. `country` only matters for the tribe label; default Jordan. */
   label: (gender: Gender, country?: string) => string;
   control: EditControl;
-  options?: (ctx: { gender: Gender; country: string }) => Opt[];
+  options?: (ctx: EditCtx) => Opt[];
   required?: boolean;
-  showIf?: (ctx: { gender: Gender; country: string; profile: Record<string, unknown> }) => boolean;
+  showIf?: (ctx: EditShowCtx) => boolean;
+  /** Lines shown under the row (none = empty list) */
+  hints?: (ctx: EditHintCtx) => string[];
+  storedDefault?: string;
   /** Unit shown next to a number («سم», the country's «كغ») */
   unit?: (country?: string) => string;
   /** Longest text, or the highest number */
@@ -67,9 +100,27 @@ const SHORT_TEXT_MAX = 100;
 
 const fixed = (text: string) => () => text;
 const plain = (values: readonly string[]): Opt[] => values.map((value) => ({ value, label: value }));
-const isLebanon = ({ country }: { country: string }) => sectApplies(country);
 const isFemale = ({ gender }: { gender: Gender }) => gender === "FEMALE";
 const isMale = ({ gender }: { gender: Gender }) => gender === "MALE";
+const religionOn = ({ religionEnabled }: EditCtx) => religionEnabled === true;
+const notChristian = ({ profile }: EditShowCtx) => profile.religion !== RELIGION_CHRISTIAN;
+/** «المذهب»: Lebanon, never a Christian */
+const sectShown = ({ country, profile }: EditShowCtx) => sectAsked(country, profile.religion as string | null | undefined);
+
+/**
+ * The lines under the partner's «الديانة», as the legacy pages: open to the other religion, and (a Muslim with a
+ * hijab or beard «شرط أساسي») that those conditions still hold. Shared with the short setup.
+ */
+export function prefReligionHints(
+  religion: string | null | undefined,
+  prefReligion: string | null | undefined,
+  activeDealbreakers: readonly string[],
+): string[] {
+  const out: string[] = [];
+  if (prefReligion === PREF_RELIGION_ANY) out.push("ستظهر لك اقتراحات من الديانة الأخرى ممن اختاروا ذلك أيضاً");
+  if (showsDealbreakerHint(religion, prefReligion, activeDealbreakers)) out.push("شروطك الأساسية مثل الحجاب تبقى سارية");
+  return out;
+}
 
 const YES_NO: Opt[] = [{ value: "true", label: "نعم" }, { value: "false", label: "لا" }];
 /** prefHijab / prefBeard / prefChildrenAcceptance store these words as they are */
@@ -93,6 +144,16 @@ export const EDIT_SECTIONS: EditSection[] = [
         fem: true,
         companions: ["area"],
         options: ({ country }) => plain(citiesFor(country)),
+      },
+      {
+        key: "religion",
+        label: fixed("الديانة"),
+        control: "choice",
+        required: true,
+        fem: true,
+        storedDefault: RELIGION_MUSLIM,
+        showIf: religionOn,
+        options: ({ gender }) => ownOptions("religion", gender),
       },
       {
         key: "maritalStatus",
@@ -123,7 +184,7 @@ export const EDIT_SECTIONS: EditSection[] = [
         label: fixed("المذهب"),
         control: "choice",
         required: true,
-        showIf: isLebanon,
+        showIf: sectShown,
         options: ({ gender }) => ownOptions("sect", gender),
       },
     ],
@@ -151,7 +212,7 @@ export const EDIT_SECTIONS: EditSection[] = [
         label: fixed("الحجاب"),
         control: "choice",
         companions: ["niqab"],
-        showIf: isFemale,
+        showIf: (ctx) => isFemale(ctx) && notChristian(ctx),
         options: () => plain(VEIL_CHOICES),
       },
       {
@@ -159,7 +220,7 @@ export const EDIT_SECTIONS: EditSection[] = [
         label: fixed("اللحية"),
         control: "yesNo",
         fem: true,
-        showIf: isMale,
+        showIf: (ctx) => isMale(ctx) && notChristian(ctx),
         options: () => [{ value: "true", label: "ملتحٍ" }, { value: "false", label: "غير ملتحٍ" }],
       },
       { key: "smokingStatus", label: fixed("التدخين"), control: "choice", options: ({ gender }) => ownOptions("smokingStatus", gender) },
@@ -197,6 +258,17 @@ export const EDIT_SECTIONS: EditSection[] = [
     title: "تفضيلات الشريك",
     fields: [
       {
+        key: "prefReligion",
+        label: fixed("الديانة لدى الشريك"),
+        control: "choice",
+        fem: true,
+        storedDefault: PREF_RELIGION_SAME,
+        showIf: religionOn,
+        options: () => plain(PREF_RELIGION_VALUES),
+        hints: ({ profile, dealbreakers }) =>
+          prefReligionHints(profile.religion as string | null | undefined, (profile.prefReligion as string | null | undefined) ?? PREF_RELIGION_SAME, dealbreakers),
+      },
+      {
         key: "prefAgeMin",
         label: fixed("العمر المفضل"),
         control: "number",
@@ -216,8 +288,8 @@ export const EDIT_SECTIONS: EditSection[] = [
         dealbreaker: "maritalStatus",
         options: ({ gender }) => partnerOptions("maritalStatus", gender),
       },
-      { key: "prefHijab", label: fixed("تفضيل الحجاب"), control: "choice", dealbreaker: "hijab", showIf: isMale, options: () => plain(HIJAB_PREF_VALUES) },
-      { key: "prefBeard", label: fixed("تفضيل اللحية"), control: "choice", dealbreaker: "beard", showIf: isFemale, options: () => plain(PREFERENCE_VALUES) },
+      { key: "prefHijab", label: fixed("تفضيل الحجاب"), control: "choice", dealbreaker: "hijab", showIf: (ctx) => isMale(ctx) && notChristian(ctx), options: () => plain(HIJAB_PREF_VALUES) },
+      { key: "prefBeard", label: fixed("تفضيل اللحية"), control: "choice", dealbreaker: "beard", showIf: (ctx) => isFemale(ctx) && notChristian(ctx), options: () => plain(PREFERENCE_VALUES) },
       {
         key: "prefReligiosity",
         label: fixed("مستوى التدين المفضل"),
@@ -230,7 +302,7 @@ export const EDIT_SECTIONS: EditSection[] = [
         label: fixed("المذهب لدى الشريك"),
         control: "multi",
         dealbreaker: "sect",
-        showIf: isLebanon,
+        showIf: sectShown,
         options: ({ gender }) => partnerOptions("sect", gender),
       },
       {

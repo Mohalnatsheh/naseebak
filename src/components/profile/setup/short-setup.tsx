@@ -14,10 +14,11 @@ import { Field } from "@/components/profile/form-fields";
 import { BirthDateSelect } from "@/components/profile/birth-date-select";
 import { SetupDone } from "@/components/profile/setup/setup-done";
 import { COUNTRIES, toCountry, type CountryCode } from "@/lib/countries";
-import { editField } from "@/lib/profile-edit-fields";
+import { editField, prefReligionHints } from "@/lib/profile-edit-fields";
 import { defaultNationality, nationalityOptions, type Opt } from "@/lib/profile-options";
 import { missingSetupSteps } from "@/lib/profile-completeness";
-import { sectApplies } from "@/lib/profile-sect";
+import { PREF_RELIGION_SAME, sectAsked } from "@/lib/profile-religion";
+import { activeDealbreakers, type DealbreakerPrefs } from "@/lib/matching/dealbreaker-summary";
 import { forViewer } from "@/lib/gendered-copy";
 import { dateOfBirthError, parentInfoSchemaFor, PREF_AGE_MAX } from "@/lib/validations/profile";
 import { normalizePhone } from "@/lib/phone";
@@ -39,10 +40,13 @@ const EMPTY_FORM = {
   maritalStatus: "",
   childrenCount: "",
   religiosity: "",
-  // «المذهب»: Lebanese members only (sectApplies)
+  // «الديانة» (switch `religion_enabled`): required, no preselected answer
+  religion: "",
+  // «المذهب»: Lebanese members only, never a Christian (sectAsked)
   sect: "",
   prefAgeMin: "",
   prefAgeMax: "",
+  prefReligion: PREF_RELIGION_SAME as string,
 };
 type SetupForm = typeof EMPTY_FORM;
 type FormKey = keyof SetupForm;
@@ -113,7 +117,9 @@ function Chips({
  */
 export function ShortSetup({ guardianStep }: { guardianStep: boolean }) {
   const router = useRouter();
-  const { refreshProfile, profile: me } = useDashboardData();
+  const { refreshProfile, profile: me, counts } = useDashboardData();
+  // «الديانة»: asked only while the switch is on (from /api/me/counts)
+  const religionEnabled = counts?.religionEnabled === true;
   const [step, setStep] = useState(1);
   const [form, setForm] = useState<SetupForm>(EMPTY_FORM);
   const [guardian, setGuardian] = useState<GuardianForm>(EMPTY_GUARDIAN);
@@ -125,14 +131,17 @@ export function ShortSetup({ guardianStep }: { guardianStep: boolean }) {
   const [loadFailed, setLoadFailed] = useState(false);
   const [autoSaveEnabled, setAutoSaveEnabled] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  // Stored «شروط أساسية» that work as a filter: only for the hint under the partner's «الديانة»
+  const [storedDealbreakers, setStoredDealbreakers] = useState<string[]>([]);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [done, setDone] = useState(false);
   const { savedIndicatorVisible, saveToLocalStorage, restoreDraft, clearDraft, saveToServer } = useAutoSave(autoSaveEnabled);
 
   const country = COUNTRIES[countryCode];
-  const sectOn = sectApplies(countryCode);
-  const optsCtx = { gender: (gender === "FEMALE" ? "FEMALE" : "MALE") as "MALE" | "FEMALE", country: countryCode };
+  // «المذهب» is asked of Lebanese members only, never of a Christian (the only Muslim-only question here)
+  const sectOn = sectAsked(countryCode, form.religion);
+  const optsCtx = { gender: (gender === "FEMALE" ? "FEMALE" : "MALE") as "MALE" | "FEMALE", country: countryCode, religionEnabled };
   const options = (key: string) => editField(key)?.options?.(optsCtx) ?? [];
   const totalSteps = guardianStep ? 4 : 3;
   const stepNames = guardianStep ? [...STEP_NAMES, GUARDIAN_STEP_NAME] : STEP_NAMES;
@@ -163,10 +172,14 @@ export function ShortSetup({ guardianStep }: { guardianStep: boolean }) {
         maritalStatus: str(p.maritalStatus),
         childrenCount: str(p.childrenCount),
         religiosity: str(p.religiosity),
+        religion: str(p.religion),
         sect: str(p.sect),
         prefAgeMin: str(p.prefAgeMin),
         prefAgeMax: str(p.prefAgeMax),
+        prefReligion: str(p.prefReligion) || PREF_RELIGION_SAME,
       };
+      const ticked = Array.isArray(p.dealbreakers) ? p.dealbreakers.map(String) : [];
+      setStoredDealbreakers(activeDealbreakers(ticked, p as DealbreakerPrefs, user.gender));
       const pi = user.parentInfo;
       const nextGuardian: GuardianForm = pi
         ? { parentName: str(pi.parentName), parentPhone: str(pi.parentPhone), relationship: str(pi.relationship), address: str(pi.address) }
@@ -249,6 +262,7 @@ export function ShortSetup({ guardianStep }: { guardianStep: boolean }) {
       if (!form.city) e.city = "المدينة مطلوبة";
       if (!form.education) e.education = "المستوى التعليمي مطلوب";
     } else if (s === 2) {
+      if (religionEnabled && !form.religion) e.religion = "الديانة مطلوبة";
       if (!form.maritalStatus) e.maritalStatus = "الحالة الاجتماعية مطلوبة";
       if (form.maritalStatus && form.maritalStatus !== SINGLE) {
         if (form.childrenCount === "") e.childrenCount = "عدد الأبناء مطلوب";
@@ -300,9 +314,12 @@ export function ShortSetup({ guardianStep }: { guardianStep: boolean }) {
       p.childrenCount = form.maritalStatus === SINGLE ? 0 : form.childrenCount ? parseInt(form.childrenCount) : 0;
     }
     if (form.religiosity) p.religiosity = form.religiosity;
+    if (religionEnabled && form.religion) p.religion = form.religion;
+    // Never a Christian's «المذهب» (sectOn is false for one; the server strips it too)
     if (sectOn && form.sect) p.sect = form.sect;
     if (form.prefAgeMin) p.prefAgeMin = parseInt(form.prefAgeMin);
     if (form.prefAgeMax) p.prefAgeMax = parseInt(form.prefAgeMax);
+    if (religionEnabled && form.prefReligion) p.prefReligion = form.prefReligion;
     return p;
   }
 
@@ -496,6 +513,12 @@ export function ShortSetup({ guardianStep }: { guardianStep: boolean }) {
 
         {step === 2 && (
           <>
+            {religionEnabled && (
+              <Field id="religion" label="الديانة" error={errors.religion}>
+                <Chips id="religion" options={options("religion")} value={form.religion} onSelect={(v) => update("religion", v)} invalid={!!errors.religion} />
+              </Field>
+            )}
+
             <Field id="maritalStatus" label="الحالة الاجتماعية" error={errors.maritalStatus}>
               <Chips
                 id="maritalStatus"
@@ -535,6 +558,17 @@ export function ShortSetup({ guardianStep }: { guardianStep: boolean }) {
               </Field>
             )}
           </>
+        )}
+
+        {step === 3 && religionEnabled && (
+          <Field id="prefReligion" label="الديانة">
+            <Chips id="prefReligion" options={options("prefReligion")} value={form.prefReligion} onSelect={(v) => update("prefReligion", v)} />
+            {prefReligionHints(form.religion, form.prefReligion, storedDealbreakers).map((line) => (
+              <p key={line} className="px-1 text-caption text-muted-ink">
+                {line}
+              </p>
+            ))}
+          </Field>
         )}
 
         {step === 3 && (

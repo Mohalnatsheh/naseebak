@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { EDIT_SECTIONS, editField, fieldForOldStep } from "@/lib/profile-edit-fields";
+import { EDIT_SECTIONS, editField, fieldForOldStep, prefReligionHints } from "@/lib/profile-edit-fields";
 import { PREF_AGE_MAX } from "@/lib/validations/profile";
 
 /** Every key today's edit page saves (`ProfileForm` in the legacy edit page, minus the form-only `jobCustom`
@@ -10,7 +10,7 @@ const LEGACY_EDIT_KEYS = [
   "beard", "smokingStatus", "cookingAbility", "drivingLicense", "aboutMe", "partnerExpectations", "hobbies",
   "familyValues", "tribe", "familyOriginArea", "numberOfSiblings", "housingType", "monthlyExpenses",
   "healthConditions", "prefAgeMin", "prefAgeMax", "prefCity", "prefEducation", "prefMaritalStatus", "prefHijab",
-  "prefBeard", "prefReligiosity", "prefSect", "prefSmokingStatus", "prefChildrenAcceptance",
+  "prefBeard", "prefReligiosity", "prefSect", "prefSmokingStatus", "prefChildrenAcceptance", "religion", "prefReligion",
 ];
 
 const allKeys = () => EDIT_SECTIONS.flatMap((s) => s.fields.flatMap((f) => [f.key, ...(f.companions ?? [])]));
@@ -95,6 +95,72 @@ describe("EDIT_SECTIONS", () => {
     expect(income[0]).toContain("ر.س");
     expect(editField("tribe")!.label("MALE", "SA")).toBe("القبيلة أو الأسرة");
     expect(editField("tribe")!.label("MALE")).toBe("العشيرة");
+  });
+});
+
+describe("«الديانة» (religion_enabled)", () => {
+  type Ctx = { gender: "MALE" | "FEMALE"; country: string; religionEnabled?: boolean; profile: Record<string, unknown> };
+  const shownKeys = (ctx: Ctx) => EDIT_SECTIONS.flatMap((s) => s.fields).filter((f) => !f.showIf || f.showIf(ctx)).map((f) => f.key);
+  const MUSLIM_ONLY_ROWS = ["hijab", "beard", "sect", "prefSect", "prefHijab", "prefBeard"];
+
+  it("shows religion and prefReligion only while the switch is on", () => {
+    const off = shownKeys({ gender: "MALE", country: "JO", profile: {} });
+    expect(off).not.toContain("religion");
+    expect(off).not.toContain("prefReligion");
+    expect(shownKeys({ gender: "MALE", country: "JO", religionEnabled: false, profile: {} })).not.toContain("religion");
+    const on = shownKeys({ gender: "MALE", country: "JO", religionEnabled: true, profile: {} });
+    expect(on).toContain("religion");
+    expect(on).toContain("prefReligion");
+  });
+
+  it("puts religion in «البيانات الأساسية» before marital status and prefReligion in the partner's preferences", () => {
+    const basics = EDIT_SECTIONS.find((s) => s.id === "basics")!.fields.map((f) => f.key);
+    expect(basics.indexOf("religion")).toBe(basics.indexOf("maritalStatus") - 1);
+    expect(EDIT_SECTIONS.find((s) => s.id === "prefs")!.fields.map((f) => f.key)).toContain("prefReligion");
+    expect(editField("religion")!.required).toBe(true);
+    expect(editField("prefReligion")!.dealbreaker).toBeUndefined();
+  });
+
+  it("labels religion for the member's own gender and offers the partner's two choices", () => {
+    expect(editField("religion")!.options!({ gender: "FEMALE", country: "JO" })).toEqual([
+      { value: "مسلم", label: "مسلمة" },
+      { value: "مسيحي", label: "مسيحية" },
+    ]);
+    expect(editField("religion")!.options!({ gender: "MALE", country: "JO" }).map((o) => o.label)).toEqual(["مسلم", "مسيحي"]);
+    expect(editField("prefReligion")!.options!({ gender: "MALE", country: "JO" }).map((o) => o.value)).toEqual(["نفس ديانتي", "لا مانع"]);
+    // A stored null reads «مسلم» / «نفس ديانتي»
+    expect(editField("religion")!.storedDefault).toBe("مسلم");
+    expect(editField("prefReligion")!.storedDefault).toBe("نفس ديانتي");
+  });
+
+  it("hides the Muslim-only rows for a Christian, whatever the switch", () => {
+    for (const religionEnabled of [true, false]) {
+      for (const gender of ["MALE", "FEMALE"] as const) {
+        const christian = shownKeys({ gender, country: "LB", religionEnabled, profile: { religion: "مسيحي" } });
+        for (const k of MUSLIM_ONLY_ROWS) expect(christian, `${gender} ${k}`).not.toContain(k);
+      }
+    }
+    // A Muslim (or a null religion) in Lebanon keeps them
+    const woman = shownKeys({ gender: "FEMALE", country: "LB", religionEnabled: true, profile: { religion: null } });
+    expect(woman).toEqual(expect.arrayContaining(["hijab", "sect", "prefSect", "prefBeard"]));
+    const man = shownKeys({ gender: "MALE", country: "LB", religionEnabled: true, profile: { religion: "مسلم" } });
+    expect(man).toEqual(expect.arrayContaining(["beard", "sect", "prefSect", "prefHijab"]));
+  });
+
+  it("gives prefReligion the legacy hint lines", () => {
+    const hints = editField("prefReligion")!.hints!;
+    const base = { gender: "MALE" as const, country: "JO", religionEnabled: true };
+    expect(hints({ ...base, profile: { religion: "مسلم", prefReligion: "نفس ديانتي" }, dealbreakers: ["hijab"] })).toEqual([]);
+    expect(hints({ ...base, profile: { religion: "مسلم", prefReligion: null }, dealbreakers: ["hijab"] })).toEqual([]);
+    expect(hints({ ...base, profile: { religion: "مسلم", prefReligion: "لا مانع" }, dealbreakers: [] })).toEqual([
+      "ستظهر لك اقتراحات من الديانة الأخرى ممن اختاروا ذلك أيضاً",
+    ]);
+    expect(hints({ ...base, profile: { religion: null, prefReligion: "لا مانع" }, dealbreakers: ["hijab"] })).toEqual([
+      "ستظهر لك اقتراحات من الديانة الأخرى ممن اختاروا ذلك أيضاً",
+      "شروطك الأساسية مثل الحجاب تبقى سارية",
+    ]);
+    // A Christian has no hijab or beard condition
+    expect(prefReligionHints("مسيحي", "لا مانع", ["beard"])).toEqual(["ستظهر لك اقتراحات من الديانة الأخرى ممن اختاروا ذلك أيضاً"]);
   });
 });
 

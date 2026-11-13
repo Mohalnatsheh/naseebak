@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, type MockInstance } from "vitest"
 import { render, screen, waitFor, fireEvent, act } from "@testing-library/react";
 
 const router = vi.hoisted(() => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }));
-const ctx = vi.hoisted(() => ({ refreshProfile: vi.fn(async () => {}) }));
+const ctx = vi.hoisted(() => ({ refreshProfile: vi.fn(async () => {}), religionEnabled: false }));
 // Stable like the real hook's useCallback functions
 const autoSave = vi.hoisted(() => ({
   savedIndicatorVisible: false,
@@ -15,7 +15,12 @@ const settings = vi.hoisted(() => ({ redesign: false, introRequests: true }));
 
 vi.mock("next/navigation", () => ({ useRouter: () => router, usePathname: () => "/dashboard/profile/setup" }));
 vi.mock("@/contexts/dashboard-context", () => ({
-  useDashboardData: () => ({ refreshProfile: ctx.refreshProfile, profile: { phone: "+962777000001" }, country: "JO" }),
+  useDashboardData: () => ({
+    refreshProfile: ctx.refreshProfile,
+    profile: { phone: "+962777000001" },
+    country: "JO",
+    counts: { religionEnabled: ctx.religionEnabled },
+  }),
 }));
 vi.mock("@/hooks/use-auto-save", () => ({ useAutoSave: () => autoSave }));
 vi.mock("@/lib/analytics", () => ({ trackEvent: vi.fn() }));
@@ -67,6 +72,7 @@ beforeEach(() => {
   autoSave.clearDraft.mockClear();
   settings.redesign = false;
   settings.introRequests = true;
+  ctx.religionEnabled = false;
 });
 
 describe("ShortSetup (auth_profile_redesign)", () => {
@@ -206,6 +212,89 @@ describe("ShortSetup (auth_profile_redesign)", () => {
     render(<ShortSetup guardianStep={false} />);
     await waitFor(() => expect(screen.getByText(/تعذّر تحميل ملفك/)).toBeTruthy());
     expect(screen.queryByRole("button", { name: /التالي/ })).toBeNull();
+  });
+});
+
+describe("ShortSetup «الديانة» (religion_enabled)", () => {
+  const STEP_2_EMPTY = { ...FULL_STEP_1_2, maritalStatus: "", religiosity: "" };
+  const putBody = () => {
+    const put = fetchSpy.mock.calls.find((c) => String(c[0]) === "/api/profile" && (c[1] as RequestInit)?.method === "PUT")!;
+    return JSON.parse(String((put[1] as RequestInit).body));
+  };
+  async function finishStep3() {
+    fireEvent.change(screen.getByLabelText("العمر الأدنى"), { target: { value: "25" } });
+    fireEvent.change(screen.getByLabelText("العمر الأقصى"), { target: { value: "35" } });
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: /حفظ والبدء/ })));
+    await waitFor(() => expect(screen.getByRole("heading", { name: "ملفك جاهز" })).toBeTruthy());
+  }
+
+  it("asks «الديانة» first in step 2, with no answer chosen, and refuses «التالي» without it", async () => {
+    ctx.religionEnabled = true;
+    mockProfile(STEP_2_EMPTY, { gender: "FEMALE" });
+    render(<ShortSetup guardianStep={false} />);
+    await waitFor(() => expect(screen.getByRole("heading", { name: "حالتك الاجتماعية" })).toBeTruthy());
+    const groups = screen.getAllByRole("group").map((g) => g.id);
+    expect(groups[0]).toBe("religion");
+    // Labels follow the member's own gender; nothing preselected
+    expect(screen.getByRole("button", { name: "مسلمة" }).getAttribute("aria-pressed")).toBe("false");
+    expect(screen.getByRole("button", { name: "مسيحية" }).getAttribute("aria-pressed")).toBe("false");
+    fireEvent.click(screen.getByRole("button", { name: "عزباء" }));
+    fireEvent.click(screen.getByRole("button", { name: "ملتزمة" }));
+    act(() => next());
+    expect(screen.getByText("الديانة مطلوبة")).toBeTruthy();
+    expect(autoSave.saveToServer).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "مسلمة" }));
+    act(() => next());
+    expect(autoSave.saveToServer).toHaveBeenCalledWith(3, expect.objectContaining({ religion: "مسلم" }));
+  });
+
+  it("hides «المذهب» for a Christian in Lebanon and never sends it", async () => {
+    ctx.religionEnabled = true;
+    mockProfile({ ...STEP_2_EMPTY, sect: "سني" }, { country: "LB" });
+    render(<ShortSetup guardianStep={false} />);
+    await waitFor(() => expect(screen.getByRole("heading", { name: "حالتك الاجتماعية" })).toBeTruthy());
+    expect(screen.getByText("المذهب")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "مسيحي" }));
+    expect(screen.queryByText("المذهب")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "أعزب" }));
+    fireEvent.click(screen.getByRole("button", { name: "ملتزم" }));
+    act(() => next());
+    expect(screen.queryByText("المذهب مطلوب")).toBeNull();
+    const draft = autoSave.saveToServer.mock.calls[0][1] as Record<string, unknown>;
+    expect(draft.religion).toBe("مسيحي");
+    expect(draft.sect).toBeUndefined();
+  });
+
+  it("asks the partner's «الديانة» in step 3 (default «نفس ديانتي», with the hint) and sends religion and prefReligion", async () => {
+    ctx.religionEnabled = true;
+    mockProfile({ ...FULL_STEP_1_2, religion: "مسلم", dealbreakers: ["hijab"], prefHijab: "نعم" });
+    render(<ShortSetup guardianStep={false} />);
+    await waitFor(() => expect(screen.getByRole("heading", { name: "من تبحث عنه؟" })).toBeTruthy());
+    expect(screen.getByRole("button", { name: "نفس ديانتي" }).getAttribute("aria-pressed")).toBe("true");
+    expect(screen.queryByText("ستظهر لك اقتراحات من الديانة الأخرى ممن اختاروا ذلك أيضاً")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "لا مانع" }));
+    expect(screen.getByText("ستظهر لك اقتراحات من الديانة الأخرى ممن اختاروا ذلك أيضاً")).toBeTruthy();
+    expect(screen.getByText("شروطك الأساسية مثل الحجاب تبقى سارية")).toBeTruthy();
+    await finishStep3();
+    expect(putBody()).toMatchObject({ religion: "مسلم", prefReligion: "لا مانع" });
+  });
+
+  it("switch off: nothing about religion renders or is sent", async () => {
+    mockProfile({ ...STEP_2_EMPTY, religion: "مسيحي", prefReligion: "لا مانع" });
+    render(<ShortSetup guardianStep={false} />);
+    await waitFor(() => expect(screen.getByRole("heading", { name: "حالتك الاجتماعية" })).toBeTruthy());
+    expect(screen.queryByText("الديانة")).toBeNull();
+    expect(screen.queryByRole("button", { name: "مسيحي" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "أعزب" }));
+    fireEvent.click(screen.getByRole("button", { name: "ملتزم" }));
+    act(() => next());
+    expect(screen.queryByText("الديانة")).toBeNull();
+    expect(screen.queryByRole("button", { name: "لا مانع" })).toBeNull();
+    await finishStep3();
+    const body = putBody();
+    expect(body.religion).toBeUndefined();
+    expect(body.prefReligion).toBeUndefined();
+    expect(autoSave.saveToServer.mock.calls.every((c) => !("religion" in (c[1] as object)) && !("prefReligion" in (c[1] as object)))).toBe(true);
   });
 });
 

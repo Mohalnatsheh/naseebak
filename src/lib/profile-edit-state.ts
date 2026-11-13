@@ -7,9 +7,14 @@
  * - A change to a stored value goes to review (`POST /api/profile/update-request`). While a request is
  *   pending, every other stored row is locked (the server allows one request at a time).
  * - «الحجاب» is stored as hijab + niqab: the two keys always share one state (`splitProfileEdit`).
+ * - A field with a `storedDefault` («الديانة», «الديانة لدى الشريك») compares a stored null as that value: a stored
+ *   null religion reads «مسلم», so choosing «مسيحي» is a change for review, never a fill.
  */
 import { buildFillBody, isEmptyStored, splitProfileEdit } from "@/lib/profile-edit-split";
 import { editField, rowKeyOf } from "@/lib/profile-edit-fields";
+import { activeDealbreakers, type DealbreakerPrefs } from "@/lib/matching/dealbreaker-summary";
+import type { DealbreakerKey } from "@/lib/matching/score";
+import { MUSLIM_ONLY_FIELDS, dealbreakerPrefsFor, isChristian } from "@/lib/profile-religion";
 
 export type RowState = "idle" | "fill" | "review" | "pending" | "locked";
 
@@ -23,6 +28,11 @@ const stateGroup = (key: string) => (VEIL_KEYS.includes(key) ? VEIL_KEYS : [key]
 
 /** Whether a new value equals the stored one: empty = empty, lists in any order, "175" = 175, a date by its day. */
 function sameAsStored(key: string, next: unknown, stored: unknown): boolean {
+  const fallback = editField(key)?.storedDefault;
+  if (fallback !== undefined) {
+    next = isEmptyStored(next) ? fallback : next;
+    stored = isEmptyStored(stored) ? fallback : stored;
+  }
   if (isEmptyStored(next) || isEmptyStored(stored)) return isEmptyStored(next) && isEmptyStored(stored);
   if (Array.isArray(next) || Array.isArray(stored)) {
     if (!Array.isArray(next) || !Array.isArray(stored) || next.length !== stored.length) return false;
@@ -61,7 +71,8 @@ export function rowState(
   if (isPref(key)) return key in changed ? "fill" : "idle";
   const group = stateGroup(key);
   if (pendingKeys && group.some((k) => pendingKeys.includes(k))) return "pending";
-  if (pendingKeys && group.some((k) => !isEmptyStored(stored[k]))) return "locked";
+  // A field with a `storedDefault` always holds an answer (a null religion is «مسلم»): changing it is a review
+  if (pendingKeys && group.some((k) => !isEmptyStored(stored[k]) || editField(k)?.storedDefault !== undefined)) return "locked";
   if (!group.some((k) => k in changed)) return "idle";
   const { fills, reviewed } = splitProfileEdit(changed, stored);
   if (group.some((k) => k in reviewed)) return "review";
@@ -85,7 +96,47 @@ function sameKeys(a: string[], b: string[]): boolean {
   return a.length === b.length && [...a].sort().every((v, i) => v === sb[i]);
 }
 
-/** What one «حفظ» sends, and where. */
+/**
+ * The changes a save may send: «الديانة» and «الديانة لدى الشريك» only while the switch is on, and never a
+ * Muslim-only answer while the religion shown (`changes.religion`, else the stored one) is «مسيحي»: those rows are
+ * hidden, and the server clears them when the change is approved. As the legacy edit page. Feed `planSave` with it.
+ */
+export function sendableChanges(
+  changes: Record<string, unknown>,
+  stored: Record<string, unknown>,
+  religionEnabled: boolean,
+): Record<string, unknown> {
+  // While the switch is off the religion row is hidden, so only the stored one counts
+  const religion = religionEnabled && "religion" in changes ? changes.religion : stored.religion;
+  const christian = isChristian({ religion: religion as string | null | undefined });
+  const muslimOnly: readonly string[] = MUSLIM_ONLY_FIELDS;
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(changes)) {
+    if (!religionEnabled && (key === "religion" || key === "prefReligion")) continue;
+    if (christian && muslimOnly.includes(key)) continue;
+    out[key] = value;
+  }
+  return out;
+}
+
+/**
+ * The «شروط أساسية» keys a save sends (`planSave`'s `dealbreakers.next`): the ticked keys whose preference is
+ * filled, read with the STORED religion (`dealbreakerPrefsFor`). A pending change to «مسيحي» must not drop the
+ * Muslim-only keys before it is approved (approval's `muslimOnlyClears` removes them), as the legacy edit page.
+ */
+export function dealbreakerKeysToSave(
+  ticked: Iterable<string>,
+  prefs: DealbreakerPrefs,
+  storedReligion: string | null | undefined,
+  gender: string | null | undefined,
+): DealbreakerKey[] {
+  return activeDealbreakers(ticked, dealbreakerPrefsFor(storedReligion, prefs), gender);
+}
+
+/**
+ * What one «حفظ» sends, and where. `changes`: pass them through `sendableChanges`. `dealbreakers.next`: the caller
+ * builds it with `dealbreakerKeysToSave` (the STORED religion), never with the religion being changed to.
+ */
 export function planSave(
   changes: Record<string, unknown>,
   stored: Record<string, unknown>,

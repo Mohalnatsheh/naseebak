@@ -13,6 +13,7 @@
  */
 import { db } from "@/lib/db";
 import { calculateCompatibility, mutuallyAcceptable } from "@/lib/matching/score";
+import { religionsMatch } from "@/lib/profile-religion";
 import { meetsSuggestionGate } from "@/lib/profile-completeness";
 import { notifyCreditsExhausted, recordCredit, refundCredits, reserveCredits, WEEKLY_FREE_SUGGESTIONS } from "@/lib/credits";
 import { getCycleFlags, type CycleFlags } from "@/lib/settings";
@@ -490,7 +491,7 @@ async function generate(userId: string): Promise<SuggestOutcome> {
 
   const rank = (list: Awaited<ReturnType<typeof findCandidates>>) => list
     .filter((c) => meetsSuggestionGate(c, perRequestCredits))
-    .filter((c) => !mutual || mutuallyAcceptable(user, c))
+    .filter((c) => (mutual ? mutuallyAcceptable(user, c) : religionsMatch(user.profile, c.profile)))
     .map((c) => ({ candidate: c, score: calculateCompatibility(user, c) }))
     .filter(({ score }) => score >= minSuggestionScore(flags, user.country))
     .sort((a, b) => b.score - a.score);

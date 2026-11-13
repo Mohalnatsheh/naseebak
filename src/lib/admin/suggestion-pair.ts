@@ -8,6 +8,7 @@ import { scoringSelect } from "@/lib/matching/auto-suggest";
 import { mutuallyAcceptable, type UserForScoring } from "@/lib/matching/score";
 import { isEngaged } from "@/lib/intro/followup";
 import { DEFAULT_COUNTRY, countryConfig } from "@/lib/countries";
+import { religionsMatch } from "@/lib/profile-religion";
 import { meetsSuggestionGate } from "@/lib/profile-completeness";
 import { getCycleFlags } from "@/lib/settings";
 
@@ -80,6 +81,9 @@ export async function checkSuggestionPair(recipientId: string, candidateId: stri
     }
   }
   if (!mutuallyAcceptable(a, b)) {
+    if (!religionsMatch(a.profile, b.profile)) {
+      return { error: "Different religions and one of them wants their own religion (الديانة)", status: 409 };
+    }
     return { error: "This pair breaks a dealbreaker (شروطي الأساسية) of one of them", status: 409 };
   }
 

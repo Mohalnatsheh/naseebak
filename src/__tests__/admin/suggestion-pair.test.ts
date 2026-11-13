@@ -51,6 +51,20 @@ describe("checkSuggestionPair, the cycle's rules (G62)", () => {
     expect(r?.error).toMatch(/dealbreaker/);
   });
 
+  it("refuses a mixed pair unless both opened, with the religion message", async () => {
+    db.user.findMany.mockImplementation(async (args: { select?: object }) =>
+      args.select && "profile" in args.select
+        ? [
+            person("a", "FEMALE", { profile: { isComplete: true, religion: "مسلم", prefReligion: "نفس ديانتي" } }),
+            person("b", "MALE", { profile: { isComplete: true, religion: "مسيحي", prefReligion: "لا مانع" } }),
+          ]
+        : [person("a", "FEMALE"), person("b", "MALE")],
+    );
+    score.mutuallyAcceptable.mockReturnValue(false);
+    const r = await checkSuggestionPair("a", "b");
+    expect(r).toMatchObject({ status: 409, error: "Different religions and one of them wants their own religion (الديانة)" });
+  });
+
   it("refuses an engaged person", async () => {
     followup.isEngaged.mockImplementation(async (id: string) => id === "b");
     expect(await checkSuggestionPair("a", "b")).toMatchObject({ status: 409, error: expect.stringMatching(/engaged/) });

@@ -7,6 +7,8 @@ const db = vi.hoisted(() => ({
   // The member's country: «المذهب» is kept for Lebanon only
   user: { findUnique: vi.fn(async () => ({ country: member.country })) },
 }));
+const flags = vi.hoisted(() => ({ religion: false }));
+vi.mock("@/lib/settings", () => ({ getReligionEnabled: vi.fn(async () => flags.religion) }));
 const requireUser = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/auth", () => ({ requireUser }));
@@ -24,6 +26,7 @@ const req = (changes: Record<string, unknown>) =>
 beforeEach(() => {
   vi.clearAllMocks();
   member.country = "JO";
+  flags.religion = false;
   requireUser.mockResolvedValue({ session: { user: { id: "u1" } } });
   db.profileUpdateRequest.findFirst.mockResolvedValue(null);
   db.profileUpdateRequest.create.mockResolvedValue({ id: "r1" });
@@ -170,6 +173,44 @@ describe("POST /api/profile/update-request: «المذهب» (Lebanon only)", ()
   it("Jordan: the rest of the request still goes through", async () => {
     const res = await POST(req({ job: "طبيب", sect: "سني" }));
     expect(res.status).toBe(200);
+    expect(db.profileUpdateRequest.create.mock.calls[0][0].data.changes).toEqual({ job: "طبيب" });
+  });
+});
+
+describe("POST /api/profile/update-request: «الديانة»", () => {
+  it("saves prefReligion directly and sends religion to review", async () => {
+    flags.religion = true;
+    const res = await POST(req({ religion: "مسيحي", prefReligion: "لا مانع" }));
+    expect(res.status).toBe(200);
+    expect(db.profile.upsert).toHaveBeenCalledWith({
+      where: { userId: "u1" },
+      create: { userId: "u1", prefReligion: "لا مانع" },
+      update: { prefReligion: "لا مانع" },
+    });
+    expect(db.profileUpdateRequest.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ changes: { religion: "مسيحي" } }) }),
+    );
+  });
+
+  it("drops Muslim-only fields from a request that switches to مسيحي", async () => {
+    flags.religion = true;
+    const res = await POST(req({ religion: "مسيحي", hijab: true, prefHijab: "نعم" }));
+    expect(res.status).toBe(200);
+    expect(db.profile.upsert).not.toHaveBeenCalled();
+    expect(db.profileUpdateRequest.create.mock.calls[0][0].data.changes).toEqual({ religion: "مسيحي" });
+  });
+
+  it("drops Muslim-only fields for a stored Christian whose request leaves religion out", async () => {
+    db.user.findUnique.mockResolvedValueOnce({ country: "JO", profile: { religion: "مسيحي" } } as never);
+    const res = await POST(req({ hijab: true, job: "طبيب" }));
+    expect(res.status).toBe(200);
+    expect(db.profileUpdateRequest.create.mock.calls[0][0].data.changes).toEqual({ job: "طبيب" });
+  });
+
+  it("drops religion and prefReligion while the switch is off", async () => {
+    const res = await POST(req({ religion: "مسيحي", prefReligion: "لا مانع", job: "طبيب" }));
+    expect(res.status).toBe(200);
+    expect(db.profile.upsert).not.toHaveBeenCalled();
     expect(db.profileUpdateRequest.create.mock.calls[0][0].data.changes).toEqual({ job: "طبيب" });
   });
 });

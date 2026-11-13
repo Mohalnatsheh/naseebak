@@ -4,10 +4,10 @@ import { db } from "@/lib/db";
 import { parsePagination } from "@/lib/utils";
 import { MATCHES_ORDER, pageForMatch, visibleMatchesWhere } from "@/lib/matches/focus";
 import { hiddenPartnerIds, loadMatchStates } from "@/lib/matches/state";
-import { getCycleFlags } from "@/lib/settings";
+import { getCycleFlags, getReligionEnabled } from "@/lib/settings";
 import { proUserIds } from "@/lib/pro/status";
 import { matchNextStep } from "@/lib/matches/next-step";
-import { visibleSect } from "@/lib/profile-sect";
+import { publicReligionFields } from "@/lib/profile-religion";
 
 export async function GET(request: Request) {
   try {
@@ -48,6 +48,7 @@ export async function GET(request: Request) {
       religiosity: true,
       smokingStatus: true,
       sect: true,
+      religion: true,
       aboutMe: true,
       hobbies: true,
       interests: true,
@@ -111,9 +112,12 @@ export async function GET(request: Request) {
     // Badge only: one query for the page, a failure just hides it
     const pros = await proUserIds(matches.map((m) => (m.femaleId === session.user.id ? m.maleId : m.femaleId))).catch(() => new Set<string>());
 
+    const religionOn = await getReligionEnabled().catch(() => false);
+
     const formatted = matches.map((m) => {
       const otherUser = m.femaleId === session.user.id ? m.male : m.female;
       const profile = otherUser.profile;
+      const rel = publicReligionFields(profile, religionOn);
 
       const age = profile?.dateOfBirth
         ? Math.floor((Date.now() - new Date(profile.dateOfBirth).getTime()) / (365.25 * 24 * 60 * 60 * 1000))
@@ -165,15 +169,16 @@ export async function GET(request: Request) {
           childrenCount: locked ? 0 : (profile?.childrenCount ?? 0),
           religiosity: detail(profile?.religiosity ?? null),
           smokingStatus: detail(profile?.smokingStatus ?? null),
-          // «أفضّل عدم الذكر» is never shown (as if empty)
-          sect: detail(visibleSect(profile?.sect)),
+          // religion; a Christian shows no hijab/niqab/beard/sect, «أفضّل عدم الذكر» is never shown
+          sect: detail(rel.sect),
+          religion: detail(rel.religion),
           aboutMe: detail(profile?.aboutMe ?? null),
           hobbies: detail(profile?.hobbies ?? null),
           interests: detail(profile?.interests ?? null),
           lifestyle: detail(profile?.lifestyle ?? null),
-          beard: detail(profile?.beard ?? null),
-          hijab: detail(profile?.hijab ?? null),
-          niqab: detail(profile?.niqab ?? null),
+          beard: detail(rel.beard),
+          hijab: detail(rel.hijab),
+          niqab: detail(rel.niqab),
           tribe: detail(profile?.tribe ?? null),
           familyOriginArea: detail(profile?.familyOriginArea ?? null),
           numberOfSiblings: detail(profile?.numberOfSiblings ?? null),

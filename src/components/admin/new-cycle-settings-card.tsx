@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2, HeartHandshake, MessageCircle, Info, TriangleAlert, Users, Coins, ListOrdered, Globe, Crown, Trash2, Banknote, LayoutDashboard } from "lucide-react";
+import { Loader2, HeartHandshake, MessageCircle, Info, TriangleAlert, Users, Coins, ListOrdered, Globe, Crown, Trash2, Banknote, LayoutDashboard, Church } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
@@ -30,11 +30,13 @@ interface State {
   proEnabled: boolean;
   chatDeleteEnabled: boolean;
   dashboardRedesign: boolean;
+  chatWhatsappLayout: boolean;
   jodCharging: boolean;
+  religionEnabled: boolean;
   creditsMigratedAt: string | null;
 }
 
-type Key = "introRequests" | "chat" | "mutualSuggestions" | "creditOnInterest" | "activeFirstFeed" | "saRelaxedMatching" | "lbRelaxedMatching" | "freeInterestReply" | "interestPaywall" | "proEnabled" | "chatDeleteEnabled" | "dashboardRedesign" | "jodCharging";
+type Key = "introRequests" | "chat" | "mutualSuggestions" | "creditOnInterest" | "activeFirstFeed" | "saRelaxedMatching" | "lbRelaxedMatching" | "freeInterestReply" | "interestPaywall" | "proEnabled" | "chatDeleteEnabled" | "dashboardRedesign" | "chatWhatsappLayout" | "jodCharging" | "religionEnabled";
 
 /** Admin → Settings: the switches for the new user cycle, in plain words. */
 export function NewCycleSettingsCard() {
@@ -71,7 +73,7 @@ export function NewCycleSettingsCard() {
 
   function toggle(key: Key, value: boolean) {
     // The feed order, Saudi and Lebanese relaxed matching, the free reply and Pro sales are safe to turn off at once: nothing in flight depends on them
-    const quickOff = key === "activeFirstFeed" || key === "saRelaxedMatching" || key === "lbRelaxedMatching" || key === "freeInterestReply" || key === "interestPaywall" || key === "proEnabled" || key === "chatDeleteEnabled" || key === "dashboardRedesign" || key === "jodCharging";
+    const quickOff = key === "activeFirstFeed" || key === "saRelaxedMatching" || key === "lbRelaxedMatching" || key === "freeInterestReply" || key === "interestPaywall" || key === "proEnabled" || key === "chatDeleteEnabled" || key === "dashboardRedesign" || key === "chatWhatsappLayout" || key === "jodCharging" || key === "religionEnabled";
     if (!value && !quickOff) setConfirmOff(key);
     else if (value && key === "introRequests") setConfirmIntroOn(true);
     else save(key, value);
@@ -197,11 +199,27 @@ export function NewCycleSettingsCard() {
       disabled: false,
     },
     {
+      key: "chatWhatsappLayout" as const,
+      icon: MessageCircle,
+      title: "WhatsApp-style chat (website)",
+      text: "The website chat uses a WhatsApp-like layout in Naseebak's colours. The app and the data are unchanged. Off by default: off shows today's chat.",
+      on: !!state?.chatWhatsappLayout,
+      disabled: false,
+    },
+    {
       key: "jodCharging" as const,
       icon: Banknote,
       title: "Charge Jordan in JOD",
       text: "New Jordanian purchases are charged in dinars instead of US dollars. Existing Pro subscriptions keep their currency. A checkout already open keeps the currency it started with. Off by default.",
       on: !!state?.jodCharging,
+      disabled: false,
+    },
+    {
+      key: "religionEnabled" as const,
+      icon: Church,
+      title: "Religion question («الديانة»)",
+      text: "Members choose Muslim or Christian and whether they accept the other religion; suggestions follow that choice. Muslim-only questions (hijab, beard, sect) are asked of Muslims only. Off by default: while off, nothing is asked or shown and no religion is saved; stored answers are kept. Needs the app version that has the question; older apps keep working as Muslim.",
+      on: !!state?.religionEnabled,
       disabled: false,
     },
   ];

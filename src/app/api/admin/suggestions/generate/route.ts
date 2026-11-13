@@ -5,6 +5,7 @@ import { calculateCompatibility } from "@/lib/matching/score";
 import { minSuggestionScore } from "@/lib/matching/auto-suggest";
 import { currentGenerateJob, startGenerateJob } from "@/lib/admin/generate-job";
 import { notify } from "@/lib/notify";
+import { religionsMatch } from "@/lib/profile-religion";
 import { meetsSuggestionGate } from "@/lib/profile-completeness";
 import { notifyCreditsExhausted, recordCredit, reserveCredits, WEEKLY_FREE_SUGGESTIONS } from "@/lib/credits";
 import { isTestPhone } from "@/lib/test-accounts";
@@ -131,6 +132,8 @@ export async function POST(request: Request) {
         if (matchPairs.has(`${user.id}:${c.id}`)) return false;
         // Skip if blocked
         if (blockPairs.has(`${user.id}:${c.id}`)) return false;
+        // «الديانة» is a hard rule whatever the switches say
+        if (!religionsMatch(user.profile, c.profile)) return false;
         return true;
       });
 

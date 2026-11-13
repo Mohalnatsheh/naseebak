@@ -9,7 +9,7 @@ const base: FeedCandidate = {
   skinColor: null, maritalStatus: "أعزب", childrenCount: 0, religiosity: "ملتزم", smokingStatus: "غير مدخن",
   sect: null, aboutMe: null, hobbies: null, interests: null, lifestyle: null, beard: null, hijab: true,
   niqab: false, tribe: "العبادي", familyOriginArea: null, numberOfSiblings: null, housingType: null,
-  cookingAbility: null, drivingLicense: null, willingToRelocate: null, familyValues: null,
+  cookingAbility: null, drivingLicense: null, willingToRelocate: null, familyValues: null, religion: null,
 };
 
 describe("cardFacts", () => {
@@ -47,5 +47,14 @@ describe("cardFacts", () => {
   it("words the values for the partner's gender", () => {
     const f = cardFacts({ ...base, religiosity: "ملتزم" }, "FEMALE", "JO").find((x) => x.key === "religiosity");
     expect(f?.value).toBe(describeOption("religiosity", "ملتزم", "FEMALE"));
+  });
+
+  it("leads with «الديانة» only when it differs from the viewer's", () => {
+    const christian = { ...base, religion: "مسيحي" };
+    const differs = cardFacts(christian, "FEMALE", "JO", "مسلم");
+    expect(differs[0]).toEqual({ key: "religion", label: "الديانة", value: describeOption("religion", "مسيحي", "FEMALE") });
+    expect(differs).toHaveLength(9);
+    expect(cardFacts(christian, "FEMALE", "JO", "مسيحي").some((f) => f.key === "religion")).toBe(false);
+    expect(cardFacts(base, "FEMALE", "JO", "مسيحي").some((f) => f.key === "religion")).toBe(false);
   });
 });

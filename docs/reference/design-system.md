@@ -12,6 +12,10 @@ One look for the website and the app (QA round 2 design pass, November 2026). Th
 | `accent` (gold `#c19250`), `accent-soft` | Decoration, fills on navy, the seal and rules |
 | `accent-ink` | Gold **text or icons on a light background** (gold itself fails contrast there): «شرط أساسي», my poll answer, counts in gold |
 | `sand` | The majlis rooms: chat, family steps, guardian consent |
+| `bubble-mine`, `bubble-mine-quote` | WhatsApp-style chat (switch `chat_whatsapp_layout`): my bubble, and the quote block inside it |
+| `chat-select` | WhatsApp-style chat: selected row wash (primary at 14%) |
+| `chat-chip` | WhatsApp-style chat: date chip and unread strip (card at 92%) |
+| `safety-chip` | WhatsApp-style chat: the safety note, pale gold; its text stays `accent-ink` |
 | `ink`, `muted-ink` | Body text and secondary text on light backgrounds |
 | `emerald-`/`green-`, `amber-`, `destructive` | Success, pending or warning, error only |
 

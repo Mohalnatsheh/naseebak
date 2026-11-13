@@ -8,6 +8,7 @@
  */
 
 import { visibleSect } from "@/lib/profile-sect";
+import { isChristian, religionsMatch } from "@/lib/profile-religion";
 
 // --- Detailed breakdown types ---
 
@@ -55,6 +56,9 @@ export interface ProfileForScoring {
   smokingStatus?: string | null;
   /** «المذهب», Lebanese members only */
   sect?: string | null;
+  /** «الديانة»: null reads «مسلم». `prefReligion` null reads «نفس ديانتي» */
+  religion?: string | null;
+  prefReligion?: string | null;
   hijab?: boolean | null;
   niqab?: boolean | null;
   beard?: boolean | null;
@@ -236,20 +240,22 @@ export function checkPreferenceMatchDetailed(
   }
 
   // Sect preference (Lebanon only). «أفضّل عدم الذكر» scores as unknown, like an empty value
+  // The Muslim-only items (sect, hijab, beard) are skipped for a Christian: they have no such answers
+  const otherMuslim = !isChristian(otherProfile);
   const otherSect = visibleSect(otherProfile.sect);
-  if (profile.prefSect && profile.prefSect.length > 0 && otherSect) {
+  if (otherMuslim && profile.prefSect && profile.prefSect.length > 0 && otherSect) {
     details.push({ field: "sect", label: "Sect", matched: profile.prefSect.includes(otherSect), weight: 1.5, userPref: profile.prefSect.join(", "), candidateValue: otherSect });
   }
 
   // Hijab preference
   const hijabPref = prefYesNo(profile.prefHijab);
-  if (hijabPref && otherGender === "FEMALE" && otherProfile.hijab !== null && otherProfile.hijab !== undefined) {
+  if (otherMuslim && hijabPref && otherGender === "FEMALE" && otherProfile.hijab !== null && otherProfile.hijab !== undefined) {
     details.push({ field: "hijab", label: "Hijab", matched: hijabMatches(profile.prefHijab, otherProfile) === true, weight: 1, userPref: profile.prefHijab ?? null, candidateValue: otherProfile.niqab ? "niqab" : otherProfile.hijab ? "yes" : "no" });
   }
 
   // Beard preference
   const beardPref = prefYesNo(profile.prefBeard);
-  if (beardPref && otherGender === "MALE" && otherProfile.beard !== null && otherProfile.beard !== undefined) {
+  if (otherMuslim && beardPref && otherGender === "MALE" && otherProfile.beard !== null && otherProfile.beard !== undefined) {
     const prefBool = beardPref === "yes";
     details.push({ field: "beard", label: "Beard", matched: otherProfile.beard === prefBool, weight: 1, userPref: profile.prefBeard ?? null, candidateValue: otherProfile.beard ? "yes" : "no" });
   }
@@ -458,5 +464,10 @@ export function passesDealbreakers(owner: ProfileForScoring, other: ProfileForSc
 /** A pair may be suggested only when each passes the other's dealbreakers. */
 export function mutuallyAcceptable(a: UserForScoring, b: UserForScoring): boolean {
   if (!a.profile || !b.profile) return false;
-  return passesDealbreakers(a.profile, b.profile, b.gender) && passesDealbreakers(b.profile, a.profile, a.gender);
+  // Religion is a hard rule whatever the `religion_enabled` switch says (null reads «مسلم» / «نفس ديانتي»)
+  return (
+    religionsMatch(a.profile, b.profile) &&
+    passesDealbreakers(a.profile, b.profile, b.gender) &&
+    passesDealbreakers(b.profile, a.profile, a.gender)
+  );
 }

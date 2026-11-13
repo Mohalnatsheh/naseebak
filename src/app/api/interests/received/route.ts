@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { parsePagination } from "@/lib/utils";
-import { visibleSect } from "@/lib/profile-sect";
+import { publicReligionFields } from "@/lib/profile-religion";
+import { getReligionEnabled } from "@/lib/settings";
 
 export async function GET(request: Request) {
   try {
@@ -71,6 +72,7 @@ export async function GET(request: Request) {
                   religiosity: true,
                   smokingStatus: true,
                   sect: true,
+                  religion: true,
                   aboutMe: true,
                   hobbies: true,
                   interests: true,
@@ -110,8 +112,11 @@ export async function GET(request: Request) {
       : [];
     const scoreMap = new Map(suggestions.map((s) => [s.id, s.compatibilityScore]));
 
+    const religionOn = await getReligionEnabled().catch(() => false);
+
     const interests = likes
       .map((l) => {
+        const rel = publicReligionFields(l.fromUser.profile, religionOn);
         const age = l.fromUser.profile?.dateOfBirth
           ? Math.floor(
               (Date.now() - new Date(l.fromUser.profile.dateOfBirth).getTime()) /
@@ -143,14 +148,15 @@ export async function GET(request: Request) {
             childrenCount: l.fromUser.profile?.childrenCount ?? 0,
             religiosity: l.fromUser.profile?.religiosity,
             smokingStatus: l.fromUser.profile?.smokingStatus,
-            sect: visibleSect(l.fromUser.profile?.sect),
+            sect: rel.sect,
+            religion: rel.religion,
             aboutMe: l.fromUser.profile?.aboutMe,
             hobbies: l.fromUser.profile?.hobbies,
             interests: l.fromUser.profile?.interests,
             lifestyle: l.fromUser.profile?.lifestyle,
-            hijab: l.fromUser.profile?.hijab,
-            niqab: l.fromUser.profile?.niqab,
-            beard: l.fromUser.profile?.beard,
+            hijab: rel.hijab,
+            niqab: rel.niqab,
+            beard: rel.beard,
             tribe: l.fromUser.profile?.tribe,
             familyOriginArea: l.fromUser.profile?.familyOriginArea,
             numberOfSiblings: l.fromUser.profile?.numberOfSiblings,

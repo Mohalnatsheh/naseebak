@@ -17,6 +17,7 @@ export function SuggestionCard({
   item,
   partnerGender,
   country,
+  viewerReligion,
   status,
   onOpen,
   actions,
@@ -24,12 +25,14 @@ export function SuggestionCard({
   item: FeedItem;
   partnerGender: "MALE" | "FEMALE";
   country: CountryCode;
+  /** The viewer's «الديانة»: the card shows the other's only when it differs */
+  viewerReligion?: string | null;
   status?: ReactNode;
   onOpen: () => void;
   actions: ReactNode;
 }) {
   const c = item.candidate;
-  const facts = cardFacts(c, partnerGender, country);
+  const facts = cardFacts(c, partnerGender, country, viewerReligion);
   const title = c.age ? `${c.firstName}، ${c.age}` : c.firstName;
   const place = c.city;
   const score = Math.round(item.compatibilityScore);

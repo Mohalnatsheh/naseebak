@@ -23,7 +23,7 @@ import { dateOfBirthError, parentInfoSchemaFor } from "@/lib/validations/profile
 import { BirthDateSelect } from "@/components/profile/birth-date-select";
 import { normalizePhone } from "@/lib/phone";
 import { VEIL_CHOICES, veilChoice, veilFromChoice, type VeilChoice } from "@/lib/profile-veil";
-import { sectApplies } from "@/lib/profile-sect";
+import { PREF_RELIGION_ANY, PREF_RELIGION_SAME, PREF_RELIGION_VALUES, RELIGION_CHRISTIAN, sectAsked, showsDealbreakerHint } from "@/lib/profile-religion";
 import { PageLoading } from "@/components/shared/page-loading";
 import { sharedGet } from "@/lib/shared-get";
 import { PageHeader } from "@/components/shared/page-header";
@@ -43,6 +43,7 @@ const preferenceOptions = asOpts(["نعم", "لا", "لا يهم"]);
 /** prefHijab: the stored values stay «نعم» / «لا» / «لا يهم»; «منتقبة» = wants niqab */
 const hijabPrefOptions = asOpts(["نعم", "منتقبة", "لا", "لا يهم"]);
 const veilOptions = asOpts(VEIL_CHOICES);
+const prefReligionOptions = asOpts(PREF_RELIGION_VALUES);
 const guardianRelationships: Opt[] = [
   { value: "father", label: "الأب" },
   { value: "mother", label: "الأم" },
@@ -86,6 +87,8 @@ export default function ProfileSetupPage() {
     willingToRelocate: "",
     maritalStatus: "",
     religiosity: "",
+    // «الديانة» (switch `religion_enabled`): required, no preselected answer
+    religion: "",
     // «المذهب»: Lebanese members only (sectApplies)
     sect: "",
     // null = not answered yet (never stored as a "no", which would count against a «prefHijab» dealbreaker)
@@ -117,6 +120,7 @@ export default function ProfileSetupPage() {
     prefBeard: "",
     prefReligiosity: [] as string[],
     prefSect: [] as string[],
+    prefReligion: PREF_RELIGION_SAME as string,
     prefSmokingStatus: [] as string[],
     prefChildrenAcceptance: "",
     // "شرط أساسي" marks (saved to /api/profile/dealbreakers, not with the profile)
@@ -136,8 +140,12 @@ export default function ProfileSetupPage() {
   // Places, money, wording and the guardian's phone follow the member's country (from the loaded profile)
   const [loadedCountry, setLoadedCountry] = useState<CountryCode | null>(null);
   const country = COUNTRIES[toCountry(loadedCountry ?? contextCountry)];
-  // «المذهب» is asked of Lebanese members only
-  const sectOn = sectApplies(country.code);
+  // «الديانة»: asked only while the switch is on (from /api/me/counts)
+  const [religionEnabled, setReligionEnabled] = useState(false);
+  // A Christian is never asked hijab/niqab, beard or «المذهب» (nor the matching preferences)
+  const christian = form.religion === RELIGION_CHRISTIAN;
+  // «المذهب» is asked of Lebanese members only, never of a Christian
+  const sectOn = sectAsked(country.code, form.religion);
   const cities = citiesFor(country.code);
   const incomeRanges = asOpts(incomeRangesFor(country.code));
   const expenseRanges = asOpts(expenseRangesFor(country.code));
@@ -152,7 +160,7 @@ export default function ProfileSetupPage() {
         const res = await fetch("/api/me/counts");
         if (res.ok) {
           const data = await res.json();
-          if (data?.flags) { setFlags(data.flags); return; }
+          if (data?.flags) { setReligionEnabled(data.religionEnabled === true); setFlags(data.flags); return; }
         }
       } catch {
         // retry below
@@ -221,6 +229,7 @@ export default function ProfileSetupPage() {
           willingToRelocate: p.willingToRelocate || "",
           maritalStatus: p.maritalStatus || "",
           religiosity: p.religiosity || "",
+          religion: p.religion || "",
           sect: p.sect || "",
           hijab: typeof p.hijab === "boolean" ? p.hijab : null,
           niqab: typeof p.niqab === "boolean" ? p.niqab : null,
@@ -249,6 +258,7 @@ export default function ProfileSetupPage() {
           prefBeard: p.prefBeard || "",
           prefReligiosity: Array.isArray(p.prefReligiosity) ? p.prefReligiosity : [],
           prefSect: Array.isArray(p.prefSect) ? p.prefSect : [],
+          prefReligion: p.prefReligion || PREF_RELIGION_SAME,
           prefSmokingStatus: Array.isArray(p.prefSmokingStatus) ? p.prefSmokingStatus : [],
           prefChildrenAcceptance: p.prefChildrenAcceptance || "",
           dealbreakers: Array.isArray(p.dealbreakers) ? p.dealbreakers : [],
@@ -367,6 +377,7 @@ export default function ProfileSetupPage() {
         if (!form.maritalStatus) errors.maritalStatus = "الحالة الاجتماعية مطلوبة";
         if (form.maritalStatus && form.maritalStatus !== "أعزب/عزباء" && form.childrenCount === "") errors.childrenCount = "عدد الأبناء مطلوب";
         else if (form.maritalStatus !== "أعزب/عزباء" && form.childrenCount !== "") { const c = parseInt(form.childrenCount); if (c < 0 || c > 20) errors.childrenCount = "عدد الأبناء يجب أن يكون بين 0 و 20"; }
+        if (religionEnabled && !form.religion) errors.religion = "الديانة مطلوبة";
         if (!form.religiosity) errors.religiosity = "مستوى التدين مطلوب";
         if (sectOn && !form.sect) errors.sect = "المذهب مطلوب";
         break;
@@ -438,10 +449,12 @@ export default function ProfileSetupPage() {
     }
     if (form.willingToRelocate) payload.willingToRelocate = form.willingToRelocate;
     if (form.religiosity) payload.religiosity = form.religiosity;
+    if (religionEnabled && form.religion) payload.religion = form.religion;
     if (sectOn && form.sect) payload.sect = form.sect;
-    if (form.hijab !== null) payload.hijab = form.hijab;
-    if (form.niqab != null) payload.niqab = form.niqab;
-    if (form.beard !== null) payload.beard = form.beard;
+    // A Christian's hijab/niqab and beard are never sent (the server strips them too)
+    if (!christian && form.hijab !== null) payload.hijab = form.hijab;
+    if (!christian && form.niqab != null) payload.niqab = form.niqab;
+    if (!christian && form.beard !== null) payload.beard = form.beard;
     if (form.smokingStatus) payload.smokingStatus = form.smokingStatus;
     if (form.cookingAbility) payload.cookingAbility = form.cookingAbility;
     if (form.lifestyle) payload.lifestyle = form.lifestyle;
@@ -462,8 +475,9 @@ export default function ProfileSetupPage() {
     if (form.prefCity.length > 0) payload.prefCity = form.prefCity;
     if (form.prefEducation.length > 0) payload.prefEducation = form.prefEducation;
     if (form.prefMaritalStatus.length > 0) payload.prefMaritalStatus = form.prefMaritalStatus;
-    if (form.prefHijab) payload.prefHijab = form.prefHijab;
-    if (form.prefBeard) payload.prefBeard = form.prefBeard;
+    if (!christian && form.prefHijab) payload.prefHijab = form.prefHijab;
+    if (!christian && form.prefBeard) payload.prefBeard = form.prefBeard;
+    if (religionEnabled && form.prefReligion) payload.prefReligion = form.prefReligion;
     if (form.prefReligiosity.length > 0) payload.prefReligiosity = form.prefReligiosity;
     if (sectOn && form.prefSect.length > 0) payload.prefSect = form.prefSect;
     if (form.prefSmokingStatus.length > 0) payload.prefSmokingStatus = form.prefSmokingStatus;
@@ -541,7 +555,8 @@ export default function ProfileSetupPage() {
     prefEducation: form.prefEducation, prefMaritalStatus: form.prefMaritalStatus,
     prefReligiosity: form.prefReligiosity, prefSmokingStatus: form.prefSmokingStatus,
     prefSect: sectOn ? form.prefSect : [],
-    prefHijab: form.prefHijab, prefBeard: form.prefBeard, prefChildrenAcceptance: form.prefChildrenAcceptance,
+    prefHijab: christian ? "" : form.prefHijab, prefBeard: christian ? "" : form.prefBeard,
+    prefChildrenAcceptance: form.prefChildrenAcceptance,
   };
   const showDealbreakers = !!flags?.mutualSuggestions;
   /** "شرط أساسي" chip for one preference; disabled until that preference is filled in. */
@@ -736,6 +751,12 @@ export default function ProfileSetupPage() {
             <CardDescription>معلومات عن أسلوب حياتك</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {religionEnabled && (
+              <Field id="religion" label="الديانة" error={fieldErrors.religion}>
+                <ChoiceGroup id="religion" cols={2} options={ownOptions("religion", gender)} isSelected={(v) => form.religion === v} onSelect={(v) => update("religion", v)} error={!!fieldErrors.religion} />
+              </Field>
+            )}
+
             <Field id="maritalStatus" label="الحالة الاجتماعية" error={fieldErrors.maritalStatus}>
               <ChoiceGroup
                 id="maritalStatus"
@@ -770,13 +791,13 @@ export default function ProfileSetupPage() {
             </Field>
 
             {/* Gender-specific: hijab for women, beard for men */}
-            {gender === "FEMALE" && (
+            {gender === "FEMALE" && !christian && (
               <Field id="hijab" label="الحجاب" optional>
                 <ChoiceGroup id="hijab" options={veilOptions} isSelected={(v) => veilChoice(form.hijab, form.niqab) === v} onSelect={(v) => setForm((prev) => ({ ...prev, ...veilFromChoice(v as VeilChoice) }))} />
               </Field>
             )}
 
-            {gender === "MALE" && (
+            {gender === "MALE" && !christian && (
               <Field id="beard" label="هل أنت ملتحٍ؟" optional>
                 <ChoiceGroup id="beard" cols={2} options={YES_NO} isSelected={(v) => form.beard === (v === "yes")} onSelect={(v) => update("beard", v === "yes")} />
               </Field>
@@ -843,6 +864,18 @@ export default function ProfileSetupPage() {
               )}
             </div>
 
+            {religionEnabled && (
+              <Field id="prefReligion" label="الديانة">
+                <ChoiceGroup id="prefReligion" cols={2} options={prefReligionOptions} isSelected={(v) => form.prefReligion === v} onSelect={(v) => update("prefReligion", v)} />
+                {form.prefReligion === PREF_RELIGION_ANY && (
+                  <p className="text-xs leading-relaxed text-muted-foreground">ستظهر لك اقتراحات من الديانة الأخرى ممن اختاروا ذلك أيضاً</p>
+                )}
+                {showsDealbreakerHint(form.religion, form.prefReligion, activeDealbreakers(form.dealbreakers, dealbreakerPrefs, gender)) && (
+                  <p className="text-xs leading-relaxed text-muted-foreground">شروطك الأساسية مثل الحجاب تبقى سارية</p>
+                )}
+              </Field>
+            )}
+
             <div className="space-y-2">
               <div className="flex items-start justify-between gap-3">
                 <span className="min-w-0 flex-1 text-sm font-medium leading-relaxed">العمر المفضل</span>
@@ -870,13 +903,13 @@ export default function ProfileSetupPage() {
               <ChoiceGroup id="prefMaritalStatus" multiple options={partnerOptions("maritalStatus", gender)} isSelected={(v) => form.prefMaritalStatus.includes(v)} onSelect={(v) => toggleArray("prefMaritalStatus", v)} />
             </Field>
 
-            {gender === "MALE" && (
+            {gender === "MALE" && !christian && (
               <Field id="prefHijab" label="هل تفضل محجبة؟" optional aside={dealbreaker("hijab", "prefHijab")}>
                 <ChoiceGroup id="prefHijab" cols={4} options={hijabPrefOptions} isSelected={(v) => form.prefHijab === v} onSelect={(v) => update("prefHijab", v)} />
               </Field>
             )}
 
-            {gender === "FEMALE" && (
+            {gender === "FEMALE" && !christian && (
               <Field id="prefBeard" label="هل تفضلين ملتحياً؟" optional aside={dealbreaker("beard", "prefBeard")}>
                 <ChoiceGroup id="prefBeard" options={preferenceOptions} isSelected={(v) => form.prefBeard === v} onSelect={(v) => update("prefBeard", v)} />
               </Field>

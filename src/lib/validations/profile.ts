@@ -5,6 +5,7 @@ import { toLatinDigits } from "@/lib/digits";
 // Both are db-free (pure value lists), safe for the client wizards that import this file
 import { OPTION_VALUES } from "@/lib/profile-options";
 import { EDUCATION_ORDER } from "@/lib/matching/score";
+import { PREF_RELIGION_VALUES, RELIGION_VALUES } from "@/lib/profile-religion";
 import { PREF_SECT_VALUES, SECT_VALUES } from "@/lib/profile-sect";
 
 /** Marriage platform: members must be adults */
@@ -48,6 +49,8 @@ const smokingEnum = z.enum(OPTION_VALUES.smokingStatus, { message: "قيمة ا�
 const cookingEnum = z.enum(OPTION_VALUES.cookingAbility, { message: "قيمة الطبخ غير صالحة" });
 // «المذهب» (Lebanon only: the routes drop it for other countries, stripSectUnlessLebanon)
 const sectEnum = z.enum(SECT_VALUES, { message: "قيمة المذهب غير صالحة" });
+const religionEnum = z.enum(RELIGION_VALUES, { message: "قيمة الديانة غير صالحة" });
+const prefReligionEnum = z.enum(PREF_RELIGION_VALUES, { message: "قيمة تفضيل الديانة غير صالحة" });
 const prefSectEnum = z.enum(PREF_SECT_VALUES, { message: "قيمة مذهب الشريك غير صالحة" });
 const prefAgeMinField = z.number().int().min(18, "العمر الأدنى يجب أن يكون 18 على الأقل").max(PREF_AGE_MAX, `العمر الأدنى يجب أن يكون ${PREF_AGE_MAX} كحد أقصى`);
 const prefAgeMaxField = z.number().int().min(18, "العمر الأقصى يجب أن يكون 18 على الأقل").max(PREF_AGE_MAX, `العمر الأقصى يجب أن يكون ${PREF_AGE_MAX} كحد أقصى`);
@@ -101,6 +104,7 @@ export const profileSchema = z.object({
   niqab: z.boolean().nullable().optional(),
   smokingStatus: smokingEnum.optional(),
   sect: sectEnum.optional(),
+  religion: religionEnum.optional(),
   aboutMe: longText().optional(),
   area: shortText().optional(),
   latitude: z.number().optional(),
@@ -126,6 +130,7 @@ export const profileSchema = z.object({
   prefReligiosity: list(religiosityEnum).optional(),
   prefSmokingStatus: list(smokingEnum).optional(),
   prefSect: list(prefSectEnum).optional(),
+  prefReligion: prefReligionEnum.optional(),
   prefChildrenAcceptance: shortText().optional(),
 }).refine(ageRangeOk, { message: AGE_RANGE_MESSAGE, path: ["prefAgeMin"] });
 
@@ -195,6 +200,7 @@ export const profileDraftFields = z.object({
   niqab: z.boolean().nullable().optional(),
   smokingStatus: smokingEnum.optional(),
   sect: sectEnum.optional(),
+  religion: religionEnum.optional(),
   aboutMe: longText().optional(),
   area: shortText().optional(),
   latitude: z.number().optional(),
@@ -219,6 +225,7 @@ export const profileDraftFields = z.object({
   prefReligiosity: list(shortText()).optional(),
   prefSmokingStatus: list(shortText()).optional(),
   prefSect: list(prefSectEnum).optional(),
+  prefReligion: prefReligionEnum.optional(),
   prefChildrenAcceptance: shortText().optional(),
 });
 
@@ -263,13 +270,15 @@ const updateChangeFields = profileDraftFields
     prefReligiosity: list(religiosityEnum),
     prefSmokingStatus: list(smokingEnum),
     prefSect: list(prefSectEnum),
+    prefReligion: prefReligionEnum,
   }).shape;
 
 export const profileUpdateChangesSchema = z.strictObject(
   Object.fromEntries(
     Object.entries(updateChangeFields).map(([key, field]) => [key, (field as z.ZodType).nullable().optional()]),
   ) as { [K in keyof typeof updateChangeFields]: z.ZodOptional<z.ZodNullable<(typeof updateChangeFields)[K]>> },
-);
+  // «الديانة» can be changed but never cleared: no "" and no null (a null would read «مسلم» behind the team's back)
+).extend({ religion: religionEnum.optional() });
 
 /** POST /api/profile/update-request body */
 export const profileUpdateRequestSchema = z.object({

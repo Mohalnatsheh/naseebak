@@ -26,6 +26,12 @@
   --primary-2: oklch(0.455 0.086 247.9);    /* #2b5a84 — gradients only */
   --accent-soft: oklch(0.691 0.101 74.1 / 0.12); /* 12% gold — the "why" line, gentle highlights */
   --sand: oklch(0.959 0.009 84.6);          /* #f4f1eb — chat and family rooms */
+  /* WhatsApp-style chat (switch chat_whatsapp_layout) */
+  --bubble-mine: oklch(0.93 0.018 249);       /* my bubble: primary at ~12% on white */
+  --bubble-mine-quote: oklch(0.885 0.025 249); /* quote block inside my bubble, one step darker */
+  --chat-select: oklch(0.39 0.07 249 / 0.14); /* selected row wash: primary at 14% */
+  --chat-chip: oklch(1 0 0 / 0.92);           /* date chip, unread strip: card at 92% */
+  --safety-chip: oklch(0.95 0.03 80);         /* safety note: pale gold, text stays accent-ink */
   --ink: oklch(0.251 0.029 261.4);          /* #1a2230 — body text */
   --muted-ink: oklch(0.499 0.021 253.5);    /* #5b646f — secondary text */
   /* Motion (P2-8; the app's AppMotion): one easing and four durations */
@@ -78,6 +84,11 @@
   --primary-2: oklch(0.5 0.09 248);
   --accent-soft: oklch(0.65 0.10 74 / 0.16);
   --sand: oklch(0.22 0.02 80);
+  --bubble-mine: oklch(0.32 0.04 249);
+  --bubble-mine-quote: oklch(0.27 0.04 249);
+  --chat-select: oklch(0.55 0.09 249 / 0.18); /* dark primary at 18%: a touch stronger to read on dark sand */
+  --chat-chip: oklch(0.18 0.02 250 / 0.92);   /* dark card at 92% */
+  --safety-chip: oklch(0.3 0.04 80);          /* deep gold-brown; accent-ink (0.78) text stays readable */
   --ink: oklch(0.95 0.005 250);
   --muted-ink: oklch(0.7 0.01 250);
   --destructive: oklch(0.55 0.2 25);
@@ -122,6 +133,11 @@
   --color-primary-deep: var(--primary-deep);
   --color-primary-2: var(--primary-2);
   --color-sand: var(--sand);
+  --color-bubble-mine: var(--bubble-mine);
+  --color-bubble-mine-quote: var(--bubble-mine-quote);
+  --color-chat-select: var(--chat-select);
+  --color-chat-chip: var(--chat-chip);
+  --color-safety-chip: var(--safety-chip);
   --color-ink: var(--ink);
   --color-muted-ink: var(--muted-ink);
   --color-destructive: var(--destructive);

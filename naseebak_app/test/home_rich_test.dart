@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -24,7 +25,8 @@ void main() {
     'compatibilityScore': 82,
     'reason': 'نفس المدينة',
     'likedYou': likedYou,
-    'candidate': {'id': 'u$id', 'firstName': name, 'age': 30, 'city': 'عمّان'},
+    'activity': 'نشط اليوم',
+    'candidate': {'id': 'u$id', 'firstName': name, 'age': 30, 'city': 'إربد'},
   };
 
   Map<String, dynamic> chat(
@@ -110,9 +112,10 @@ void main() {
     bool appPayments = true,
     bool pollsOn = true,
     bool tall = true,
+    double width = 400,
   }) async {
     if (tall) {
-      tester.view.physicalSize = const Size(400, 4000);
+      tester.view.physicalSize = Size(width, 4000);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
     }
@@ -183,9 +186,10 @@ void main() {
   Finder inKey(String key, Finder f) => find.descendant(of: find.byKey(Key(key)), matching: f);
 
   /// A member with something in every block
-  Future<FakeAdapter> pumpBusy(WidgetTester tester, {bool tall = true}) => pumpHome(
+  Future<FakeAdapter> pumpBusy(WidgetTester tester, {bool tall = true, double width = 400}) => pumpHome(
     tester,
     tall: tall,
+    width: width,
     flags: {'chat': true, 'freeInterestReply': true},
     counts: {
       'pendingIntros': 1,
@@ -486,5 +490,68 @@ void main() {
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull, reason: k);
     }
+  });
+
+  group('iPhone 17 Pro layout (402 pt)', () {
+    /// Every activity label on the suggestion cards is laid out whole: never ellipsized
+    void expectActivityWhole(WidgetTester tester) {
+      final labels = find.descendant(of: find.byKey(const Key('home-suggestions')), matching: find.text('نشط اليوم'));
+      expect(labels, findsWidgets);
+      for (final e in labels.evaluate()) {
+        final p = e.renderObject! as RenderParagraph;
+        expect(p.didExceedMaxLines, isFalse);
+        final t = e.widget as Text;
+        expect(t.overflow, isNot(TextOverflow.ellipsis));
+      }
+    }
+
+    testWidgets('the suggestion card shows «نشط اليوم» in full at 402 pt', (tester) async {
+      await pumpBusy(tester, width: 402);
+      expect(inKey('home-suggestions', find.text('إربد')), findsWidgets);
+      expectActivityWhole(tester);
+    });
+
+    testWidgets('and at 360 pt with 1.3× text', (tester) async {
+      tester.platformDispatcher.textScaleFactorTestValue = 1.3;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      await pumpBusy(tester, width: 360);
+      expect(tester.takeException(), isNull);
+      expectActivityWhole(tester);
+    });
+
+    testWidgets('a lone balance tile is one compact row (no «اشحن», no Pro, profile complete)', (tester) async {
+      await pumpHome(tester, width: 402, appPayments: false, counts: {'credits': 4});
+      expect(find.byKey(const Key('home-tile-pro')), findsNothing);
+      expect(find.byKey(const Key('home-tile-profile')), findsNothing);
+      final tile = find.byKey(const Key('home-tile-credits'));
+      expect(tester.getSize(tile).height, lessThan(100));
+      expect(tester.getSize(tile).width, greaterThan(300));
+    });
+
+    testWidgets('a lone balance tile with «اشحني» stays compact, the action at the end', (tester) async {
+      await pumpHome(tester, width: 402, counts: {'credits': 4});
+      final tile = find.byKey(const Key('home-tile-credits'));
+      expect(tester.getSize(tile).height, lessThan(100));
+      // RTL: the end is the left side, so the action sits left of the number
+      expect(
+        tester.getCenter(inKey('home-tile-credits', find.text('اشحني'))).dx,
+        lessThan(tester.getCenter(inKey('home-tile-credits', find.text('4'))).dx),
+      );
+    });
+
+    testWidgets('two tiles side by side share one height', (tester) async {
+      await pumpHome(
+        tester,
+        width: 402,
+        counts: {
+          'credits': 4,
+          'pro': {'isPro': false, 'showPage': true},
+        },
+      );
+      final a = tester.getSize(find.byKey(const Key('home-tile-credits')));
+      final b = tester.getSize(find.byKey(const Key('home-tile-pro')));
+      expect(a.height, b.height);
+      expect(tester.takeException(), isNull);
+    });
   });
 }

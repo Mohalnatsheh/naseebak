@@ -33,6 +33,8 @@ class HomeTiles extends ConsumerWidget {
     final p = profile;
     final showProfile = p != null && p.completeness < 100;
 
+    // One tile alone is a compact full-width row; two sit side by side, equal in height
+    final wide = (credits != null ? 1 : 0) + (showPro ? 1 : 0) == 1;
     final top = <Widget>[
       if (credits != null)
         _Tile(
@@ -41,6 +43,7 @@ class HomeTiles extends ConsumerWidget {
           value: '$credits',
           tabular: true,
           action: payments ? g('اشحن', 'اشحني') : null,
+          wide: wide,
           onTap: () => context.push('/credits'),
         ),
       if (showPro)
@@ -50,6 +53,7 @@ class HomeTiles extends ConsumerWidget {
           value: counts.isPro ? 'فعّالة' : (counts.flags.chat ? 'صور وصوت في المحادثة' : 'شارة Pro على بطاقتك'),
           gold: true,
           action: counts.isPro ? null : g('اكتشف', 'اكتشفي'),
+          wide: wide,
           onTap: () => context.push('/pro'),
         ),
     ];
@@ -62,7 +66,9 @@ class HomeTiles extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const HomeBlockHeader(title: 'حسابي'),
-          if (top.isNotEmpty)
+          if (top.length == 1)
+            top.single
+          else if (top.length > 1)
             IntrinsicHeight(
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -93,6 +99,7 @@ class _Tile extends StatelessWidget {
     this.action,
     this.gold = false,
     this.tabular = false,
+    this.wide = false,
   });
   final String label;
   final String value;
@@ -103,8 +110,57 @@ class _Tile extends StatelessWidget {
   final bool gold;
   final bool tabular;
 
+  /// Alone in the row: label and value at the start, the action at the end, one line high
+  final bool wide;
+
   @override
   Widget build(BuildContext context) {
+    final labelText = Text(label, style: AppText.caption.copyWith(color: gold ? AppColors.goldText : AppColors.muted));
+    final valueText = Text(
+      value,
+      style: (tabular ? AppText.title : AppText.label).copyWith(
+        color: AppColors.ink,
+        fontWeight: FontWeight.w800,
+        fontFeatures: tabular ? AppText.tabular : null,
+      ),
+    );
+    final actionRow = action == null
+        ? null
+        : Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(
+                child: Text(
+                  action!,
+                  style: AppText.label.copyWith(color: AppColors.goldText, fontWeight: FontWeight.w700),
+                ),
+              ),
+              const Icon(Icons.chevron_right_rounded, size: 18, color: AppColors.goldText),
+            ],
+          );
+    // Sized by its content: a side-by-side pair is evened out by the IntrinsicHeight around it, nothing else
+    final Widget content = wide
+        ? Row(
+            children: [
+              Expanded(
+                child: Wrap(
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: AppSpace.sm,
+                  children: [labelText, valueText],
+                ),
+              ),
+              if (actionRow != null) ...[const SizedBox(width: AppSpace.sm), actionRow],
+            ],
+          )
+        : Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              labelText,
+              const SizedBox(height: AppSpace.xs),
+              valueText,
+              if (actionRow != null) ...[const Spacer(), const SizedBox(height: AppSpace.xs), actionRow],
+            ],
+          );
     return Material(
       color: gold ? AppColors.goldSoft : AppColors.surface,
       clipBehavior: Clip.antiAlias,
@@ -115,41 +171,8 @@ class _Tile extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         child: ConstrainedBox(
-          constraints: const BoxConstraints(minHeight: 88),
-          child: Padding(
-            padding: const EdgeInsets.all(AppSpace.md),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(label, style: AppText.caption.copyWith(color: gold ? AppColors.goldText : AppColors.muted)),
-                const SizedBox(height: AppSpace.xs),
-                Text(
-                  value,
-                  style: (tabular ? AppText.title : AppText.label).copyWith(
-                    color: AppColors.ink,
-                    fontWeight: FontWeight.w800,
-                    fontFeatures: tabular ? AppText.tabular : null,
-                  ),
-                ),
-                if (action != null) ...[
-                  const Spacer(),
-                  const SizedBox(height: AppSpace.xs),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Flexible(
-                        child: Text(
-                          action!,
-                          style: AppText.label.copyWith(color: AppColors.goldText, fontWeight: FontWeight.w700),
-                        ),
-                      ),
-                      const Icon(Icons.chevron_right_rounded, size: 18, color: AppColors.goldText),
-                    ],
-                  ),
-                ],
-              ],
-            ),
-          ),
+          constraints: const BoxConstraints(minHeight: 44),
+          child: Padding(padding: const EdgeInsets.all(AppSpace.md), child: content),
         ),
       ),
     );

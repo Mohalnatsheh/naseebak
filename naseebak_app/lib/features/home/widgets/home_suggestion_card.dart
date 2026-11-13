@@ -223,36 +223,33 @@ class HomeSuggestionCard extends StatelessWidget {
     );
   }
 
-  /// «المدينة · نشطة اليوم» on one line
+  /// The city, then the activity on its own line («نشطة اليوم» in full, never cut: it wraps if it must)
   Widget _place(String? city, String? activity) {
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (city != null)
-          Flexible(
-            child: Text(
-              city,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: AppText.caption.copyWith(color: AppColors.muted),
-            ),
+          Text(
+            city,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppText.caption.copyWith(color: AppColors.muted),
           ),
-        if (activity != null) ...[
-          if (city != null) const SizedBox(width: 6),
-          Container(
-            width: 6,
-            height: 6,
-            decoration: const BoxDecoration(color: AppColors.success, shape: BoxShape.circle),
+        if (activity != null)
+          Row(
+            key: const Key('home-suggestion-activity'),
+            children: [
+              Container(
+                width: 6,
+                height: 6,
+                decoration: const BoxDecoration(color: AppColors.success, shape: BoxShape.circle),
+              ),
+              const SizedBox(width: AppSpace.xs),
+              Flexible(
+                child: Text(activity, style: AppText.caption.copyWith(color: AppColors.success)),
+              ),
+            ],
           ),
-          const SizedBox(width: AppSpace.xs),
-          Flexible(
-            child: Text(
-              activity,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: AppText.caption.copyWith(color: AppColors.success),
-            ),
-          ),
-        ],
       ],
     );
   }

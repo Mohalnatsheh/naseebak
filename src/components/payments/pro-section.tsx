@@ -251,6 +251,9 @@ export function ProPlanChooser({
                   <Sparkles className="h-3 w-3" aria-hidden="true" />
                 </span>
                 {proCreditsLine(offer)}
+                {!!offer.bonusCredits && (
+                  <span className="ms-1 rounded-full bg-accent-soft px-2 py-0.5 text-caption font-bold text-accent-ink">+{offer.bonusCredits} هدية مع أول دفعة</span>
+                )}
               </li>
             )}
             {proFeatureLabels(chatDelete).map((f) => (

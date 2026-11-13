@@ -35,6 +35,8 @@ import { LoadError } from "@/components/shared/load-error";
 import { MoneyAmount, UsdLine } from "@/components/payments/money";
 import { EmptyState } from "@/components/shared/line-art";
 import { PageHeader } from "@/components/shared/page-header";
+import { OfferBanner } from "@/components/payments/offer-banner";
+import type { ActiveOffer } from "@/lib/payments/offer";
 import { markPageNotificationsRead } from "@/lib/notifications-client";
 import { discountPercent } from "@/lib/payments/packages";
 import { COUNTRIES, formatDate, toCountry, type CountryCode } from "@/lib/countries";
@@ -147,6 +149,8 @@ function PaymentsContent() {
   const [purchasesEnabled, setPurchasesEnabled] = useState(true);
   // Jordan charged in JOD (switch jod_charging): no dollar note
   const [jodCharging, setJodCharging] = useState(false);
+  /** Sale offer open now (lib/payments/offer); package names already carry the gift */
+  const [saleOffer, setSaleOffer] = useState<ActiveOffer | null>(null);
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
   const [matchCredits, setMatchCredits] = useState(0);
   // Plans/history didn't load: never show a balance of 0 or an empty package list as if real
@@ -185,6 +189,7 @@ function PaymentsContent() {
       setPackages(plansData.packages || []);
       setPurchasesEnabled(plansData.purchasesEnabled !== false);
       setJodCharging(plansData.jodCharging === true);
+      setSaleOffer(plansData.offer ?? null);
       if (plansData.country) setPlanCountry(plansData.country);
       setPayments(histData.payments || []);
       setMatchCredits(histData.matchCredits ?? 0);
@@ -555,8 +560,11 @@ function PaymentsContent() {
       {/* Pro has its own page: one small link to it, only when there are plans to buy or a subscription to manage */}
       {pro?.showPage && <ProLinkCard isPro={pro.isPro} chatOn={!!flags.chat} />}
 
+      {/* Sale offer: takes the one banner slot from the opening-discount banner while it runs */}
+      {purchasesEnabled && <OfferBanner offer={saleOffer} country={country.code} />}
+
       {/* Opening offer: why the prices are low right now */}
-      {packages.some((p) => discountPercent({ price: p.price, wasPrice: p.wasPrice })) && (
+      {!saleOffer && packages.some((p) => discountPercent({ price: p.price, wasPrice: p.wasPrice })) && (
         <section className="landing-night relative overflow-hidden rounded-2xl px-4 py-4 text-white shadow-md shadow-primary/15 sm:px-6">
           <div className="landing-khatam absolute inset-0" aria-hidden />
           <div className="relative flex items-center gap-3">

@@ -16,6 +16,7 @@ import { markPageNotificationsRead } from "@/lib/notifications-client";
 import { waitForProActivation } from "@/lib/pro/activation";
 import { PRO_PAGE_PATH } from "@/lib/pro/plans";
 import type { MyProState } from "@/lib/pro/pro-types";
+import { OfferBanner } from "@/components/payments/offer-banner";
 
 /** Outcomes of a local mock Pro checkout (`POST /api/dev/mock-checkout/[id]`) */
 const MOCK_PRO_OUTCOMES = ["paid", "cancelled", "renew", "fail", "end"] as const;
@@ -184,6 +185,9 @@ function ProContent() {
           {mockResult && <p className="break-all font-mono text-xs text-muted-foreground">{mockResult}</p>}
         </div>
       )}
+
+      {/* Sale offer: only to someone who can start a plan (the bonus comes with the first payment) */}
+      {state?.canBuy && <OfferBanner offer={state.offer ?? null} variant="pro" country={memberCountry ?? "JO"} />}
 
       <ProSection state={state} loadFailed={failed} onRetry={() => loadPro()} onChanged={() => loadPro()} />
 

@@ -7,6 +7,7 @@ import 'package:naseebak_app/features/onboarding/setup_screen.dart';
 import 'package:naseebak_app/features/country_selection/country.dart';
 import 'package:naseebak_app/features/profile/profile_edit_plan.dart';
 import 'package:naseebak_app/features/profile/profile_edit_screen.dart';
+import 'package:naseebak_app/features/profile/profile_repository.dart' show MyProfile;
 import 'package:naseebak_app/shared/person.dart';
 import 'package:naseebak_app/shared/religion.dart';
 
@@ -214,6 +215,31 @@ void main() {
       return adapter;
     }
 
+    Future<void> scrollDownTo(WidgetTester tester, Key k) =>
+        tester.scrollUntilVisible(find.byKey(k), 300, scrollable: find.byType(Scrollable).first);
+
+    MyProfile maleWith(Map<String, Object?> p) => MyProfile.fromJson({
+          'user': {'id': 'u2', 'firstName': 'أحمد', 'lastName': 'علي', 'gender': 'MALE', 'profile': p},
+          'completeness': {'total': 60, 'sections': []},
+        });
+
+    Future<FakeAdapter> openMale(WidgetTester tester, Map<String, Object?> stored) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+      final adapter = FakeAdapter()
+        ..on('PUT', '/api/profile', const FakeResponse(200, {'profile': {}}))
+        ..on('POST', '/api/profile/update-request', const FakeResponse(200, {'message': 'ok', 'requested': true}))
+        ..on('GET', '/api/profile', const FakeResponse(200, {'user': {}}))
+        ..on('GET', '/api/profile/update-request', const FakeResponse(200, {'requests': []}));
+      await tester.pumpWidget(ProviderScope(
+        overrides: await testOverrides(adapter),
+        child: rtlApp(Scaffold(body: ProfileEditForm(profile: maleWith(stored), lists: relLists, pending: null))),
+      ));
+      await tester.pumpAndSettle();
+      return adapter;
+    }
+
     Future<void> save(WidgetTester tester) async {
       await tester.scrollUntilVisible(find.byKey(const Key('save-profile')), 300, scrollable: find.byType(Scrollable).first);
       await tester.tap(find.byKey(const Key('save-profile')));
@@ -245,7 +271,9 @@ void main() {
         (tester) async {
       final adapter = await openEditor(tester, relLists, {...storedProfile, 'sect': null});
       await tapUp(tester, const Key('religion-مسيحي'));
+      await scrollDownTo(tester, const Key('religiosity-ملتزم'));
       expect(find.text('المذهب'), findsNothing);
+      await scrollDownTo(tester, const Key('smokingStatus-لا أدخن'));
       expect(find.byKey(const Key('hijab-hijab')), findsNothing);
       await save(tester);
       expect(find.text('يرجى اختيار المذهب'), findsNothing);
@@ -263,16 +291,69 @@ void main() {
       expect(tester.widget<ChoiceChip>(none).selected, isTrue);
     });
 
+    testWidgets('positive control: a Muslim in Lebanon gets «المذهب» and the hijab row', (tester) async {
+      await openEditor(tester, relLists, {...storedProfile, 'sect': 'سني'});
+      await scrollDownTo(tester, const Key('religiosity-ملتزم'));
+      expect(find.text('المذهب'), findsOneWidget);
+      await scrollDownTo(tester, const Key('smokingStatus-لا أدخن'));
+      expect(find.byKey(const Key('hijab-hijab')), findsOneWidget);
+    });
+
     testWidgets('a stored Christian with the switch off keeps the rows hidden', (tester) async {
-      await openEditor(tester, lists, {...storedProfile, 'religion': 'مسيحي', 'hijab': null});
+      final noReligion = CountryLists(
+        cities: lists.cities,
+        nationalitiesFemale: lists.nationalitiesFemale,
+        options: {...lists.options, 'sect': sectOptions},
+      );
+      await openEditor(tester, noReligion, {...storedProfile, 'religion': 'مسيحي', 'hijab': null, 'sect': null});
       expect(find.text('الديانة'), findsNothing);
+      await scrollDownTo(tester, const Key('religiosity-ملتزم'));
+      expect(find.text('المذهب'), findsNothing);
+      await scrollDownTo(tester, const Key('smokingStatus-لا أدخن'));
       expect(find.byKey(const Key('hijab-hijab')), findsNothing);
     });
 
-    test('planProfileEdit sends a religion change to review', () {
-      final plan = planProfileEdit({'religion': 'مسلم'}, {'religion': 'مسيحي'});
-      expect(plan.reviewed, {'religion': 'مسيحي'});
-      expect(plan.fills, isEmpty);
+    testWidgets('the same stored Muslim with the switch off still gets the rows (control)', (tester) async {
+      final noReligion = CountryLists(
+        cities: lists.cities,
+        nationalitiesFemale: lists.nationalitiesFemale,
+        options: {...lists.options, 'sect': sectOptions},
+      );
+      await openEditor(tester, noReligion, {...storedProfile, 'sect': 'سني'});
+      await scrollDownTo(tester, const Key('smokingStatus-لا أدخن'));
+      expect(find.byKey(const Key('hijab-hijab')), findsOneWidget);
+    });
+
+    testWidgets('a Christian pick plus a fill: the PUT carries no Muslim-only keys, the request only the religion',
+        (tester) async {
+      final adapter = await openEditor(tester, relLists, {...storedProfile, 'sect': 'سني', 'niqab': false});
+      await tapUp(tester, const Key('religion-مسيحي'));
+      await scrollDownTo(tester, const Key('field-height'));
+      await tester.enterText(find.byKey(const Key('field-height')), '165');
+      await save(tester);
+      final put = bodyOf(adapter.to('PUT', '/api/profile').single);
+      expect(put['height'], 165);
+      for (final k in ['sect', 'hijab', 'niqab', 'beard', 'religion']) {
+        expect(put.containsKey(k), isFalse, reason: k);
+      }
+      expect(bodyOf(adapter.to('POST', '/api/profile/update-request').single)['changes'], {'religion': 'مسيحي'});
+    });
+
+    testWidgets('a man: «مسيحي» hides the beard row, «مسلم» brings it back', (tester) async {
+      await openMale(tester, {...storedProfile, 'sect': 'سني', 'beard': false});
+      await scrollDownTo(tester, const Key('smokingStatus-لا أدخن'));
+      expect(find.byKey(const Key('beard-true')), findsOneWidget);
+      await tapUp(tester, const Key('religion-مسيحي'));
+      await scrollDownTo(tester, const Key('smokingStatus-لا أدخن'));
+      expect(find.byKey(const Key('beard-true')), findsNothing);
+    });
+
+    test('planProfileEdit sends a religion change to review even from an empty stored value', () {
+      for (final before in [null, '']) {
+        final plan = planProfileEdit({'religion': before}, {'religion': 'مسيحي'});
+        expect(plan.fills, isEmpty, reason: '$before');
+        expect(plan.reviewed, {'religion': 'مسيحي'}, reason: '$before');
+      }
     });
   });
 }

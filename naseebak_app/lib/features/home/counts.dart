@@ -47,6 +47,7 @@ class Counts {
     this.likedYou,
     this.isPro = false,
     this.proCancelAtPeriodEnd = false,
+    this.proShowPage = false,
     this.interestPaywall = false,
   });
 
@@ -67,6 +68,7 @@ class Counts {
       likedYou: asInt(j['likedYou']),
       isPro: asBool(pro['isPro']) ?? false,
       proCancelAtPeriodEnd: asBool(pro['cancelAtPeriodEnd']) ?? false,
+      proShowPage: asBool(pro['showPage']) ?? false,
       interestPaywall: asBool(j['interestPaywall']) ?? false,
     );
   }
@@ -90,6 +92,10 @@ class Counts {
   /// Pro membership of the signed-in member (`pro` of the response)
   final bool isPro;
   final bool proCancelAtPeriodEnd;
+
+  /// `pro.showPage`: the Pro page is linked (plans I can buy, or my subscription). Never alone in the app: AND it
+  /// with `appPaymentsProvider` (a Pro test account can get true). Missing (older server) = false
+  final bool proShowPage;
 
   /// Switch interest_paywall, for a member who can buy: at 0 credits «مهتم» opens the «انتهى رصيدك» step
   /// instead of being greyed. Missing (older server) = false

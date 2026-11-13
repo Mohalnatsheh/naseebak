@@ -124,7 +124,7 @@ void main() {
   }
 
   for (final pro in [true, false]) {
-    testWidgets('the home greeting has the on-dark badge for a Pro member only (isPro: $pro)', (tester) async {
+    testWidgets('the home greeting has the badge (light header: not on-dark) for a Pro member only (isPro: $pro)', (tester) async {
     final adapter = FakeAdapter()
       ..on('GET', '/api/mobile/me', FakeResponse(200, {'user': meJson()}))
       ..on('GET', '/api/me/counts', FakeResponse(200, {'flags': {}, 'pro': {'isPro': pro}}))
@@ -141,7 +141,7 @@ void main() {
       return;
     }
     final badge = tester.widget<ProBadge>(find.byType(ProBadge));
-    expect(badge.onDark, isTrue);
+    expect(badge.onDark, isFalse);
     });
   }
 }

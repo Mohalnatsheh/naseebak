@@ -351,4 +351,35 @@ describe("emptyFilterFields", () => {
     expect(emptyFilterFields({ ...filled, sect: "سني" }, "FEMALE", "LB")).toEqual([]);
     expect(emptyFilterFields({ ...filled, sect: "أفضّل عدم الذكر" }, "FEMALE", "LB")).toEqual([]);
   });
+  it("no hijab, beard or sect tip for a Christian", async () => {
+    const { emptyFilterFields } = await import("@/lib/profile-completeness");
+    expect(emptyFilterFields({ religion: "مسيحي" }, "FEMALE", "LB").map((f) => f.key)).toEqual(["smokingStatus", "religiosity"]);
+    expect(emptyFilterFields({ religion: "مسيحي" }, "MALE", "LB").map((f) => f.key)).toEqual(["smokingStatus", "religiosity"]);
+  });
+
+  it("a null-religion member keeps today's tips (hijab for a Jordanian woman, sect for a Lebanese)", async () => {
+    const { emptyFilterFields } = await import("@/lib/profile-completeness");
+    expect(emptyFilterFields({ religion: null }, "FEMALE", "JO").map((f) => f.key)).toEqual(["hijab", "smokingStatus", "religiosity"]);
+    expect(emptyFilterFields({ religion: null }, "MALE", "LB").map((f) => f.key)).toEqual(["beard", "smokingStatus", "religiosity", "sect"]);
+  });
+});
+
+describe("religion and completeness", () => {
+  const lb = (religion: string | null, extra = {}): UserForCompleteness => ({
+    country: "LB",
+    profile: { city: "بيروت", religion, ...extra },
+  });
+
+  it("religion never changes the percentage; a Christian is not missing «المذهب»", () => {
+    expect(calculateCompleteness(lb(null)).total).toBe(calculateCompleteness(lb("مسلم")).total);
+    const christian = calculateCompleteness(lb("مسيحي"));
+    const missing = christian.sections.flatMap((s) => s.missingFields);
+    expect(missing).not.toContain("المذهب");
+    expect(missing).not.toContain("المذهب لدى الشريك");
+    expect(missing).not.toContain("الديانة");
+    // null religion: sect is still counted as before
+    const legacy = calculateCompleteness(lb(null)).sections.flatMap((s) => s.missingFields);
+    expect(legacy).toContain("المذهب");
+    expect(legacy).toContain("المذهب لدى الشريك");
+  });
 });

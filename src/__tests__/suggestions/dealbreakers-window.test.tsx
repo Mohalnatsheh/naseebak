@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { cleanup, render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, fireEvent, waitFor } from "@testing-library/react";
 
 const ctx = vi.hoisted(() => ({ redesign: true as boolean }));
 vi.mock("@/contexts/dashboard-context", () => ({
@@ -43,6 +43,16 @@ describe("«شروطي الأساسية» window (switch dashboard_redesign)", (
   it("#dealbreakers in the URL opens it on load", async () => {
     window.history.replaceState(null, "", "/dashboard/suggestions#dealbreakers");
     render(<DealbreakersCard asDialog />);
+    expect((await screen.findByRole("dialog")).getAttribute("data-slot")).toBe("dialog-content");
+  });
+
+  it("#dealbreakers added later (a link on the same page) opens it", async () => {
+    render(<DealbreakersCard asDialog />);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    act(() => {
+      window.history.replaceState(null, "", "/dashboard/suggestions#dealbreakers");
+      window.dispatchEvent(new HashChangeEvent("hashchange"));
+    });
     expect((await screen.findByRole("dialog")).getAttribute("data-slot")).toBe("dialog-content");
   });
 

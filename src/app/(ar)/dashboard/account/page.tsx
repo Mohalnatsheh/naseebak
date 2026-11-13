@@ -52,27 +52,27 @@ export default function AccountPage() {
 
   const signOutButton = (
     <>
-    <button
-      type="button"
-      disabled={signingOut}
-      onClick={() => {
-        if (confirmSignOut) {
-          setConfirmOpen(true);
-          return;
-        }
-        setSigningOut(true);
-        // A failed sign-out (offline) gives the button back instead of a spinner that never ends
-        signOutAndUnlinkPush("/login").catch(() => setSigningOut(false));
-      }}
-      className={cn(
-        "flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl border border-destructive/20 bg-destructive/5 text-sm font-bold text-destructive transition-colors hover:bg-destructive/10",
-        signingOut && "opacity-60"
-      )}
-    >
-      {signingOut ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <LogOut className="h-4 w-4" aria-hidden />}
-      تسجيل الخروج
-    </button>
-    {confirmSignOut && <SignOutDialog open={confirmOpen} onOpenChange={setConfirmOpen} />}
+      <button
+        type="button"
+        disabled={signingOut}
+        onClick={() => {
+          if (confirmSignOut) {
+            setConfirmOpen(true);
+            return;
+          }
+          setSigningOut(true);
+          // A failed sign-out (offline) gives the button back instead of a spinner that never ends
+          signOutAndUnlinkPush("/login").catch(() => setSigningOut(false));
+        }}
+        className={cn(
+          "flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl border border-destructive/20 bg-destructive/5 text-sm font-bold text-destructive transition-colors hover:bg-destructive/10",
+          signingOut && "opacity-60"
+        )}
+      >
+        {signingOut ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <LogOut className="h-4 w-4" aria-hidden />}
+        تسجيل الخروج
+      </button>
+      {confirmSignOut && <SignOutDialog open={confirmOpen} onOpenChange={setConfirmOpen} />}
     </>
   );
 

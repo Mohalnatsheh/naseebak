@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, act } from "@testing-library/react";
 
 const dash = vi.hoisted(() => ({ redesign: true }));
 const signOut = vi.hoisted(() => vi.fn(() => Promise.resolve()));
@@ -64,5 +64,27 @@ describe.each(surfaces)("sign-out confirm on the %s", (_name, mount) => {
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(signOut).toHaveBeenCalledTimes(1);
     expect(signOut).toHaveBeenCalledWith("/login");
+  });
+});
+
+describe("the sign-out window while signing out", () => {
+  it("locks both buttons while busy, and gives them back when sign-out fails", async () => {
+    signOut.mockClear();
+    let fail: (e: Error) => void = () => {};
+    signOut.mockImplementationOnce(() => new Promise<void>((_, reject) => { fail = reject; }));
+    dash.redesign = true;
+    render(<AccountPage />);
+    fireEvent.click(signOutButtons()[0]);
+    const dialog = screen.getByRole("dialog");
+    const buttons = () => Array.from(dialog.querySelectorAll("button")).filter((b) => ["تسجيل الخروج", "إلغاء"].includes(b.textContent?.trim() ?? ""));
+    fireEvent.click(buttons().find((b) => b.textContent?.trim() === "تسجيل الخروج")!);
+    expect(buttons().every((b) => b.disabled)).toBe(true);
+    // Escape doesn't close it mid sign-out
+    fireEvent.keyDown(dialog, { key: "Escape" });
+    expect(screen.getByRole("dialog")).toBeTruthy();
+
+    await act(async () => fail(new Error("offline")));
+    expect(buttons().every((b) => !b.disabled)).toBe(true);
+    expect(signOut).toHaveBeenCalledTimes(1);
   });
 });

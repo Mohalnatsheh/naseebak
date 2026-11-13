@@ -147,71 +147,71 @@ export function DealbreakersCard({
     "لن نقترح عليكِ أي شخص لا يحقّق الشرط المفعّل. كثرة الشروط تقلّل الاقتراحات. شروطكِ خاصة ولا يراها أحد."
   );
   const editorBody = (
-          <div className={cn("space-y-2", !asDialog && "px-5")}>
-            {loadFailed ? (
-              <div role="alert" className="flex flex-wrap items-center gap-2 rounded-xl bg-destructive/5 p-3 text-sm text-destructive">
-                تعذّر تحميل شروطك.
-                <Button type="button" variant="outline" className="h-11" onClick={() => { setLoadFailed(false); setReloadKey((k) => k + 1); }}>
-                  إعادة المحاولة
-                </Button>
-              </div>
-            ) : !prefs ? (
-              <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" aria-hidden /></div>
-            ) : available.length === 0 ? (
-              <div className="rounded-xl bg-muted/40 p-4 text-sm text-muted-foreground">
-                {g(
-                  "أضف تفضيلاتك في ملفك الشخصي أولاً لتتمكن من تحديد شروطك الأساسية.",
-                  "أضيفي تفضيلاتكِ في ملفكِ الشخصي أولاً لتتمكني من تحديد شروطكِ الأساسية."
-                )}{" "}
-                <Link href="/dashboard/profile/edit?step=3" className="font-semibold text-primary underline-offset-4 hover:underline">
-                  تفضيلاتي
-                </Link>
-              </div>
-            ) : (
-              available.map(({ key, summary }) => (
-                <label key={key} className="flex min-h-14 cursor-pointer items-center justify-between gap-3 rounded-2xl border border-border/60 bg-card px-4 py-3">
-                  <span className="min-w-0">
-                    <span className="block text-sm font-bold text-foreground">{DEALBREAKER_LABELS[key]}</span>
-                    <span className="block truncate text-xs text-muted-foreground">{summary}</span>
-                  </span>
-                  <Switch
-                    checked={selected.has(key)}
-                    onCheckedChange={(v) => {
-                      setJustSaved(false);
-                      setSelected((prev) => {
-                        const next = new Set(prev);
-                        if (v) next.add(key);
-                        else next.delete(key);
-                        return next;
-                      });
-                    }}
-                    aria-label={`${DEALBREAKER_LABELS[key]} شرط أساسي`}
-                  />
-                </label>
-              ))
-            )}
-            {available.length > 0 && (
-              <p className="pt-1 text-xs text-muted-foreground">
-                {g("القيم من تفضيلاتك.", "القيم من تفضيلاتكِ.")}{" "}
-                <Link href="/dashboard/profile/edit?step=3" className="font-semibold text-primary underline-offset-4 hover:underline">
-                  تعديل تفضيلاتي
-                </Link>
-              </p>
-            )}
-          </div>
+    <div className={cn("space-y-2", !asDialog && "px-5")}>
+      {loadFailed ? (
+        <div role="alert" className="flex flex-wrap items-center gap-2 rounded-xl bg-destructive/5 p-3 text-sm text-destructive">
+          تعذّر تحميل شروطك.
+          <Button type="button" variant="outline" className="h-11" onClick={() => { setLoadFailed(false); setReloadKey((k) => k + 1); }}>
+            إعادة المحاولة
+          </Button>
+        </div>
+      ) : !prefs ? (
+        <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" aria-hidden /></div>
+      ) : available.length === 0 ? (
+        <div className="rounded-xl bg-muted/40 p-4 text-sm text-muted-foreground">
+          {g(
+            "أضف تفضيلاتك في ملفك الشخصي أولاً لتتمكن من تحديد شروطك الأساسية.",
+            "أضيفي تفضيلاتكِ في ملفكِ الشخصي أولاً لتتمكني من تحديد شروطكِ الأساسية."
+          )}{" "}
+          <Link href="/dashboard/profile/edit?step=3" className="font-semibold text-primary underline-offset-4 hover:underline">
+            تفضيلاتي
+          </Link>
+        </div>
+      ) : (
+        available.map(({ key, summary }) => (
+          <label key={key} className="flex min-h-14 cursor-pointer items-center justify-between gap-3 rounded-2xl border border-border/60 bg-card px-4 py-3">
+            <span className="min-w-0">
+              <span className="block text-sm font-bold text-foreground">{DEALBREAKER_LABELS[key]}</span>
+              <span className="block truncate text-xs text-muted-foreground">{summary}</span>
+            </span>
+            <Switch
+              checked={selected.has(key)}
+              onCheckedChange={(v) => {
+                setJustSaved(false);
+                setSelected((prev) => {
+                  const next = new Set(prev);
+                  if (v) next.add(key);
+                  else next.delete(key);
+                  return next;
+                });
+              }}
+              aria-label={`${DEALBREAKER_LABELS[key]} شرط أساسي`}
+            />
+          </label>
+        ))
+      )}
+      {available.length > 0 && (
+        <p className="pt-1 text-xs text-muted-foreground">
+          {g("القيم من تفضيلاتك.", "القيم من تفضيلاتكِ.")}{" "}
+          <Link href="/dashboard/profile/edit?step=3" className="font-semibold text-primary underline-offset-4 hover:underline">
+            تعديل تفضيلاتي
+          </Link>
+        </p>
+      )}
+    </div>
   );
   const editorFooter = available.length > 0 && (
     <>
-            {justSaved && (
-              <p role="status" className="flex items-center gap-1 text-sm text-emerald-700">
-                <Check className="h-4 w-4" aria-hidden /> تم الحفظ. تُطبَّق على الاقتراحات القادمة.
-              </p>
-            )}
-            {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-            <Button onClick={save} disabled={saving} className="h-12 w-full rounded-xl text-base font-bold">
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : "حفظ الشروط"}
-            </Button>
-          </>
+      {justSaved && (
+        <p role="status" className="flex items-center gap-1 text-sm text-emerald-700">
+          <Check className="h-4 w-4" aria-hidden /> تم الحفظ. تُطبَّق على الاقتراحات القادمة.
+        </p>
+      )}
+      {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+      <Button onClick={save} disabled={saving} className="h-12 w-full rounded-xl text-base font-bold">
+        {saving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : "حفظ الشروط"}
+      </Button>
+    </>
   );
 
   return (

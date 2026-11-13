@@ -70,13 +70,22 @@ describe("WaComposer: attach and camera", () => {
     expect(m.onLocked).toHaveBeenCalledTimes(2);
   });
 
-  it("enabled: «إرفاق» opens «المعرض» and «الكاميرا»", () => {
+  it("enabled on a phone: «إرفاق» opens «المعرض» and «الكاميرا»", () => {
+    coarse = true;
     renderComposer({ media: media("enabled") });
     const attach = screen.getByRole("button", { name: "إرفاق" });
     fireEvent.keyDown(attach, { key: "Enter" });
     const menu = screen.getByRole("menu");
     expect(within(menu).getByRole("menuitem", { name: "المعرض" })).toBeTruthy();
     expect(within(menu).getByRole("menuitem", { name: "الكاميرا" })).toBeTruthy();
+  });
+
+  it("enabled on desktop: «إرفاق» opens «المعرض» only (no camera item)", () => {
+    renderComposer({ media: media("enabled") });
+    fireEvent.keyDown(screen.getByRole("button", { name: "إرفاق" }), { key: "Enter" });
+    const menu = screen.getByRole("menu");
+    expect(within(menu).getByRole("menuitem", { name: "المعرض" })).toBeTruthy();
+    expect(within(menu).queryByRole("menuitem", { name: "الكاميرا" })).toBeNull();
   });
 
   it("the camera button shows on a coarse pointer only", () => {
@@ -138,6 +147,35 @@ describe("WaComposer: emoji", () => {
     const total = EMOJI_GROUPS.reduce((n, g) => n + g.emoji.length, 0);
     expect(total).toBeGreaterThanOrEqual(180);
     expect(total).toBeLessThanOrEqual(240);
+  });
+
+  it("shows a muted loading box while the panel's chunk loads", async () => {
+    renderComposer();
+    fireEvent.click(screen.getByRole("button", { name: "الرموز التعبيرية" }));
+    const loading = screen.getByTestId("emoji-panel-loading");
+    expect(loading.getAttribute("role")).toBe("status");
+    expect(loading.textContent).toBe("جارٍ التحميل…");
+    expect(await screen.findByRole("button", { name: "😊" })).toBeTruthy();
+    expect(screen.queryByTestId("emoji-panel-loading")).toBeNull();
+  });
+
+  it("on a phone, picking two emoji never focuses the box (iOS would close the panel) and keeps both in order", async () => {
+    coarse = true;
+    const spy = vi.spyOn(HTMLTextAreaElement.prototype, "setSelectionRange");
+    const { box } = renderComposer();
+    fireEvent.change(box(), { target: { value: "ab" } });
+    act(() => box().focus());
+    box().setSelectionRange(1, 1);
+    spy.mockClear();
+    fireEvent.click(screen.getByRole("button", { name: "الرموز التعبيرية" }));
+    expect(document.activeElement).not.toBe(box());
+    fireEvent.click(await screen.findByRole("button", { name: "😊" }));
+    fireEvent.click(screen.getByRole("button", { name: "😂" }));
+    expect(box().value).toBe("a😊😂b");
+    expect(document.activeElement).not.toBe(box());
+    expect(spy).not.toHaveBeenCalled();
+    expect(screen.getByRole("group", { name: "لوحة الرموز التعبيرية" })).toBeTruthy();
+    spy.mockRestore();
   });
 
   it("inserts a picked emoji at the cursor", async () => {

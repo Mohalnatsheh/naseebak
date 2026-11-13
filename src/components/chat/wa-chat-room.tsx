@@ -73,6 +73,31 @@ export function WaChatRoom({ model }: { model: ChatRoomModel }) {
     });
   }
 
+  const clearRef = useRef(clearSelection);
+  useEffect(() => {
+    clearRef.current = clearSelection;
+  });
+
+  // Android Back (and the browser's) clears the selection instead of leaving the chat: one history entry while a
+  // message is selected, taken back when the selection ends any other way
+  const hasSelection = !!selected;
+  useEffect(() => {
+    if (!hasSelection || typeof window === "undefined") return;
+    // No url: Next's router copies its own state into the entry, so going back to the page's entry is a no-op for it
+    window.history.pushState({ waSelection: true }, "");
+    let popped = false;
+    const onPop = () => {
+      popped = true;
+      clearRef.current();
+    };
+    window.addEventListener("popstate", onPop);
+    return () => {
+      window.removeEventListener("popstate", onPop);
+      // Only our own entry is taken back (never a page the member already moved to)
+      if (!popped && (window.history.state as { waSelection?: boolean } | null)?.waSelection) window.history.back();
+    };
+  }, [hasSelection]);
+
   const escapeClears = !!selected;
   useEffect(() => {
     if (!escapeClears) return;

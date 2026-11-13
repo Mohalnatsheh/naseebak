@@ -19,7 +19,16 @@ import { LiveLevel } from "./live-level";
 import { enterSends } from "./wa-chat-logic";
 import type { ChatComposer, ChatComposerHandle } from "./chat-composer";
 
-const EmojiPanel = dynamic(() => import("./emoji-panel").then((m) => m.EmojiPanel), { ssr: false });
+/** While the panel's chunk loads: a muted box the panel's size (its container sets the size) */
+function EmojiPanelLoading() {
+  return (
+    <div role="status" data-testid="emoji-panel-loading" className="h-full w-full animate-pulse bg-muted/60 motion-reduce:animate-none">
+      <span className="sr-only">جارٍ التحميل…</span>
+    </div>
+  );
+}
+
+const EmojiPanel = dynamic(() => import("./emoji-panel").then((m) => m.EmojiPanel), { ssr: false, loading: EmojiPanelLoading });
 
 const MAX = 1000;
 /** The text box grows to about 6 lines, then scrolls */
@@ -60,6 +69,9 @@ export const WaComposer = forwardRef<ChatComposerHandle, React.ComponentPropsWit
   const gallery = useRef<HTMLInputElement>(null);
   const camera = useRef<HTMLInputElement>(null);
   const caret = useRef<number | null>(null);
+  // Where the next emoji goes while the box is blurred (the phone panel is open): reading or setting the box's own
+  // selection then would focus it on iOS Safari, raise the keyboard and close the panel
+  const insertAt = useRef<number | null>(null);
   const micHintId = useId();
   const coarse = useCoarsePointer();
   const rec = useHoldToRecord(media, { female, onError: setHint, textRef: area, permissionHint: true });
@@ -82,10 +94,16 @@ export const WaComposer = forwardRef<ChatComposerHandle, React.ComponentPropsWit
     el.style.height = `${Math.min(el.scrollHeight, MAX_BOX_PX)}px`;
   }, [text]);
 
-  // A picked emoji leaves the cursor right after it
+  // A picked emoji leaves the cursor right after it: in the box when it has the focus, else remembered for the next pick
   useLayoutEffect(() => {
     if (caret.current === null) return;
-    area.current?.setSelectionRange(caret.current, caret.current);
+    const el = area.current;
+    if (el && typeof document !== "undefined" && document.activeElement === el) {
+      el.setSelectionRange(caret.current, caret.current);
+      insertAt.current = null;
+    } else {
+      insertAt.current = caret.current;
+    }
     caret.current = null;
   }, [text]);
 
@@ -107,8 +125,10 @@ export const WaComposer = forwardRef<ChatComposerHandle, React.ComponentPropsWit
 
   function insertEmoji(emoji: string) {
     const el = area.current;
-    const start = el?.selectionStart ?? text.length;
-    const end = el?.selectionEnd ?? text.length;
+    const focused = !!el && typeof document !== "undefined" && document.activeElement === el;
+    const remembered = !focused && insertAt.current !== null ? Math.min(insertAt.current, text.length) : null;
+    const start = remembered ?? el?.selectionStart ?? text.length;
+    const end = remembered ?? el?.selectionEnd ?? text.length;
     const next = text.slice(0, start) + emoji + text.slice(end);
     if (next.length > MAX + 50) return;
     caret.current = start + emoji.length;
@@ -276,7 +296,10 @@ export const WaComposer = forwardRef<ChatComposerHandle, React.ComponentPropsWit
                 enterKeyHint={coarse ? "enter" : "send"}
                 aria-label={female ? "اكتبي رسالتكِ" : "اكتب رسالتك"}
                 placeholder={female ? "اكتبي رسالتكِ…" : "اكتب رسالتك…"}
-                onFocus={() => coarse && setEmojiOpen(false)}
+                onFocus={() => {
+                  insertAt.current = null;
+                  if (coarse) setEmojiOpen(false);
+                }}
                 onChange={(e) => {
                   setText(e.target.value);
                   onTyping();
@@ -308,10 +331,13 @@ export const WaComposer = forwardRef<ChatComposerHandle, React.ComponentPropsWit
                         <ImageIcon className="h-4 w-4" aria-hidden />
                         المعرض
                       </DropdownMenuItem>
-                      <DropdownMenuItem className="min-h-11" onSelect={() => camera.current?.click()}>
-                        <Camera className="h-4 w-4" aria-hidden />
-                        الكاميرا
-                      </DropdownMenuItem>
+                      {/* A desktop has no camera to pick from (as the camera button) */}
+                      {coarse && (
+                        <DropdownMenuItem className="min-h-11" onSelect={() => camera.current?.click()}>
+                          <Camera className="h-4 w-4" aria-hidden />
+                          الكاميرا
+                        </DropdownMenuItem>
+                      )}
                     </DropdownMenuContent>
                   </DropdownMenu>
                 ))}
@@ -396,7 +422,11 @@ export const WaComposer = forwardRef<ChatComposerHandle, React.ComponentPropsWit
           {text.length} / {MAX}
         </p>
       )}
-      {panel && coarse && <EmojiPanel onPick={insertEmoji} className="-mx-2 mt-1.5 h-[280px]" />}
+      {panel && coarse && (
+        <div className="-mx-2 mt-1.5 h-[280px]">
+          <EmojiPanel onPick={insertEmoji} className="h-full" />
+        </div>
+      )}
     </div>
   );
 });

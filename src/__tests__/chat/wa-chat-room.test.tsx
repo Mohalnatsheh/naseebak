@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { createRef } from "react";
 
 vi.mock("@/contexts/dashboard-context", () => ({
@@ -283,6 +283,39 @@ describe("WaChatRoom: selection", () => {
     fireEvent.click(screen.getByTestId("reaction-pill"));
     expect(screen.getByRole("button", { name: "إلغاء التحديد" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "تفاعل ❤️" }).getAttribute("aria-pressed")).toBe("true");
+  });
+});
+
+describe("WaChatRoom: Back clears the selection", () => {
+  const ours = () => !!(window.history.state as { waSelection?: boolean } | null)?.waSelection;
+  const bar = () => screen.queryByRole("button", { name: "إلغاء التحديد" });
+  // Earlier tests unmount with a selection still on: start from a plain entry
+  beforeEach(() => window.history.replaceState(null, ""));
+
+  it("a selection adds one history entry; Back ends the selection and stays in the chat", async () => {
+    const before = window.history.length;
+    render(<WaChatRoom model={makeModel()} />);
+    expect(ours()).toBe(false);
+    fireEvent.contextMenu(bubbleOf("نص b"));
+    expect(window.history.length).toBe(before + 1);
+    expect(ours()).toBe(true);
+    act(() => window.history.back());
+    await waitFor(() => expect(bar()).toBeNull());
+    expect(ours()).toBe(false);
+    expect(screen.getByRole("button", { name: "خيارات المحادثة" })).toBeTruthy();
+  });
+
+  it("ending it another way takes the entry back, so entries never pile up; no entry while nothing is selected", async () => {
+    render(<WaChatRoom model={makeModel()} />);
+    const base = window.history.length;
+    for (let i = 0; i < 3; i++) {
+      fireEvent.contextMenu(bubbleOf("نص b"));
+      expect(ours()).toBe(true);
+      fireEvent.click(bar()!);
+      await waitFor(() => expect(ours()).toBe(false));
+    }
+    expect(window.history.length).toBeLessThanOrEqual(base + 1);
+    expect(bar()).toBeNull();
   });
 });
 

@@ -107,11 +107,12 @@ describe("WaMessageBubble", () => {
     expect(quote.className).toContain("bg-bubble-mine-quote");
   });
 
-  it("a selected row carries the full-width wash and aria-selected", () => {
+  it("a selected row carries the full-width wash and aria-current (no aria-selected on a div with no role)", () => {
     const { container } = setup(message(), { selected: true });
     const row = container.querySelector<HTMLElement>("[data-message-id]")!;
     expect(row.className).toContain("bg-chat-select");
-    expect(row.getAttribute("aria-selected")).toBe("true");
+    expect(row.getAttribute("aria-current")).toBe("true");
+    expect(row.hasAttribute("aria-selected")).toBe(false);
     expect(row.hasAttribute("data-selected")).toBe(true);
   });
 

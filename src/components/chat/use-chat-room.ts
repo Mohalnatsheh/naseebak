@@ -234,6 +234,8 @@ export interface ChatRoomModel {
   jumpToNewest: () => void;
   /** Everything loaded counts as seen (the jump button's count goes back to 0) */
   markSeenNow: () => void;
+  /** Removes a failed send (and releases its local photo / voice preview); anything else is left alone */
+  dismissFailed: (id: string) => void;
 }
 
 /**
@@ -376,6 +378,9 @@ export function useChatRoom(conversationId: string): ChatRoomModel {
   // «رسائل جديدة»: fixed when the chat opens (the first unread message of theirs), gone once I write
   const [unreadFromId, setUnreadFromId] = useState<string | null>(null);
   const dividerPending = useRef(false);
+  // The jump button counts the partner's messages after this point. On open: the newest message before «رسائل جديدة»
+  // (all of them when nothing is unread), so the unread ones count and the ones read before don't (audit B22)
+  const [seenUpTo, setSeenUpTo] = useState("");
 
   // Reactions sent and not answered yet: a poll or live event already on its way must not undo them for a moment
   // (final review minor 8); the server's answer settles them
@@ -393,6 +398,8 @@ export function useChatRoom(conversationId: string): ChatRoomModel {
       const id = firstUnreadId(data.messages);
       setUnreadFromId(id);
       dividerPending.current = !!id;
+      const at = id ? data.messages.findIndex((m) => m.id === id) : data.messages.length;
+      setSeenUpTo(at > 0 ? data.messages[at - 1].createdAt : "");
     }
     if (data.polledAt) polledAt.current = data.polledAt;
     setConversation(data.conversation);
@@ -603,7 +610,6 @@ export function useChatRoom(conversationId: string): ChatRoomModel {
 
   // Scrolled up to read history: a "back to the newest" button with how many arrived since
   const [away, setAway] = useState(false);
-  const [seenUpTo, setSeenUpTo] = useState("");
   const unseen = away ? messages.filter((m) => !m.mine && !m.pending && m.createdAt > seenUpTo).length : 0;
 
   function onScroll() {
@@ -1000,6 +1006,11 @@ export function useChatRoom(conversationId: string): ChatRoomModel {
     if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
   }
 
+  /** A failed send the member gave up on: off the screen, its local preview released (audit U5) */
+  function dismissFailed(id: string) {
+    setMessages((prev) => (prev.some((m) => m.id === id && m.pending === "failed") ? dropLocal(prev, id) : prev));
+  }
+
   function markSeenNow() {
     setSeenUpTo(messages.length > 0 ? messages[messages.length - 1].createdAt : "");
   }
@@ -1013,7 +1024,7 @@ export function useChatRoom(conversationId: string): ChatRoomModel {
     viewerId, setViewerId, busy, endDialog, setEndDialog, extendConfirm, setExtendConfirm, familyDialog, setFamilyDialog,
     offerOpen, setOfferOpen, reportMessage, setReportMessage, pushChip, chatDelete,
     send, sendMedia, fetchLatest, loadOlder, onScroll, extend, end, requestFamily, typing, wake, setActiveRow,
-    jumpToNewest, markSeenNow,
+    jumpToNewest, markSeenNow, dismissFailed,
   };
 }
 

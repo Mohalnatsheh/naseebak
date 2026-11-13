@@ -179,7 +179,7 @@ export function WaMessageBubble({
     <RowTabContext.Provider value={roving && !rowActive ? -1 : undefined}>
       <div
         data-message-id={message.id}
-        aria-selected={selected}
+        aria-current={selected ? "true" : undefined}
         {...(selected && { "data-selected": "" })}
         {...(roving && {
           "data-message-row": "",

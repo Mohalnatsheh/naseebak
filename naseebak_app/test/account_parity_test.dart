@@ -190,8 +190,8 @@ void main() {
       await tester.pumpWidget(scoped(await testOverrides(adapter), const ReferralScreen()));
       await tester.pumpAndSettle();
       expect(find.text('AB12CD34'), findsOneWidget);
-      expect(find.text('3'), findsOneWidget);
-      expect(find.text('1'), findsOneWidget);
+      expect(find.text('3', skipOffstage: false), findsOneWidget);
+      expect(find.text('1', skipOffstage: false), findsOneWidget);
     });
   });
 

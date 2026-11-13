@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/localization/digits.dart';
+import '../../core/network/api_exception.dart';
 import '../../core/privacy/screen_privacy.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/alpha_fade.dart';
@@ -139,7 +140,7 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> with WidgetsBindingOb
         'لا توجد محادثات نشطة',
         'تُفتح المحادثة بعد التوافق المتبادل وقبول طلب المحادثة. مراقبة ولمدة محدودة.',
       ),
-      ChatsChip.unread => ('لا توجد رسائل غير مقروءة', ''),
+      ChatsChip.unread => ('لا توجد رسائل غير مقروءة', null),
       ChatsChip.ended => ('لا توجد محادثات منتهية', 'تظهر هنا المحادثات التي انتهت مدتها أو أُنهيت، للقراءة فقط.'),
     };
     return Scaffold(
@@ -189,13 +190,18 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> with WidgetsBindingOb
     required List<ChatSummary> items,
     required bool female,
     required String emptyTitle,
-    required String emptyBody,
+    required String? emptyBody,
   }) {
     return RefreshIndicator(
       onRefresh: () async {
         ref.invalidate(countsProvider);
         ref.invalidate(chatListProvider);
-        await ref.read(chatListProvider.future);
+        try {
+          await ref.read(chatListProvider.future);
+        } catch (e) {
+          // The list she has stays (B21); say the refresh failed instead of doing nothing
+          if (mounted) showSnack(context, ApiException.messageOf(e));
+        }
       },
       child: items.isEmpty
           ? ListView(

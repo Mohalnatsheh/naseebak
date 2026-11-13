@@ -271,6 +271,32 @@ void main() {
       expect(find.text('منتهية'), findsNWidgets(2));
       expect(find.text('لا توجد رسائل'), findsOneWidget);
     });
+
+    testWidgets('a failed background reload keeps the list she has (B21)', (tester) async {
+      final adapter = FakeAdapter()
+        ..on('GET', '/api/chats', FakeResponse(200, {'conversations': [chat(last: 'مرحبا')]}));
+      final container = await openList(tester, adapter);
+      expect(find.text('عمر'), findsOneWidget);
+      adapter.on('GET', '/api/chats', FakeResponse(500, {'error': 'خطأ'}));
+      container.invalidate(chatListProvider);
+      await tester.pump();
+      for (var i = 0; i < 10; i++) {
+        await tester.pump(const Duration(milliseconds: 20));
+      }
+      expect(find.text('عمر'), findsOneWidget);
+      expect(adapter.to('GET', '/api/chats').length, 2);
+      expect(find.text('إعادة المحاولة'), findsNothing);
+    });
+
+    testWidgets('a failed pull to refresh says so and keeps the list', (tester) async {
+      final adapter = FakeAdapter()
+        ..on('GET', '/api/chats', FakeResponse(200, {'conversations': [chat(last: 'مرحبا')]}));
+      await openList(tester, adapter);
+      adapter.on('GET', '/api/chats', FakeResponse(500, {'error': 'تعذّر تحميل المحادثات'}));
+      await tester.fling(find.byType(ListView), const Offset(0, 400), 1000);
+      await tester.pumpAndSettle();
+      expect(find.byType(SnackBar), findsOneWidget);
+      expect(find.text('عمر'), findsOneWidget);
+    });
   });
 }
-

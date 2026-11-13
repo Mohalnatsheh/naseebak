@@ -1,6 +1,6 @@
 # WhatsApp-style chat (website + app)
 
-Date: 2026-11-13. Status: draft for the owner's approval.
+Date: 2026-11-13. Status: approved by the owner (2026-11-13), after a mockup of the chat, long-press and chats list.
 
 ## Intent
 

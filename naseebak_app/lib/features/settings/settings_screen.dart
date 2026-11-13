@@ -11,8 +11,6 @@ import '../../core/localization/digits.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/brand_kit.dart';
 import '../../shared/widgets/common.dart';
-import '../auth/logout_button.dart';
-import '../country_selection/country_providers.dart';
 import '../home/counts.dart';
 import '../pro/pro_repository.dart';
 import '../pro/pro_section.dart' show proActiveText;
@@ -21,69 +19,70 @@ import '../pro/pro_section.dart' show proActiveText;
 String pauseProLine(DateTime? end) =>
     'اشتراك Pro لن يتجدد بعد الإيقاف${end == null ? '' : '، ويبقى فعّالاً حتى ${formatDate(end)}'}، دون استرداد.';
 
-/// «حسابي»: profile, credits, notification settings, safety, legal links and account actions.
+/// «إيقاف الحساب مؤقتاً»: confirm, pause, keep the Pro note (shared by «الإعدادات»)
+Future<void> pauseAccount(BuildContext context, WidgetRef ref, MyProState? pro) async {
+  // A Pro renewal stops with the pause (the server ends it with the period, no refund)
+  final renewing = pro != null && pro.isPro && !pro.cancelAtPeriodEnd;
+  final ok = await confirmDialog(
+    context,
+    title: 'إيقاف الحساب مؤقتاً',
+    body: 'لن يظهر ملفك لأحد ولن تصلك اقتراحات، وتُنهى المحادثات المفتوحة. يمكنك إعادة التفعيل في أي وقت.'
+        '${renewing ? '\n\n${pauseProLine(pro.renewsAt)}' : ''}',
+    confirmLabel: 'إيقاف',
+  );
+  if (!ok || !context.mounted) return;
+  // Taken before the request: once `me` says paused the router replaces this screen, and the Pro state must
+  // still reload (QA A-M01 / A2-H1: the paused page said «ما زال يتجدد» from the stale value)
+  final container = ProviderScope.containerOf(context, listen: false);
+  final memberId = ref.read(authControllerProvider).me?.id;
+  try {
+    final j = await container.read(apiClientProvider).post('/api/profile/deactivate', body: {'action': 'pause'});
+    if (memberId != null && pro != null && pro.isPro && pauseStoppedRenewal(j, wasRenewing: renewing)) {
+      await container.read(proPauseNoteProvider).mark(memberId, periodEnd: pro.renewsAt);
+    }
+    container
+      ..invalidate(proStateProvider)
+      ..invalidate(countsProvider);
+    await container.read(authControllerProvider.notifier).refreshMe();
+  } catch (e) {
+    if (context.mounted) showSnack(context, ApiException.messageOf(e));
+  }
+}
+
+/// «حذف الحساب»: the dialog, then the request (shared by «الإعدادات»)
+Future<void> deleteAccount(BuildContext context, WidgetRef ref, MyProState? pro) async {
+  final renewing = pro != null && pro.isPro && !pro.cancelAtPeriodEnd;
+  // null = cancelled; '' = no reason given (optional, like the website)
+  final reason = await showDialog<String>(
+    context: context,
+    builder: (_) => DeleteAccountDialog(proRenewing: renewing, proRenewsAt: pro?.renewsAt),
+  );
+  if (reason == null || !context.mounted) return;
+  final container = ProviderScope.containerOf(context, listen: false);
+  final memberId = ref.read(authControllerProvider).me?.id;
+  try {
+    final j = await container
+        .read(apiClientProvider)
+        .post('/api/profile/delete', body: {if (reason.isNotEmpty) 'reason': reason});
+    if (context.mounted) showSnack(context, asStringOr(j['message'], 'تم استلام طلب الحذف'));
+    if (memberId != null && renewing && pauseStoppedRenewal(j, wasRenewing: renewing)) {
+      await container.read(proPauseNoteProvider).mark(memberId, periodEnd: pro.renewsAt);
+    }
+    container.invalidate(proStateProvider);
+    // The account is paused at once: the router shows the paused page with the deletion date
+    await container.read(authControllerProvider.notifier).refreshMe();
+  } catch (e) {
+    if (context.mounted) showSnack(context, ApiException.messageOf(e));
+  }
+}
+
+/// «حسابي»: profile, credits, Pro, invite and support; everything else moved to «الإعدادات» (`SettingsListScreen`).
 class AccountScreen extends ConsumerWidget {
   const AccountScreen({super.key});
-
-  Future<void> _pause(BuildContext context, WidgetRef ref, MyProState? pro) async {
-    // A Pro renewal stops with the pause (the server ends it with the period, no refund)
-    final renewing = pro != null && pro.isPro && !pro.cancelAtPeriodEnd;
-    final ok = await confirmDialog(
-      context,
-      title: 'إيقاف الحساب مؤقتاً',
-      body: 'لن يظهر ملفك لأحد ولن تصلك اقتراحات، وتُنهى المحادثات المفتوحة. يمكنك إعادة التفعيل في أي وقت.'
-          '${renewing ? '\n\n${pauseProLine(pro.renewsAt)}' : ''}',
-      confirmLabel: 'إيقاف',
-    );
-    if (!ok || !context.mounted) return;
-    // Taken before the request: once `me` says paused the router replaces this screen, and the Pro state must
-    // still reload (QA A-M01 / A2-H1: the paused page said «ما زال يتجدد» from the stale value)
-    final container = ProviderScope.containerOf(context, listen: false);
-    final memberId = ref.read(authControllerProvider).me?.id;
-    try {
-      final j = await container.read(apiClientProvider).post('/api/profile/deactivate', body: {'action': 'pause'});
-      if (memberId != null && pro != null && pro.isPro && pauseStoppedRenewal(j, wasRenewing: renewing)) {
-        await container.read(proPauseNoteProvider).mark(memberId, periodEnd: pro.renewsAt);
-      }
-      container
-        ..invalidate(proStateProvider)
-        ..invalidate(countsProvider);
-      await container.read(authControllerProvider.notifier).refreshMe();
-    } catch (e) {
-      if (context.mounted) showSnack(context, ApiException.messageOf(e));
-    }
-  }
-
-  Future<void> _delete(BuildContext context, WidgetRef ref, MyProState? pro) async {
-    final renewing = pro != null && pro.isPro && !pro.cancelAtPeriodEnd;
-    // null = cancelled; '' = no reason given (optional, like the website)
-    final reason = await showDialog<String>(
-      context: context,
-      builder: (_) => DeleteAccountDialog(proRenewing: renewing, proRenewsAt: pro?.renewsAt),
-    );
-    if (reason == null || !context.mounted) return;
-    final container = ProviderScope.containerOf(context, listen: false);
-    final memberId = ref.read(authControllerProvider).me?.id;
-    try {
-      final j = await container
-          .read(apiClientProvider)
-          .post('/api/profile/delete', body: {if (reason.isNotEmpty) 'reason': reason});
-      if (context.mounted) showSnack(context, asStringOr(j['message'], 'تم استلام طلب الحذف'));
-      if (memberId != null && renewing && pauseStoppedRenewal(j, wasRenewing: renewing)) {
-        await container.read(proPauseNoteProvider).mark(memberId, periodEnd: pro.renewsAt);
-      }
-      container.invalidate(proStateProvider);
-      // The account is paused at once: the router shows the paused page with the deletion date
-      await container.read(authControllerProvider.notifier).refreshMe();
-    } catch (e) {
-      if (context.mounted) showSnack(context, ApiException.messageOf(e));
-    }
-  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final me = ref.watch(authControllerProvider).me;
-    final details = me == null ? null : ref.watch(countryDetailsProvider(me.country.code)).valueOrNull;
     // «عضوية Pro» only where payments show (never a test or review account, even a Pro one) and Pro can be bought or
     // is held; `/api/pro` isn't even read otherwise
     final payments = ref.watch(appPaymentsProvider);
@@ -128,43 +127,17 @@ class AccountScreen extends ConsumerWidget {
                 ),
               ],
               const Divider(),
-              tile(Icons.edit_note_rounded, 'تعديل ملفي', () => context.push('/profile/edit'), subtitle: 'كل بياناتك في مكان واحد'),
-              const Divider(),
-              tile(Icons.family_restroom_rounded, 'بيانات وليّ الأمر', () => context.push('/profile/guardian')),
-              const Divider(),
               tile(Icons.card_giftcard_rounded, 'دعوة الأصدقاء', () => context.push('/referral')),
             ]),
           ),
           const SizedBox(height: 16),
           Card(
             child: Column(children: [
-              tile(Icons.notifications_none_rounded, 'إعدادات الإشعارات', () => context.push('/settings/notifications')),
-              const Divider(),
-              tile(Icons.block_rounded, 'المحظورون', () => context.push('/settings/blocks')),
-            ]),
-          ),
-          const SizedBox(height: 16),
-          Card(
-            child: Column(children: [
-              tile(Icons.description_outlined, 'الشروط والأحكام', () => openExternal(context, details?.links.terms)),
-              const Divider(),
-              tile(Icons.privacy_tip_outlined, 'سياسة الخصوصية', () => openExternal(context, details?.links.privacy)),
-              const Divider(),
-              tile(Icons.help_outline_rounded, 'الأسئلة الشائعة', () => openExternal(context, details?.links.faq)),
-              const Divider(),
               tile(Icons.support_agent_rounded, 'الدعم الفني', () => context.push('/support')),
-            ]),
-          ),
-          const SizedBox(height: 16),
-          Card(
-            child: Column(children: [
-              tile(Icons.pause_circle_outline_rounded, 'إيقاف الحساب مؤقتاً', () => _pause(context, ref, pro), color: AppColors.warning),
               const Divider(),
-              tile(Icons.delete_outline_rounded, 'حذف الحساب', () => _delete(context, ref, pro), color: AppColors.danger),
+              tile(Icons.settings_outlined, 'الإعدادات', () => context.push('/settings')),
             ]),
           ),
-          const SizedBox(height: 16),
-          const LogoutButton(key: Key('logout'), confirm: true, icon: Icons.logout_rounded),
           const SizedBox(height: 12),
           Center(child: Text('تغيير الدولة متاح قبل تسجيل الدخول فقط.', style: AppText.caption.copyWith(color: AppColors.muted))),
         ],

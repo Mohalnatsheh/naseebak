@@ -34,6 +34,7 @@ import '../../features/profile/preferences_screen.dart';
 import '../../features/profile/profile_screen.dart';
 import '../../features/profile/quiz_screen.dart';
 import '../../features/referral/referral_screen.dart';
+import '../../features/settings/settings_list_screen.dart';
 import '../../features/settings/settings_screen.dart';
 import '../../features/support/support_screen.dart';
 import 'website_links.dart';
@@ -290,6 +291,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/profile/edit', builder: (_, _) => const ProfileEditScreen()),
       GoRoute(path: '/support', builder: (_, _) => const SupportScreen()),
       GoRoute(path: '/referral', builder: (_, _) => const ReferralScreen()),
+      GoRoute(path: '/settings', builder: (_, _) => const SettingsListScreen()),
       GoRoute(path: '/settings/notifications', builder: (_, _) => const NotificationPrefsScreen()),
       GoRoute(path: '/settings/blocks', builder: (_, _) => const BlocksScreen()),
     ],

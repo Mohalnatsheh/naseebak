@@ -602,11 +602,11 @@ void main() {
       await tester.pump();
       expect(find.byKey(const Key('menu-pro')), findsOneWidget);
       expect(find.text('مزايا Pro فعّالة في حسابك.'), findsOneWidget);
-      final top = tester.getTopLeft(find.text('تعديل ملفي')).dy;
+      final top = tester.getTopLeft(find.text('دعوة الأصدقاء')).dy;
       gate.complete();
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('menu-pro')), findsOneWidget);
-      expect(tester.getTopLeft(find.text('تعديل ملفي')).dy, top);
+      expect(tester.getTopLeft(find.text('دعوة الأصدقاء')).dy, top);
     });
 
     testWidgets('a remembered «no row» stays out while loading; the live answer still wins', (tester) async {

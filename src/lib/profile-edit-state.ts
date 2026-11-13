@@ -92,11 +92,8 @@ export function planSave(
   dealbreakers?: { stored: string[]; next: string[] },
 ): SavePlan {
   const { fills, prefs, reviewed } = splitProfileEdit(realChanges(changes, stored), stored);
-  let fillBody = Object.keys(fills).length > 0 ? buildFillBody(stored, fills) : null;
-  // The fill body resends the stored age range; preferences save first, so send their new values
-  if (fillBody) {
-    for (const key of ["prefAgeMin", "prefAgeMax"]) if (key in prefs) fillBody = { ...fillBody, [key]: prefs[key] };
-  }
+  // Resends the stored age range; `runSave` swaps in a new one only once the preferences saved
+  const fillBody = Object.keys(fills).length > 0 ? buildFillBody(stored, fills) : null;
   // Profile not set up yet (no base for the fills): the review request carries them, as today's edit page does
   const review = fillBody ? reviewed : { ...reviewed, ...fills };
   return {
@@ -157,10 +154,21 @@ export async function runSave(plan: SavePlan, api: SaveApi, message?: string): P
     result.failed.push(...keys);
     result.error ??= error;
   };
-  const { prefChanges, dealbreakerKeys, fillBody, reviewChanges } = plan;
-  if (prefChanges) await step(Object.keys(prefChanges), () => api.postPrefs(prefChanges), result.saved);
+  const { prefChanges, dealbreakerKeys, reviewChanges } = plan;
+  let fillBody = plan.fillBody;
+  if (prefChanges) {
+    await step(Object.keys(prefChanges), () => api.postPrefs(prefChanges), result.saved);
+    // The fill body resends the age range: once the new one is saved, send it (else the PUT writes the old one
+    // back); when the preferences failed, keep the stored one so nothing reported failed gets saved
+    if (fillBody && !result.failed.some((k) => k in prefChanges)) {
+      for (const key of ["prefAgeMin", "prefAgeMax"]) if (key in prefChanges) fillBody = { ...fillBody, [key]: prefChanges[key] };
+    }
+  }
   if (dealbreakerKeys) await step([DEALBREAKERS_KEY], () => api.putDealbreakers(dealbreakerKeys), result.saved);
-  if (fillBody) await step(plan.fillKeys, () => api.putProfile(fillBody), result.saved);
+  if (fillBody) {
+    const body = fillBody;
+    await step(plan.fillKeys, () => api.putProfile(body), result.saved);
+  }
   if (reviewChanges) await step(plan.reviewKeys, () => api.postReview(reviewChanges, message), result.sentForReview);
   return result;
 }

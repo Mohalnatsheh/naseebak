@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { EDIT_SECTIONS, editField, fieldForOldStep } from "@/lib/profile-edit-fields";
+import { PREF_AGE_MAX } from "@/lib/validations/profile";
 
 /** Every key today's edit page saves (`ProfileForm` in the legacy edit page, minus the form-only `jobCustom`
  * and the guardian fields, which save through /api/profile/parent-info and are not in the list). */
@@ -50,6 +51,15 @@ describe("EDIT_SECTIONS", () => {
     expect(prefs.fields.every((f) => f.key.startsWith("pref"))).toBe(true);
     const others = EDIT_SECTIONS.filter((s) => s.id !== "prefs").flatMap((s) => s.fields);
     expect(others.some((f) => f.key.startsWith("pref"))).toBe(false);
+  });
+
+  it("titles the preferences section «تفضيلات الشريك»", () => {
+    expect(EDIT_SECTIONS.find((s) => s.id === "prefs")?.title).toBe("تفضيلات الشريك");
+  });
+
+  it("caps the partner age range at the server's PREF_AGE_MAX", () => {
+    expect(editField("prefAgeMin")?.max).toBe(PREF_AGE_MAX);
+    expect(editField("prefAgeMax")?.max).toBe(PREF_AGE_MAX);
   });
 
   it("sect only shows for LB", () => {

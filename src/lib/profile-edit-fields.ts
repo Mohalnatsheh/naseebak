@@ -28,6 +28,7 @@ import {
 } from "@/lib/profile-options";
 import { sectApplies } from "@/lib/profile-sect";
 import { VEIL_CHOICES } from "@/lib/profile-veil";
+import { PREF_AGE_MAX } from "@/lib/validations/profile";
 
 type Gender = "MALE" | "FEMALE";
 
@@ -193,7 +194,7 @@ export const EDIT_SECTIONS: EditSection[] = [
   },
   {
     id: "prefs",
-    title: "من تبحث عنه",
+    title: "تفضيلات الشريك",
     fields: [
       {
         key: "prefAgeMin",
@@ -201,7 +202,7 @@ export const EDIT_SECTIONS: EditSection[] = [
         control: "number",
         required: true,
         min: 18,
-        max: 80,
+        max: PREF_AGE_MAX,
         companions: ["prefAgeMax"],
         dealbreaker: "age",
       },

@@ -98,9 +98,9 @@ describe("planSave", () => {
     expect(plan).toEqual({ prefChanges: null, dealbreakerKeys: null, fillBody: null, reviewChanges: null, fillKeys: [], reviewKeys: [] });
   });
 
-  it("sends the fill body with the new age range, since preferences save before the fills", () => {
+  it("keeps the stored age range in the planned fill body", () => {
     const plan = planSave({ prefAgeMin: 25, hobbies: "القراءة" }, stored);
-    expect(plan.fillBody).toMatchObject({ prefAgeMin: 25, prefAgeMax: 30, hobbies: "القراءة" });
+    expect(plan.fillBody).toMatchObject({ prefAgeMin: 22, prefAgeMax: 30, hobbies: "القراءة" });
   });
 
   it("sends the dealbreakers only when they changed", () => {
@@ -152,6 +152,21 @@ describe("runSave", () => {
     expect(a.postReview).toHaveBeenCalledWith({ city: "إربد" }, "ملاحظة");
     expect(r.saved).toEqual(["prefCity", DEALBREAKERS_KEY, "fieldOfStudy"]);
     expect(r.failed).toEqual(["city"]);
+  });
+
+  it("sends the fill PUT with the new age range once the preferences saved", async () => {
+    const a = api();
+    const r = await runSave(planSave({ prefAgeMin: 25, hobbies: "القراءة" }, stored), a);
+    expect(a.putProfile).toHaveBeenCalledWith(expect.objectContaining({ prefAgeMin: 25, prefAgeMax: 30, hobbies: "القراءة" }));
+    expect(r.saved).toEqual(["prefAgeMin", "hobbies"]);
+  });
+
+  it("prefs POST fails → fill PUT body carries the stored age range and prefAgeMin is in failed", async () => {
+    const a = api({ postPrefs: async () => json(500, { error: "خطأ" }) });
+    const r = await runSave(planSave({ prefAgeMin: 25, hobbies: "القراءة" }, stored), a);
+    expect(a.putProfile).toHaveBeenCalledWith(expect.objectContaining({ prefAgeMin: 22, prefAgeMax: 30, hobbies: "القراءة" }));
+    expect(r.failed).toEqual(["prefAgeMin"]);
+    expect(r.saved).toEqual(["hobbies"]);
   });
 
   it("reports everything sent for review on success", async () => {

@@ -7,7 +7,7 @@ import { ProBadge } from "@/components/shared/pro-badge";
 import { PageHeader } from "@/components/shared/page-header";
 import { MemberAvatar } from "@/components/shared/member-avatar";
 import { describeOption, oppositeGender, selfLabel, skinColorLabel, tribeLabel } from "@/lib/profile-options";
-import { sectApplies } from "@/lib/profile-sect";
+import { PREF_RELIGION_SAME, isChristian, religionOf, sectAsked } from "@/lib/profile-religion";
 import { formatDate } from "@/lib/countries";
 import { compressImage } from "@/lib/image-compress";
 import { arabicCount } from "@/lib/utils";
@@ -211,7 +211,7 @@ function SectionCard({
 }
 
 export default function ProfilePage() {
-  const { flags, pro } = useDashboardData().counts;
+  const { flags, pro, religionEnabled } = useDashboardData().counts;
   const introMode = flags.introRequests;
   // Dates and wording follow the member's country
   const country = useCountry();
@@ -372,8 +372,10 @@ export default function ProfilePage() {
   const totalMatches =
     user._count.matchesAsFemale + user._count.matchesAsMale;
   const isMale = user.gender === "MALE";
-  // «المذهب»: Lebanese members only
-  const sectOn = sectApplies(country.code);
+  // «المذهب»: Lebanese members only, never a Christian
+  const sectOn = sectAsked(country.code, p?.religion);
+  // A Christian has no hijab or beard rows (never asked)
+  const christian = isChristian(p);
   // «شروط أساسية» exist only in the mutual flow; an empty field there hides me from those who set one
   const emptyFilters = flags.mutualSuggestions && p?.isComplete ? emptyFilterFields(p, user.gender, country.code) : [];
 
@@ -389,10 +391,10 @@ export default function ProfilePage() {
 
   // Check if any fields in a section have values
   const hasPersonalInfo = p && (p.dateOfBirth || p.nationality || p.city || p.area || p.height || p.weight || p.skinColor || p.education || p.fieldOfStudy || p.job || p.incomeRange);
-  const hasLifestyle = p && (p.maritalStatus || p.religiosity || (sectOn && p.sect) || p.smokingStatus || p.hijab !== null || p.beard !== null || p.cookingAbility || p.drivingLicense !== null || p.childrenCount > 0);
+  const hasLifestyle = p && (p.maritalStatus || p.religiosity || religionEnabled || (sectOn && p.sect) || p.smokingStatus || (!christian && (p.hijab !== null || p.beard !== null)) || p.cookingAbility || p.drivingLicense !== null || p.childrenCount > 0);
   const hasAboutSection = p && (p.aboutMe || p.partnerExpectations || p.hobbies || p.interests || p.familyValues || p.lifestyle);
   const hasFamilyInfo = p && (p.tribe || p.familyOriginArea || p.numberOfSiblings !== null || p.housingType || p.monthlyExpenses || p.healthConditions);
-  const hasPreferences = p && (p.prefAgeMin || p.prefAgeMax || (p.prefCity && p.prefCity.length > 0) || (p.prefEducation && p.prefEducation.length > 0) || (p.prefMaritalStatus && p.prefMaritalStatus.length > 0) || (p.prefReligiosity && p.prefReligiosity.length > 0) || (sectOn && p.prefSect && p.prefSect.length > 0) || (p.prefSmokingStatus && p.prefSmokingStatus.length > 0) || p.prefHijab || p.prefBeard || p.prefChildrenAcceptance);
+  const hasPreferences = p && (p.prefAgeMin || p.prefAgeMax || (p.prefCity && p.prefCity.length > 0) || (p.prefEducation && p.prefEducation.length > 0) || (p.prefMaritalStatus && p.prefMaritalStatus.length > 0) || (p.prefReligiosity && p.prefReligiosity.length > 0) || (sectOn && p.prefSect && p.prefSect.length > 0) || (p.prefSmokingStatus && p.prefSmokingStatus.length > 0) || (!christian && (p.prefHijab || p.prefBeard)) || p.prefChildrenAcceptance || religionEnabled);
 
   return (
     <div className="space-y-6 pb-8">
@@ -745,6 +747,13 @@ export default function ProfilePage() {
                 iconColor="text-secondary"
               />
             )}
+            {religionEnabled && (
+              <InfoField
+                icon={Moon}
+                label="الديانة"
+                value={selfLabel("religion", religionOf(p), user.gender)}
+              />
+            )}
             {p.religiosity && (
               <InfoField
                 icon={Moon}
@@ -768,7 +777,7 @@ export default function ProfilePage() {
                 value={selfLabel("smokingStatus", p.smokingStatus, user.gender)}
               />
             )}
-            {!isMale && p.hijab !== null && p.hijab !== undefined && (
+            {!isMale && !christian && p.hijab !== null && p.hijab !== undefined && (
               <InfoField
                 icon={User}
                 label="الحجاب"
@@ -776,7 +785,7 @@ export default function ProfilePage() {
                 gradient="from-primary/10 to-secondary/5"
               />
             )}
-            {isMale && p.beard !== null && p.beard !== undefined && (
+            {isMale && !christian && p.beard !== null && p.beard !== undefined && (
               <InfoField
                 icon={User}
                 label="اللحية"
@@ -1022,6 +1031,13 @@ export default function ProfilePage() {
                 value={p.prefMaritalStatus.join("، ")}
               />
             )}
+            {religionEnabled && (
+              <InfoField
+                icon={Moon}
+                label="الديانة لدى الشريك"
+                value={p.prefReligion || PREF_RELIGION_SAME}
+              />
+            )}
             {p.prefReligiosity && p.prefReligiosity.length > 0 && (
               <InfoField
                 icon={Moon}
@@ -1047,14 +1063,14 @@ export default function ProfilePage() {
                 iconColor="text-secondary"
               />
             )}
-            {isMale && p.prefHijab && (
+            {isMale && !christian && p.prefHijab && (
               <InfoField
                 icon={User}
                 label="الحجاب لدى الشريكة"
                 value={p.prefHijab}
               />
             )}
-            {!isMale && p.prefBeard && (
+            {!isMale && !christian && p.prefBeard && (
               <InfoField
                 icon={User}
                 label="اللحية لدى الشريك"

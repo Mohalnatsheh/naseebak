@@ -70,3 +70,13 @@ describe("hijab and niqab move together", () => {
     expect(r.fills).toEqual({});
   });
 });
+
+describe("«الديانة»", () => {
+  it("a religion change always goes to review, even from an empty column", () => {
+    expect(splitProfileEdit({ religion: "مسيحي", prefReligion: "لا مانع" }, { religion: null })).toEqual({
+      fills: {},
+      prefs: { prefReligion: "لا مانع" },
+      reviewed: { religion: "مسيحي" },
+    });
+  });
+});

@@ -72,6 +72,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { markPageNotificationsRead } from "@/lib/notifications-client";
 import { veilLabel } from "@/lib/profile-veil";
 import { EmptyState } from "@/components/shared/line-art";
+import type { MatchSummary } from "@/components/matches/match-types";
 
 interface Match {
   id: string;
@@ -128,6 +129,10 @@ interface Match {
     photos?: { id: string; url: string }[];
   };
 }
+
+/** Compile-time check: a `Match` is what the full-profile panel takes */
+type AssertSummary<T extends MatchSummary> = T;
+export type MatchIsSummary = AssertSummary<Match>;
 
 const visitStatusLabels: Record<string, string> = {
   REQUESTED: "طلب زيارة مرسل",

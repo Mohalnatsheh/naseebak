@@ -42,10 +42,11 @@ function getArabicDate(country: CountryCode) {
  * guardian consent → profile strength (only while it's not complete). Phones: one column. Every number comes from the server (/api/me/counts, /api/chats).
  */
 export default function DashboardPage() {
-  const { loading, counts } = useDashboardData();
-  // Switch dashboard_redesign (2026-11-13): only one of the two homes mounts, so the top-up runs once. While the
-  // switches load, today's home shows its skeleton (its effects wait for `loading`)
-  if (!loading && counts?.dashboardRedesign) return <HomeV2 />;
+  const { counts } = useDashboardData();
+  // Switch dashboard_redesign (2026-11-13): only one of the two homes mounts, so the top-up runs once. Once the counts
+  // say the switch is on (even while the profile still loads), HomeV2 shows its own one-column skeleton; until then
+  // today's home shows its skeleton. Both homes' effects wait for `loading`, so neither fetches before it settles
+  if (counts?.dashboardRedesign) return <HomeV2 />;
   return <LegacyHome />;
 }
 

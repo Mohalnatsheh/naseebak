@@ -123,7 +123,7 @@ export function HomeV2() {
 
   if (loading) {
     return (
-      <div role="status" className="mx-auto max-w-2xl space-y-5 pb-8">
+      <div role="status" data-home-skeleton="v2" className="mx-auto max-w-2xl space-y-5 pb-8">
         <span className="sr-only">جارٍ تحميل صفحتك…</span>
         <div className="h-14 animate-pulse rounded-2xl bg-primary/10" aria-hidden />
         <div className="h-28 animate-pulse rounded-2xl bg-primary/5" aria-hidden />
@@ -218,7 +218,7 @@ export function HomeV2() {
       )}
 
       {qualifies && waiting.length > 0 && (
-        <Section id="home-waiting" title="بانتظار ردّك">
+        <Section id="home-waiting" title={g("بانتظار ردّك", "بانتظار ردّكِ")}>
           <Group>{waiting.map(({ key, ...w }) => <Row key={key} {...w} />)}</Group>
         </Section>
       )}
@@ -234,7 +234,7 @@ export function HomeV2() {
           {people.length > 0 && (
             <Section
               id="home-interested"
-              title="مهتمون بك"
+              title={g("مهتمون بك", "مهتمون بكِ")}
               action={
                 <Link href={INTERESTED_HREF} className="inline-flex min-h-11 items-center gap-0.5 text-label text-primary">
                   عرض الكل <ChevronLeft className="h-4 w-4" aria-hidden />

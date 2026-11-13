@@ -231,7 +231,38 @@ describe("HomeV2", () => {
   });
 });
 
+describe("HomeV2 for a woman", () => {
+  it("genders the headings, the request row and the free-reply note", async () => {
+    dash.value.profile = { ...dash.value.profile, firstName: "ريم", gender: "FEMALE" };
+    const { container } = await renderHome();
+    const waiting = container.querySelector("#home-waiting") as HTMLElement;
+    expect(within(waiting).getByRole("heading", { name: "بانتظار ردّكِ" })).toBeTruthy();
+    expect(within(waiting).getByRole("link", { name: /طلب تعارف بانتظار ردّكِ/ })).toBeTruthy();
+    const sec = container.querySelector("#home-interested") as HTMLElement;
+    expect(within(sec).getByRole("heading", { name: "مهتمون بكِ" })).toBeTruthy();
+    expect(within(sec).getByText("ردّكِ بـ«مهتم» على من اهتم بكِ مجاني.")).toBeTruthy();
+  });
+});
+
 describe("dashboard page switch", () => {
+  it("while loading with the switch known on: HomeV2's one-column skeleton, no fetch yet", async () => {
+    dash.value.loading = true;
+    const { default: DashboardPage } = await import("@/app/(ar)/dashboard/page");
+    const { container } = render(<DashboardPage />);
+    expect(container.querySelector("[data-home-skeleton=v2]")).not.toBeNull();
+    expect(container.querySelector(".lg\\:grid")).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("while loading with the switch off: today's two-column skeleton", async () => {
+    dash.value.loading = true;
+    dash.value.counts = { ...dash.value.counts, dashboardRedesign: undefined };
+    const { default: DashboardPage } = await import("@/app/(ar)/dashboard/page");
+    const { container } = render(<DashboardPage />);
+    expect(container.querySelector("[data-home-skeleton=v2]")).toBeNull();
+    expect((container.firstChild as HTMLElement).className).toContain("lg:grid-cols-");
+  });
+
   it("renders HomeV2 when dashboardRedesign is on, and the top-up runs once", async () => {
     const { default: DashboardPage } = await import("@/app/(ar)/dashboard/page");
     const { container } = render(<DashboardPage />);

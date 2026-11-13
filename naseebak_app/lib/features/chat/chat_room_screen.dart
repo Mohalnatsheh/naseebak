@@ -120,6 +120,20 @@ const cameraFailedText = 'تعذّر فتح الكاميرا';
 /// The emoji panel is never shorter than this (no keyboard seen yet)
 const emojiPanelMinHeight = 260.0;
 
+/// …nor taller than this share of the screen
+const emojiPanelMaxShare = 0.45;
+
+/// The emoji panel's full height: the tallest keyboard seen (at least [emojiPanelMinHeight]), at most
+/// [emojiPanelMaxShare] of the screen
+double emojiPanelHeight({required double keyboard, required double screen}) {
+  final h = keyboard < emojiPanelMinHeight ? emojiPanelMinHeight : keyboard;
+  final cap = screen * emojiPanelMaxShare;
+  return h > cap ? cap : h;
+}
+
+/// How long the panel's room is held for a keyboard on its way up (it gives way as soon as the keyboard is up)
+const emojiHandover = Duration(milliseconds: 450);
+
 /// Shared preferences: the microphone was refused once on this phone (the next refusal points to the settings)
 const micRefusedKey = 'mic_refused_once';
 
@@ -236,8 +250,17 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
   /// The emoji panel is in the keyboard's place (back closes it first)
   bool _emojiOpen = false;
 
-  /// The last keyboard height seen (logical px): the emoji panel takes it
+  /// The tallest keyboard seen (logical px): the emoji panel takes it. The tallest, not the last: the inset is reported
+  /// per frame while the keyboard animates, so the last non-zero one is a few px from the end of the close
   double _keyboardHeight = 0;
+
+  /// The keyboard's inset right now (logical px): while the panel's room is shown it takes only what the keyboard
+  /// doesn't, so the composer stays put while one replaces the other
+  double _keyboardInset = 0;
+
+  /// The panel was closed for the keyboard: its room is held (shrinking as the keyboard rises) until the keyboard is up
+  bool _emojiHandover = false;
+  Timer? _handoverTimer;
 
   /// The hold on the mic ended while the microphone prompt was up for this recorder (U3: «سماح» then says how)
   VoiceRecorder? _releasedAsking;
@@ -335,7 +358,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     WidgetsBinding.instance.addObserver(this);
     // The field taken back (a tap on it, «رد»): the keyboard returns and the emoji panel leaves
     _inputFocus.addListener(() {
-      if (_inputFocus.hasFocus && _emojiOpen && mounted) setState(() => _emojiOpen = false);
+      if (_inputFocus.hasFocus && _emojiOpen && mounted) _emojiToKeyboard();
     });
     // This chat's own (another chat pushed on top, e.g. from a notice, has its own and never touches this one's)
     _playback = VoicePlayback(
@@ -426,6 +449,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     _stickyHide?.cancel();
     _typingTimer?.cancel();
     _typingMute?.cancel();
+    _handoverTimer?.cancel();
     _highlightTimer?.cancel();
     _input.dispose();
     _inputFocus.dispose();
@@ -1002,15 +1026,42 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     if (!mounted) return;
     final view = View.maybeOf(context);
     final inset = view == null ? 0.0 : view.viewInsets.bottom / view.devicePixelRatio;
-    if (inset > 0) _keyboardHeight = inset;
+    if (inset > _keyboardHeight) _keyboardHeight = inset;
     final open = inset > 0;
-    if (open != _keyboardOpen) setState(() => _keyboardOpen = open);
+    final changed = inset != _keyboardInset;
+    _keyboardInset = inset;
+    // The keyboard is up: the room held for it goes
+    if (_emojiHandover && inset >= _panelFull() - 1) _endHandover();
+    if (open != _keyboardOpen || (changed && (_emojiOpen || _emojiHandover))) setState(() => _keyboardOpen = open);
+  }
+
+  double _panelFull() => emojiPanelHeight(keyboard: _keyboardHeight, screen: MediaQuery.sizeOf(context).height);
+
+  /// The emoji panel gives way to the keyboard (the field takes the focus): its room stays until the keyboard is up
+  void _emojiToKeyboard() {
+    _handoverTimer?.cancel();
+    setState(() {
+      _emojiOpen = false;
+      _emojiHandover = true;
+    });
+    // No keyboard comes (a hardware keyboard, a refused focus): the room goes anyway
+    _handoverTimer = Timer(emojiHandover, _endHandover);
+  }
+
+  void _endHandover() {
+    _handoverTimer?.cancel();
+    _handoverTimer = null;
+    if (!_emojiHandover || !mounted) return;
+    setState(() => _emojiHandover = false);
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _keyboardOpen = (View.maybeOf(context)?.viewInsets.bottom ?? 0) > 0;
+    final view = View.maybeOf(context);
+    _keyboardInset = view == null ? 0.0 : view.viewInsets.bottom / view.devicePixelRatio;
+    if (_keyboardInset > _keyboardHeight) _keyboardHeight = _keyboardInset;
+    _keyboardOpen = _keyboardInset > 0;
     final route = ModalRoute.of(context);
     if (route != null && route != _route) {
       if (_route != null) appRouteObserver.unsubscribe(this);
@@ -1256,6 +1307,9 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     _inputFocus.unfocus();
     final source = await showAttachSheet(context);
     if (source == null || !mounted) return;
+    // The chat closed or Pro went away while the sheet was up
+    final chat = _chat;
+    if (!_canWrite || chat == null || _mediaModeNow(chat) != MediaButtons.enabled) return;
     await _pickPhoto(camera: source == AttachSource.camera);
   }
 
@@ -2220,7 +2274,10 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     // set here so this very build (the bar, the back button) already follows it.
     if (selected == null) _selectedId = null;
     // No composer (the chat closed, chats off): no emoji panel either
-    if (!_canWrite) _emojiOpen = false;
+    if (!_canWrite) {
+      _emojiOpen = false;
+      _emojiHandover = false;
+    }
     return ProviderScope(
       overrides: [voicePlaybackProvider.overrideWithValue(_playback)],
       child: PopScope(
@@ -2696,12 +2753,14 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
   /// keyboard (the field focused)
   void _toggleEmoji() {
     if (_emojiOpen) {
-      setState(() => _emojiOpen = false);
+      _emojiToKeyboard();
       _inputFocus.requestFocus();
       return;
     }
     _inputFocus.unfocus();
     SystemChannels.textInput.invokeMethod<void>('TextInput.hide');
+    // Shown at once, in the room the keyboard leaves as it closes (sized in `_footer` from the inset)
+    _endHandover();
     setState(() => _emojiOpen = true);
   }
 
@@ -2734,12 +2793,17 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     }
     final locked = media == MediaButtons.locked;
     final panel = _emojiOpen && !holdUi;
+    // The panel's room: its full height less what the keyboard still takes, so the composer stays put while one
+    // replaces the other (both ways)
+    final panelRoom = (panel || (_emojiHandover && !holdUi)) ? _panelFull() : 0.0;
+    final room = panelRoom - _keyboardInset;
     // Starters while I haven't written anything (the server stops sending them after my first message)
     final starters =
         !holdUi && !panel && _replyTo == null && !_messages.any((m) => m.mine) ? _starters : const <String>[];
     return SafeArea(
       top: false,
-      bottom: !_keyboardOpen,
+      // The keyboard's place (keyboard or panel) already covers the home indicator
+      bottom: !_keyboardOpen && panelRoom == 0,
       child: ColoredBox(
         color: AppColors.chatBackdrop,
         child: ValueListenableBuilder<TextEditingValue>(
@@ -2790,10 +2854,25 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
                     ],
                   ),
                 ),
-                if (panel)
-                  EmojiPanel(
-                    onPick: _insertEmoji,
-                    height: _keyboardHeight < emojiPanelMinHeight ? emojiPanelMinHeight : _keyboardHeight,
+                if (panelRoom > 0 && room > 0)
+                  SizedBox(
+                    key: const Key('emoji-room'),
+                    height: room,
+                    child: ClipRect(
+                      child: OverflowBox(
+                        alignment: Alignment.topCenter,
+                        minHeight: panelRoom,
+                        maxHeight: panelRoom,
+                        // Giving way to the keyboard: shown, not used
+                        child: IgnorePointer(
+                          ignoring: !panel,
+                          child: ExcludeSemantics(
+                            excluding: !panel,
+                            child: EmojiPanel(onPick: _insertEmoji, height: panelRoom),
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
               ],
             );

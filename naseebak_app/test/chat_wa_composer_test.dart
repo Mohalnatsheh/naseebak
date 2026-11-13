@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:naseebak_app/features/chat/emoji_data.dart';
+import 'package:naseebak_app/features/chat/chat_room_screen.dart' show emojiHandover, emojiPanelHeight;
 import 'package:naseebak_app/features/chat/emoji_panel.dart';
 
 import 'helpers/chat_test_room.dart';
@@ -91,22 +92,81 @@ void main() {
     }
 
     await tester.tap(_emojiButton);
+    // Its room is held for the keyboard on its way up (none comes in a test: it goes after the handover time)
+    await tester.pump(emojiHandover);
     await tester.pumpAndSettle();
     expect(_panel, findsNothing);
     expect(_field(tester).focusNode!.hasFocus, isTrue);
     await r.leave(tester);
   });
 
-  testWidgets('the panel takes the last keyboard height and closes on send', (tester) async {
+  testWidgets('a tap on the field with the panel open closes the panel and takes the focus', (tester) async {
+    final r = ChatTestRoom();
+    await r.open(tester);
+    await tester.tap(_emojiButton);
+    await tester.pumpAndSettle();
+    expect(_panel, findsOneWidget);
+    await tester.tap(chatInput);
+    await tester.pump(emojiHandover);
+    await tester.pumpAndSettle();
+    expect(_panel, findsNothing);
+    expect(_field(tester).focusNode!.hasFocus, isTrue);
+    await r.leave(tester);
+  });
+
+  testWidgets('swapping keyboard and panel both ways: the composer stays put; no home-indicator inset under the panel',
+      (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    tester.view.padding = const FakeViewPadding(bottom: 34);
+    tester.view.viewPadding = const FakeViewPadding(bottom: 34);
+    addTearDown(tester.view.reset);
+    final r = ChatTestRoom();
+    await r.open(tester);
+    final row = find.byKey(const ValueKey('composer-row'));
+    Future<void> inset(double px) async {
+      tester.view.viewInsets = FakeViewPadding(bottom: px);
+      await tester.pump();
+      await tester.pump();
+    }
+
+    await tester.tap(chatInput);
+    await inset(300);
+    expect(tester.getRect(row).bottom, 844 - 300);
+    // The panel opens while the keyboard is still up, then fills the room the keyboard leaves frame by frame
+    await tester.tap(_emojiButton);
+    await tester.pump();
+    for (final px in <double>[300, 220, 90, 0]) {
+      await inset(px);
+      expect(tester.getRect(row).bottom, 844 - 300, reason: 'keyboard at $px');
+    }
+    expect(_panel, findsOneWidget);
+    expect(tester.getSize(find.byKey(const Key('emoji-room'))).height, 300);
+    // Back to the keyboard: the panel's room goes only as the keyboard rises
+    await tester.tap(_emojiButton);
+    await tester.pump();
+    for (final px in <double>[0, 120, 260]) {
+      await inset(px);
+      expect(tester.getRect(row).bottom, 844 - 300, reason: 'keyboard at $px');
+    }
+    await inset(300);
+    expect(find.byKey(const Key('emoji-room')), findsNothing);
+    expect(tester.getRect(row).bottom, 844 - 300);
+    expect(_field(tester).focusNode!.hasFocus, isTrue);
+    await r.leave(tester);
+  });
+
+  testWidgets('the panel takes the full keyboard height (not the last animation step) and closes on send', (tester) async {
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     final r = ChatTestRoom();
     await r.open(tester);
-    tester.view.viewInsets = const FakeViewPadding(bottom: 320);
-    await tester.pump();
-    tester.view.viewInsets = FakeViewPadding.zero;
-    await tester.pump();
+    // The keyboard closing reports its inset frame by frame: the panel takes its full height, not the last step
+    for (final px in <double>[320, 200, 40, 0]) {
+      tester.view.viewInsets = FakeViewPadding(bottom: px);
+      await tester.pump();
+    }
     await tester.tap(_emojiButton);
     await tester.pumpAndSettle();
     expect(tester.getSize(_panel).height, 320);
@@ -117,6 +177,33 @@ void main() {
     expect(r.sends.single['body'], '😀');
     expect(_panel, findsNothing);
     await r.leave(tester);
+  });
+
+  test('emojiPanelHeight: at least 260, at most 45 % of the screen', () {
+    expect(emojiPanelHeight(keyboard: 0, screen: 844), 260);
+    expect(emojiPanelHeight(keyboard: 320, screen: 844), 320);
+    expect(emojiPanelHeight(keyboard: 400, screen: 600), 270);
+  });
+
+  testWidgets('the emoji tabs never shrink their labels: at large text they scroll on one line', (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: MediaQuery(
+        data: const MediaQueryData(size: Size(320, 640), textScaler: TextScaler.linear(2)),
+        child: Directionality(
+          textDirection: TextDirection.rtl,
+          child: Scaffold(body: EmojiPanel(onPick: (_) {}, height: 280)),
+        ),
+      ),
+    ));
+    expect(tester.takeException(), isNull);
+    for (var i = 0; i < emojiGroups.length; i++) {
+      final text = tester.widget<Text>(find.descendant(of: find.byKey(Key('emoji-tab-$i')), matching: find.byType(Text)));
+      expect(text.style!.fontSize, greaterThanOrEqualTo(12));
+    }
+    expect(find.byType(FittedBox), findsNothing);
+    expect(find.byKey(const Key('emoji-tabs')), findsOneWidget);
+    final tabs = [for (var i = 0; i < emojiGroups.length; i++) tester.getRect(find.byKey(Key('emoji-tab-$i')))];
+    expect(tabs.map((t) => t.top).toSet(), hasLength(1));
   });
 
   testWidgets('Android back with the panel open closes the panel, not the chat', (tester) async {

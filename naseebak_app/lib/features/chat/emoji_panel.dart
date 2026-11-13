@@ -42,14 +42,26 @@ class _EmojiPanelState extends State<EmojiPanel> {
         label: 'لوحة الرموز التعبيرية',
         child: Column(
           children: [
-            // One line on a phone: the tabs share the width
+            // One line: the tabs share the width, and scroll sideways when the labels don't fit (large text);
+            // a label never shrinks
             Container(
               decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.line))),
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-              child: Row(
-                children: [
-                  for (var i = 0; i < emojiGroups.length; i++) Expanded(child: _tab(i)),
-                ],
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: LayoutBuilder(
+                builder: (_, box) => SingleChildScrollView(
+                  key: const Key('emoji-tabs'),
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: Row(
+                    children: [
+                      for (var i = 0; i < emojiGroups.length; i++)
+                        ConstrainedBox(
+                          constraints: BoxConstraints(minWidth: (box.maxWidth - 8) / emojiGroups.length),
+                          child: _tab(i),
+                        ),
+                    ],
+                  ),
+                ),
               ),
             ),
             Expanded(
@@ -85,20 +97,18 @@ class _EmojiPanelState extends State<EmojiPanel> {
         child: Container(
           constraints: const BoxConstraints(minHeight: 44),
           alignment: Alignment.center,
-          padding: const EdgeInsets.symmetric(horizontal: 2),
+          padding: const EdgeInsets.symmetric(horizontal: 10),
           decoration: active
               ? BoxDecoration(
                   color: AppColors.navy.withValues(alpha: 0.10),
                   borderRadius: BorderRadius.circular(AppRadius.full),
                 )
               : null,
-          child: FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Text(
-              emojiGroups[i].label,
-              maxLines: 1,
-              style: active ? AppText.label.copyWith(color: AppColors.navy) : AppText.labelRegular.copyWith(color: AppColors.muted),
-            ),
+          child: Text(
+            emojiGroups[i].label,
+            maxLines: 1,
+            softWrap: false,
+            style: active ? AppText.label.copyWith(color: AppColors.navy) : AppText.labelRegular.copyWith(color: AppColors.muted),
           ),
         ),
       ),

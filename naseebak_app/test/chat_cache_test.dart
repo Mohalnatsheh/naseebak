@@ -153,4 +153,53 @@ void main() {
     expect(olderCursorOf([failed]), isNull);
     expect(olderCursorOf(const []), isNull);
   });
+
+  ChatMessage failedText(String nonce, String body) => ChatMessage(
+        id: 'local-$nonce',
+        body: body,
+        createdAt: _t0.add(const Duration(minutes: 5)),
+        mine: true,
+        state: SendState.failed,
+        nonce: nonce,
+        error: 'تعذّر الإرسال',
+        maybeSent: true,
+      );
+
+  test('addFailed adds a failed text to the copy, once per nonce', () async {
+    final mem = MemoryChatCache();
+    await mem.write('u1', 'c1', chat([1]));
+    await mem.addFailed('u1', 'c1', failedText('n1', 'نص'));
+    await mem.addFailed('u1', 'c1', failedText('n1', 'نص'));
+    final back = (await mem.read('u1', 'c1'))!;
+    expect(back.messages.length, 2);
+    expect(back.messages.last.state, SendState.failed);
+    expect(back.messages.last.body, 'نص');
+    expect(back.messages.last.maybeSent, isTrue);
+    expect(back.messages.first.id, 'm1');
+  });
+
+  test('addFailed with no copy writes one from the conversation, or nothing without it', () async {
+    final mem = MemoryChatCache();
+    await mem.addFailed('u1', 'c1', failedText('n1', 'نص'));
+    expect(await mem.read('u1', 'c1'), isNull);
+    await mem.addFailed('u1', 'c1', failedText('n1', 'نص'), conversation: chat([]).conversation);
+    final back = (await mem.read('u1', 'c1'))!;
+    expect(back.messages.single.body, 'نص');
+    expect(back.messages.single.state, SendState.failed);
+    expect(back.hasMore, isTrue);
+    expect(back.conversation.partnerName, 'عمر');
+  });
+
+  test('on the device, addFailed lands after the writes queued before it, and never across a sign-out', () async {
+    final pending = cache.write('u1', 'c1', chat([1, 2]));
+    await cache.addFailed('u1', 'c1', failedText('n1', 'نص'));
+    await pending;
+    final back = (await cache.read('u1', 'c1'))!;
+    expect(back.messages.map((m) => m.id), ['m1', 'm2', 'local-n1']);
+
+    final late = cache.addFailed('u1', 'c2', failedText('n2', 'نص'), conversation: chat([]).conversation);
+    await cache.clearAll();
+    await late;
+    expect(await cache.read('u1', 'c2'), isNull);
+  });
 }

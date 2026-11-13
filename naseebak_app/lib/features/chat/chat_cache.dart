@@ -28,6 +28,23 @@ abstract class ChatCache {
   /// Sign-out: every member's chats on this device
   Future<void> clearAll();
 
+  /// A text that failed after its chat was left (audit B2): added to the chat's copy (replacing one with the same
+  /// nonce), so the next visit shows it with «إعادة الإرسال». With no copy yet, one is started from [conversation]
+  /// (`hasMore`, so older messages still load from the API); without a conversation nothing is written.
+  Future<void> addFailed(String memberId, String chatId, ChatMessage failed, {ChatSummary? conversation}) =>
+      _addFailed(memberId, chatId, failed, conversation: conversation);
+
+  Future<void> _addFailed(String memberId, String chatId, ChatMessage failed,
+      {ChatSummary? conversation, bool Function()? stillValid}) async {
+    final copy = await read(memberId, chatId);
+    if (stillValid != null && !stillValid()) return;
+    final chat = copy?.conversation ?? conversation;
+    if (chat == null) return;
+    final messages = [...?copy?.messages.where((m) => m.nonce == null || m.nonce != failed.nonce), failed];
+    await write(memberId, chatId,
+        CachedChat(conversation: chat, messages: sortedForChat(messages), hasMore: copy?.hasMore ?? true));
+  }
+
   /// Only confirmed messages, the newest [keep]
   static List<ChatMessage> trim(List<ChatMessage> messages) {
     final sent = messages.where((m) => m.state == SendState.sent).toList();
@@ -178,6 +195,16 @@ class FileChatCache extends ChatCache {
         } catch (_) {}
       }
     });
+  }
+
+  /// After the writes already queued for this chat (the copy read is the newest), and never across a sign-out
+  @override
+  Future<void> addFailed(String memberId, String chatId, ChatMessage failed, {ChatSummary? conversation}) async {
+    final generation = _generation;
+    await (_queues['${_safe(memberId)}/${_safe(chatId)}'] ?? Future<void>.value());
+    if (generation != _generation) return;
+    await _addFailed(memberId, chatId, failed,
+        conversation: conversation, stillValid: () => generation == _generation);
   }
 
   @override

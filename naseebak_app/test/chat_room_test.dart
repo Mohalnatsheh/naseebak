@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -382,6 +384,60 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('اختبار'), findsOneWidget);
       expect(find.text('إعادة الإرسال'), findsOneWidget);
+    });
+
+    /// Types «نص مهم», sends it on a held request (answered offline) and leaves the room before the answer
+    Future<(ProviderContainer, Completer<void>)> sendThenLeave(WidgetTester tester, MemoryChatCache cache) async {
+      final release = Completer<void>();
+      final adapter = FakeAdapter()
+        ..on('POST', '/api/chats/c1/messages', const FakeResponse.network())
+        ..on('GET', '/api/chats/c1', FakeResponse(200, page([1])))
+        ..hold('POST', '/api/chats/c1/messages', release.future);
+      final container =
+          await openRoom(tester, adapter, cache, extra: [
+        pickerFilesCleanerProvider.overrideWithValue(() async {}),
+        chatDraftsProvider.overrideWithValue(MemoryChatDrafts()),
+      ]);
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byKey(const Key('chat-input')), 'نص مهم');
+      await tester.tap(find.byKey(const Key('chat-send')));
+      await tester.pump();
+      await tester.pumpWidget(UncontrolledProviderScope(container: container, child: const SizedBox()));
+      await tester.pump();
+      return (container, release);
+    }
+
+    testWidgets('a text whose send fails after leaving the chat is kept as failed (B2)', (tester) async {
+      final cache = MemoryChatCache();
+      final (container, release) = await sendThenLeave(tester, cache);
+      release.complete();
+      await tester.pumpAndSettle();
+      final saved = (await cache.read('u1', 'c1'))!;
+      final failed = saved.messages.singleWhere((m) => m.state == SendState.failed);
+      expect(failed.body, 'نص مهم');
+      expect(failed.maybeSent, isTrue);
+      expect(saved.messages.first.id, 'm001', reason: 'the copy keeps what it had');
+
+      await tester.pumpWidget(UncontrolledProviderScope(
+        container: container,
+        child: rtlApp(const ChatRoomScreen(chatId: 'c1', pollInterval: Duration(hours: 1))),
+      ));
+      await tester.pumpAndSettle();
+      expect(find.text('نص مهم'), findsOneWidget);
+      expect(find.text('إعادة الإرسال'), findsOneWidget);
+    });
+
+    testWidgets('a failure after a sign-out writes nothing back', (tester) async {
+      final cache = MemoryChatCache();
+      final (container, release) = await sendThenLeave(tester, cache);
+      container.read(authControllerProvider.notifier).handleUnauthorized();
+      for (var i = 0; i < 20 && container.read(authControllerProvider).isSignedIn; i++) {
+        await tester.pump(const Duration(milliseconds: 10));
+      }
+      expect(container.read(authControllerProvider).isSignedIn, isFalse);
+      release.complete();
+      await tester.pumpAndSettle();
+      expect(await cache.read('u1', 'c1'), isNull);
     });
 
     testWidgets('what was typed stays per chat (back, app killed); sending clears it; sign-out wipes drafts',

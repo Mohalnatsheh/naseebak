@@ -1161,6 +1161,10 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     _toNewest();
     // Taken before the request: `ref` can't be used once the chat was left meanwhile
     final container = ProviderScope.containerOf(context, listen: false);
+    final cache = _cache;
+    final member = _memberId;
+    final chat = _chat;
+    final chatId = widget.chatId;
     try {
       final sent = await _repo.send(widget.chatId, text, nonce: nonce, replyToId: reply?.id);
       _confirmedIds.add(sent.id);
@@ -1174,7 +1178,15 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
       // «المحادثات» shows the last message and orders by it: my own message changes no unread count, so reload it here
       ref.invalidate(chatListProvider);
     } on ApiException catch (e) {
-      if (!mounted) return;
+      if (!mounted) {
+        // Left meanwhile (audit B2): kept on the phone as failed, so the next visit shows it with «إعادة الإرسال».
+        // Never after a sign-out, nor for another member signed in since
+        if (member == null || _signedOut || container.read(authControllerProvider).me?.id != member) return;
+        final failed = local.copyWith(
+            state: SendState.failed, error: e.message, filtered: e.code == 'FILTERED', maybeSent: e.isNetwork);
+        unawaited(cache.addFailed(member, chatId, failed, conversation: chat));
+        return;
+      }
       setState(() {
         final i = _messages.indexWhere((m) => m.nonce == nonce);
         if (i >= 0) {

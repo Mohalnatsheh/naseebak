@@ -23,9 +23,9 @@ describe("cardFacts", () => {
   it("shows the beard for a man, no veil", () => {
     const yes = cardFacts({ ...base, hijab: null, niqab: null, beard: true }, "MALE", "JO");
     expect(yes.some((f) => f.key === "veil")).toBe(false);
-    expect(yes.find((f) => f.key === "beard")).toEqual({ key: "beard", label: "اللحية", value: "نعم" });
+    expect(yes.find((f) => f.key === "beard")).toEqual({ key: "beard", label: "اللحية", value: "ملتحٍ" });
     const no = cardFacts({ ...base, hijab: null, beard: false }, "MALE", "JO");
-    expect(no.find((f) => f.key === "beard")?.value).toBe("لا");
+    expect(no.find((f) => f.key === "beard")?.value).toBe("غير ملتحٍ");
   });
 
   it("ends with the sect in Lebanon, or the tribe when there is none", () => {

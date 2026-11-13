@@ -54,6 +54,26 @@ describe("ProfileSheet", () => {
     expect(within(screen.getByRole("dialog")).getByText("توافق 83%")).toBeTruthy();
   });
 
+  it("hides the score at 0%", () => {
+    render(<ProfileSheet item={{ ...item, compatibilityScore: 0.2 } as FeedItem} onClose={() => {}} footer={null} />);
+    expect(within(screen.getByRole("dialog")).queryByText(/توافق \d/)).toBeNull();
+  });
+
+  it("shows the activity, but not on a declined card", () => {
+    const { unmount } = render(<ProfileSheet item={item} onClose={() => {}} footer={null} />);
+    expect(within(screen.getByRole("dialog")).getByText(/نشطة اليوم/)).toBeTruthy();
+    unmount();
+    render(<ProfileSheet item={{ ...item, declined: true } as FeedItem} onClose={() => {}} footer={null} />);
+    expect(within(screen.getByRole("dialog")).queryByText(/نشطة اليوم/)).toBeNull();
+  });
+
+  it("shows the card's status and the Pro badge", () => {
+    render(<ProfileSheet item={{ ...item, isPro: true } as FeedItem} onClose={() => {}} footer={null} status={<span>STATUS</span>} />);
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByText("STATUS")).toBeTruthy();
+    expect(within(dialog).getByText("Pro")).toBeTruthy();
+  });
+
   it("renders the footer and the menu", () => {
     render(<ProfileSheet item={item} onClose={() => {}} footer={<div>FOOT</div>} menu={<button>MENU</button>} />);
     expect(screen.getByText("FOOT")).toBeTruthy();

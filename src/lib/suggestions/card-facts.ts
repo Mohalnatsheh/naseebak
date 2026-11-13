@@ -26,7 +26,7 @@ export function cardFacts(c: FeedCandidate, partnerGender: "MALE" | "FEMALE", co
   if (partnerGender === "FEMALE") {
     if (c.hijab !== null && c.hijab !== undefined) add("veil", "الحجاب", veilLabel(c.hijab, c.niqab));
   } else if (c.beard !== null && c.beard !== undefined) {
-    add("beard", "اللحية", c.beard ? "نعم" : "لا");
+    add("beard", "اللحية", c.beard ? "ملتحٍ" : "غير ملتحٍ");
   }
   add("height", "الطول", c.height ? `${c.height} سم` : null);
   add("maritalStatus", "الحالة الاجتماعية", c.maritalStatus && describeOption("maritalStatus", c.maritalStatus, partnerGender));

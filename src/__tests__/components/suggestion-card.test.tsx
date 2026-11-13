@@ -53,7 +53,7 @@ describe("SuggestionCard", () => {
     }
     expect(screen.getByText("عنها")).toBeTruthy();
     expect(screen.getByText("أحب القراءة والهدوء")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "الملف كاملاً" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "الملف كاملاً: نسرين" })).toBeTruthy();
     expect(screen.queryByText("عرض جميع التفاصيل")).toBeNull();
     expect(screen.getByText("STATUS")).toBeTruthy();
   });
@@ -67,17 +67,30 @@ describe("SuggestionCard", () => {
     const { onOpen, inner } = setup();
     fireEvent.click(screen.getByText("نسرين، 27"));
     expect(onOpen).toHaveBeenCalledTimes(1);
-    fireEvent.click(screen.getByRole("button", { name: "الملف كاملاً" }));
+    fireEvent.click(screen.getByRole("button", { name: "الملف كاملاً: نسرين" }));
     expect(onOpen).toHaveBeenCalledTimes(2);
     fireEvent.click(screen.getByRole("button", { name: "مهتم" }));
     expect(inner).toHaveBeenCalledTimes(1);
     expect(onOpen).toHaveBeenCalledTimes(2);
   });
 
-  it("opens with Enter on the focused card", () => {
+  it("has one open control only (no button nested in a button region)", () => {
+    setup();
+    expect(screen.getAllByRole("button", { name: /الملف كاملاً/ })).toHaveLength(1);
+  });
+
+  it("opens by keyboard through the «الملف كاملاً» button", async () => {
     const { onOpen } = setup();
-    fireEvent.keyDown(screen.getByRole("button", { name: "الملف كاملاً: نسرين" }), { key: "Enter" });
+    const btn = screen.getByRole("button", { name: "الملف كاملاً: نسرين" });
+    btn.focus();
+    expect(document.activeElement).toBe(btn);
+    fireEvent.click(btn); // Enter / Space on a focused button fire a click
     expect(onOpen).toHaveBeenCalledTimes(1);
+  });
+
+  it("hides the score at 0%", () => {
+    setup({ ...base, compatibilityScore: 0.3 } as unknown as FeedItem);
+    expect(screen.queryByText(/توافق/)).toBeNull();
   });
 
   it("has no «عنها» heading without aboutMe", () => {

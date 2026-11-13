@@ -1,6 +1,6 @@
 "use client";
 
-import type { KeyboardEvent, ReactNode } from "react";
+import type { ReactNode } from "react";
 import { ChevronLeft } from "lucide-react";
 import { MemberAvatar } from "@/components/shared/member-avatar";
 import { ProBadge } from "@/components/shared/pro-badge";
@@ -32,24 +32,13 @@ export function SuggestionCard({
   const facts = cardFacts(c, partnerGender, country);
   const title = c.age ? `${c.firstName}، ${c.age}` : c.firstName;
   const place = c.city;
-
-  const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-    if (e.target !== e.currentTarget) return;
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      onOpen();
-    }
-  };
+  const score = Math.round(item.compatibilityScore);
 
   return (
     <article className="overflow-hidden rounded-2xl border border-border/60 bg-card">
       <div
-        role="button"
-        tabIndex={0}
-        aria-label={`الملف كاملاً: ${c.firstName}`}
         onClick={onOpen}
-        onKeyDown={onKeyDown}
-        className="cursor-pointer space-y-3 p-4 outline-none transition-colors hover:bg-muted/30 focus-visible:ring-2 focus-visible:ring-ring"
+        className="cursor-pointer space-y-3 p-4 transition-colors hover:bg-muted/30"
       >
         <div className="flex items-center gap-3">
           <MemberAvatar name={c.firstName} size={56} locked />
@@ -68,9 +57,11 @@ export function SuggestionCard({
               )}
             </p>
           </div>
-          <span className="shrink-0 rounded-full bg-accent-soft px-2.5 py-1 text-caption font-bold text-accent-ink">
-            توافق {Math.round(item.compatibilityScore)}%
-          </span>
+          {score > 0 && (
+            <span className="shrink-0 rounded-full bg-accent-soft px-2.5 py-1 text-caption font-bold text-accent-ink">
+              توافق {score}%
+            </span>
+          )}
         </div>
 
         {status}
@@ -96,6 +87,7 @@ export function SuggestionCard({
         <div className="flex items-center justify-between text-label font-bold text-primary">
           <button
             type="button"
+            aria-label={`الملف كاملاً: ${c.firstName}`}
             onClick={(e) => {
               e.stopPropagation();
               onOpen();

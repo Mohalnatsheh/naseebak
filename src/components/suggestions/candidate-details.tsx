@@ -150,7 +150,7 @@ export function CandidateDetails({ c, flat = false }: { c: CandidateDetailsData;
           <InfoRow icon={User} label="الحجاب" value={veilLabel(c.hijab, c.niqab)} />
         )}
         {c.beard !== null && c.beard !== undefined && (
-          <InfoRow icon={User} label="اللحية" value={c.beard ? "نعم" : "لا"} />
+          <InfoRow icon={User} label="اللحية" value={c.beard ? (flat ? "ملتحٍ" : "نعم") : flat ? "غير ملتحٍ" : "لا"} />
         )}
       </Section>
       <Section flat={flat} title="التعليم والعمل" icon={GraduationCap} defaultOpen={true}>

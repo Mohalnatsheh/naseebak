@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useRef, type ReactNode } from "react";
 import { X } from "lucide-react";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { MemberAvatar } from "@/components/shared/member-avatar";
+import { ProBadge } from "@/components/shared/pro-badge";
 import { WhyLine } from "@/components/shared/person-card";
 import { CandidateDetails } from "@/components/suggestions/candidate-details";
 import { useDashboardData } from "@/contexts/dashboard-context";
@@ -24,11 +25,13 @@ export function ProfileSheet({
   onClose,
   footer,
   menu,
+  status,
 }: {
   item: FeedItem | null;
   onClose: () => void;
   footer: ReactNode;
   menu?: ReactNode;
+  status?: ReactNode;
 }) {
   const open = item !== null;
   const { profile } = useDashboardData();
@@ -94,7 +97,10 @@ export function ProfileSheet({
   const c = item.candidate;
   const gender = profile?.gender;
   const title = c.age ? `${c.firstName}، ${c.age}` : c.firstName;
-  const meta = [c.city, item.activity].filter(Boolean).join(" · ");
+  // A declined card shows no activity (like the card and the app)
+  const activity = item.declined ? null : item.activity;
+  const meta = [c.city, activity].filter(Boolean).join(" · ");
+  const score = Math.round(item.compatibilityScore);
 
   return (
     <Sheet open onOpenChange={(next) => !next && onClose()}>
@@ -123,12 +129,16 @@ export function ProfileSheet({
         <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-5">
           <div className="flex flex-col items-center gap-2 text-center">
             <MemberAvatar name={c.firstName} size={96} locked />
-            <SheetTitle className="font-display text-title">{title}</SheetTitle>
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <SheetTitle className="font-display text-title">{title}</SheetTitle>
+              {item.isPro && <ProBadge />}
+            </div>
             <p className="text-label text-muted-foreground">
               {meta}
-              {meta ? " · " : ""}
-              <span className="text-accent-ink">توافق {Math.round(item.compatibilityScore)}%</span>
+              {meta && score > 0 ? " · " : ""}
+              {score > 0 && <span className="text-accent-ink">توافق {score}%</span>}
             </p>
+            {status && <div className="flex flex-wrap items-center justify-center gap-1.5">{status}</div>}
             <p className="text-caption text-muted-foreground">الصور تظهر بعد التوافق المتبادل فقط</p>
           </div>
 

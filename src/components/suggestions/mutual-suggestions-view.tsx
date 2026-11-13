@@ -1118,6 +1118,7 @@ export function MutualSuggestionsView({
           item={sheetItem}
           onClose={closeSheet}
           menu={sheetItem && renderMenu(sheetItem)}
+          status={sheetItem && renderStatus(sheetItem)}
           footer={sheetItem && renderAnswers(sheetItem, sheetIndex, { onDone: closeSheet, noMenu: true })}
         />
       )}

@@ -27,4 +27,15 @@ describe("CandidateDetails sections", () => {
     expect(screen.getByText("العائلة")).toBeTruthy();
     expect(screen.getByText("عدد الإخوة")).toBeTruthy();
   });
+
+  it("keeps «نعم» / «لا» for the beard on the old page and «ملتحٍ» on the flat one", () => {
+    const { unmount } = render(<CandidateDetails c={{ ...base, beard: true }} />);
+    expect(screen.getByText("نعم")).toBeTruthy();
+    unmount();
+    const flat = render(<CandidateDetails c={{ ...base, beard: false }} flat />);
+    expect(screen.getByText("غير ملتحٍ")).toBeTruthy();
+    flat.unmount();
+    render(<CandidateDetails c={{ ...base, beard: false }} />);
+    expect(screen.getByText("لا")).toBeTruthy();
+  });
 });

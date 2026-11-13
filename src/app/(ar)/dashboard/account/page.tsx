@@ -12,6 +12,7 @@ import { signOutAndUnlinkPush } from "@/lib/push-client";
 import { cn } from "@/lib/utils";
 import { matchesHref } from "@/lib/matches/links";
 import { PRO_PAGE_PATH } from "@/lib/pro/plans";
+import { accountSettingsHref } from "@/lib/account-settings-link";
 import { LoadError } from "@/components/shared/load-error";
 import { PageHeader } from "@/components/shared/page-header";
 import { MemberAvatar } from "@/components/shared/member-avatar";
@@ -154,8 +155,8 @@ export default function AccountPage() {
       title: "الخصوصية والحساب",
       rows: [
         { href: "/dashboard/blocks", label: "المحظورون", icon: Ban },
-        // Pause / delete live at the bottom of the profile page
-        { href: "/dashboard/profile#account-settings", label: "إعدادات الحساب", icon: Settings },
+        // Pause / delete: their own page with the redesign on, else the bottom of the profile page
+        { href: accountSettingsHref(counts.dashboardRedesign === true), label: "إعدادات الحساب", icon: Settings },
       ],
     },
   ];

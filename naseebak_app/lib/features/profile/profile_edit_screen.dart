@@ -7,6 +7,7 @@ import '../../core/localization/safe_input_formatter.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/network/json.dart';
 import '../../shared/person.dart';
+import '../../shared/religion.dart';
 import '../../shared/widgets/common.dart';
 import '../country_selection/country.dart';
 import '../country_selection/country_providers.dart';
@@ -28,6 +29,7 @@ const profileFieldLabels = <String, String>{
   'job': 'الوظيفة',
   'maritalStatus': 'الحالة الاجتماعية',
   'childrenCount': 'عدد الأبناء',
+  'religion': 'الديانة',
   'religiosity': 'مستوى التدين',
   'sect': 'المذهب',
   'height': 'الطول',
@@ -64,7 +66,7 @@ const _numberLimits = <String, (int, int)>{
 
 /// Single-choice fields the website's edit page requires (`validateStep`): a chip can be changed, never cleared
 /// («المذهب» only shows where the country asks it)
-const requiredChoices = {'nationality', 'city', 'education', 'maritalStatus', 'religiosity', 'sect'};
+const requiredChoices = {'nationality', 'city', 'education', 'maritalStatus', 'religion', 'religiosity', 'sect'};
 
 /// The area kept after a city change: only if it is one of the new city's areas (the website's `handleCityChange`)
 String? areaAfterCityChange(String? area, List<String> newCityAreas) =>
@@ -93,7 +95,12 @@ const _relocate = {'yes': 'نعم', 'no': 'لا', 'maybe': 'ربما'};
 
 /// The stored values the editor works on (only the fields it edits).
 Map<String, Object?> editableValues(MyProfile p) => {
-      for (final k in profileFieldLabels.keys) k: k == 'dateOfBirth' ? dayOf(p.field(k)) : p.field(k),
+      for (final k in profileFieldLabels.keys)
+        k: k == 'dateOfBirth'
+            ? dayOf(p.field(k))
+            : k == 'religion'
+                ? religionOf(p.field(k))
+                : p.field(k),
     };
 
 /// Jobs only women pick («ربة منزل»), like the website's `jobValuesFor`: not offered to a man (a value he already
@@ -162,6 +169,12 @@ class _ProfileEditFormState extends ConsumerState<ProfileEditForm> {
 
   bool get _female => widget.profile.female;
 
+  /// The religion question is asked only when the country's options carry it (old servers: nothing changes)
+  bool get _religionAsked => widget.lists.option('religion').isNotEmpty;
+
+  /// A Christian (picked, or stored while the switch is off) is never asked the Muslim-only rows
+  bool get _christian => isChristian(_v['religion']);
+
   @override
   void initState() {
     super.initState();
@@ -213,7 +226,7 @@ class _ProfileEditFormState extends ConsumerState<ProfileEditForm> {
     final missing = missingRequiredChoice(out);
     if (missing != null) return (null, missing);
     final sects = widget.lists.option('sect');
-    if (sects.isNotEmpty && !sects.contains(out['sect'])) return (null, 'يرجى اختيار المذهب');
+    if (!_christian && sects.isNotEmpty && !sects.contains(out['sect'])) return (null, 'يرجى اختيار المذهب');
     if (out['maritalStatus'] == ProfileOptions.single) out['childrenCount'] = 0;
     if (out['maritalStatus'] != ProfileOptions.single && out['childrenCount'] == null) {
       return (null, 'عدد الأبناء مطلوب');
@@ -226,7 +239,9 @@ class _ProfileEditFormState extends ConsumerState<ProfileEditForm> {
         ..remove('hijab')
         ..remove('niqab');
     }
-    return (out, null);
+    // No religion list from the server: no religion key is sent (a stored Christian only hides the rows)
+    if (!_religionAsked) out.remove('religion');
+    return (withoutMuslimOnly(_v['religion'], out), null);
   }
 
   Future<void> _save() async {
@@ -246,7 +261,7 @@ class _ProfileEditFormState extends ConsumerState<ProfileEditForm> {
     final repo = ref.read(profileRepositoryProvider);
     try {
       if (plan.fills.isNotEmpty) {
-        await repo.save({...requiredPayload(widget.profile), ...plan.fills});
+        await repo.save(withoutMuslimOnly(_v['religion'], {...requiredPayload(widget.profile), ...plan.fills}));
       }
       if (plan.reviewed.isNotEmpty) {
         final note = _message.text.trim();
@@ -451,6 +466,7 @@ class _ProfileEditFormState extends ConsumerState<ProfileEditForm> {
             text: 'الحقول الفارغة تُحفظ فوراً. تغيير بيانات محفوظة يُرسل لفريق نصيبك للمراجعة قبل ظهوره.',
           ),
         _section('البيانات الأساسية', [
+          if (_religionAsked) _choice('religion', lists.option('religion'), labelOf: (v) => self('religion', v)),
           _label('dateOfBirth'),
           OutlinedButton.icon(
             key: const Key('field-dateOfBirth'),
@@ -492,7 +508,7 @@ class _ProfileEditFormState extends ConsumerState<ProfileEditForm> {
           _choice('maritalStatus', lists.option('maritalStatus'), labelOf: (v) => self('maritalStatus', v)),
           if (_v['maritalStatus'] != null && _v['maritalStatus'] != ProfileOptions.single) _field('childrenCount'),
           _choice('religiosity', lists.option('religiosity'), labelOf: (v) => self('religiosity', v)),
-          if (lists.option('sect').isNotEmpty) _choice('sect', lists.option('sect'), labelOf: (v) => self('sect', v)),
+          if (!_christian && lists.option('sect').isNotEmpty) _choice('sect', lists.option('sect'), labelOf: (v) => self('sect', v)),
         ]),
         _section('المظهر والعمل', [
           _field('height', title: 'الطول (سم)'),
@@ -502,7 +518,7 @@ class _ProfileEditFormState extends ConsumerState<ProfileEditForm> {
         ]),
         _section('نمط الحياة', [
           _choice('smokingStatus', lists.option('smokingStatus')),
-          if (_female) _hijab() else _yesNo('beard', 'هل أنت ملتحٍ؟'),
+          if (!_christian) ...[if (_female) _hijab() else _yesNo('beard', 'هل أنت ملتحٍ؟')],
           _choice('cookingAbility', lists.option('cookingAbility')),
           _choice('lifestyle', lists.option('lifestyle'), labelOf: (v) => self('lifestyle', v)),
           _yesNo('drivingLicense', _female ? 'هل لديكِ رخصة قيادة؟' : 'هل لديك رخصة قيادة؟'),

@@ -31,7 +31,8 @@ ProfileEditPlan planProfileEdit(Map<String, Object?> stored, Map<String, Object?
   for (final e in edited.entries) {
     final before = e.key == 'dateOfBirth' ? dayOf(stored[e.key]) : stored[e.key];
     if (_same(before, e.value)) continue;
-    if (isEmptyStored(before) && !isEmptyStored(e.value)) {
+    // A religion change is always reviewed (the server answers 409 to a direct one)
+    if (e.key != 'religion' && isEmptyStored(before) && !isEmptyStored(e.value)) {
       fills[e.key] = e.value;
     } else {
       reviewed[e.key] = isEmptyStored(e.value) ? null : e.value;

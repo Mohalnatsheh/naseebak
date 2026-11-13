@@ -1,5 +1,6 @@
 /** Shared Pro types (db-free: client pages may import it) */
 import type { ProPlanId, ProPlanOffer } from "@/lib/pro/plans";
+import type { ActiveOffer } from "@/lib/payments/offer";
 
 export interface MyProState {
   /** `pro_enabled` switch (sales and offers only) */
@@ -18,4 +19,6 @@ export interface MyProState {
   offers: ProPlanOffer[];
   /** `chat_delete_enabled`: the plan lists «حذف الرسائل ومسح المحادثة» only while it is on (additive; older apps ignore it) */
   chatDelete?: boolean;
+  /** Sale offer open now where buying is open, or null (additive; older apps ignore it) */
+  offer?: ActiveOffer | null;
 }

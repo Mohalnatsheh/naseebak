@@ -37,6 +37,8 @@ export interface ProPlanOffer {
   chargeAmount: number;
   credits: number;
   interval: "week" | "month" | "year";
+  /** Sale offer: extra credits with the first payment only (lib/payments/offer) */
+  bonusCredits?: number;
 }
 
 export const PRO_PLAN_IDS = ["weekly", "monthly", "yearly"] as const satisfies readonly ProPlanId[];

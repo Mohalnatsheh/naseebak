@@ -13,7 +13,13 @@ vi.mock("@/lib/db", () => ({ db }));
 const requireUser = vi.hoisted(() => vi.fn(async () => ({ session: { user: { id: "u1" } } })));
 vi.mock("@/lib/auth", () => ({ requireUser }));
 vi.mock("@/lib/mobile-config", () => ({ appPaymentsFor: m.appPaymentsFor }));
-vi.mock("@/lib/settings", () => ({ getProEnabled: m.getProEnabled, getChatDeleteEnabled: m.getChatDeleteEnabled, jodChargingFor: async () => false }));
+const sale = vi.hoisted(() => ({ percent: 0 }));
+vi.mock("@/lib/settings", () => ({
+  getProEnabled: m.getProEnabled,
+  getChatDeleteEnabled: m.getChatDeleteEnabled,
+  jodChargingFor: async () => false,
+  activeOfferFor: async (selling: boolean) => (selling && sale.percent > 0 ? { percent: sale.percent, title: "عروض الجمعة البيضاء", endsAt: "2026-11-30T21:59:00.000Z" } : null),
+}));
 vi.mock("@/lib/countries/settings", () => ({ getCountrySettings: m.getCountrySettings, purchasesAvailable: m.purchasesAvailable }));
 vi.mock("@/lib/pro/status", () => ({ currentProSubscription: m.currentProSubscription }));
 
@@ -31,6 +37,7 @@ beforeEach(() => {
   m.getCountrySettings.mockResolvedValue({ proPlans: { monthly: { enabled: true, price: 4, credits: 8 } } });
   m.currentProSubscription.mockResolvedValue(null);
   db.user.findUnique.mockResolvedValue({ country: "JO" });
+  sale.percent = 0;
 });
 
 describe("GET /api/pro while paused (QA WP2-02, A-M01)", () => {
@@ -103,5 +110,27 @@ describe("GET /api/pro", () => {
   });
   it("app request with payments allowed can buy", async () => {
     expect((await (await GET(app)).json()).canBuy).toBe(true);
+  });
+});
+
+describe("GET /api/pro with a sale offer", () => {
+  it("each offer carries the first payment's bonus, and the offer is sent", async () => {
+    sale.percent = 50;
+    const body = await (await GET(web)).json();
+    expect(body.offer).toMatchObject({ percent: 50 });
+    expect(body.offers[0]).toMatchObject({ id: "monthly", credits: 8, bonusCredits: 4 });
+  });
+
+  it("no offer: no bonus, offer null", async () => {
+    const body = await (await GET(web)).json();
+    expect(body.offer).toBeNull();
+    expect(body.offers[0].bonusCredits).toBeUndefined();
+  });
+
+  it("not selling: offer null", async () => {
+    sale.percent = 50;
+    m.purchasesAvailable.mockReturnValue(false);
+    const body = await (await GET(web)).json();
+    expect(body.offer).toBeNull();
   });
 });

@@ -2,7 +2,8 @@ import { db } from "@/lib/db";
 import { toCountry } from "@/lib/countries";
 import { getCountrySettings, purchasesAvailable } from "@/lib/countries/settings";
 import { appPaymentsFor } from "@/lib/mobile-config";
-import { getChatDeleteEnabled, getProEnabled, jodChargingFor } from "@/lib/settings";
+import { activeOfferFor, getChatDeleteEnabled, getProEnabled, jodChargingFor } from "@/lib/settings";
+import { bonusFor } from "@/lib/payments/offer";
 import type { ProPlan } from "@prisma/client";
 import { proOffersFor, type ProPlanId } from "@/lib/pro/plans";
 import type { MyProState } from "@/lib/pro/pro-types";
@@ -34,7 +35,13 @@ export async function getMyProState(
     jodChargingFor(country),
   ]);
   // jod: the offers say what a new checkout charges (no dollar line once Jordan is charged in JOD)
-  const offers = enabled && sellable ? proOffersFor(country, countrySettings.proPlans, jod) : [];
+  const selling = enabled && sellable && purchasesAvailable(countrySettings);
+  // Sale offer: the first payment's bonus on each plan (lib/payments/offer)
+  const sale = await activeOfferFor(selling);
+  const offers = (enabled && sellable ? proOffersFor(country, countrySettings.proPlans, jod) : []).map((o) => {
+    const bonus = sale ? bonusFor(o.credits, sale.percent) : 0;
+    return bonus > 0 ? { ...o, bonusCredits: bonus } : o;
+  });
   return {
     enabled,
     isPro: !!sub,
@@ -43,8 +50,9 @@ export async function getMyProState(
     cancelAtPeriodEnd: sub?.cancelAtPeriodEnd ?? false,
     pastDue: sub?.status === "PAST_DUE",
     ...(sub && { creditsPerGrant: sub.creditsPerGrant, nextGrantAt: nextGrantOf(sub) }),
-    canBuy: enabled && sellable && purchasesAvailable(countrySettings) && !sub && offers.length > 0,
+    canBuy: selling && !sub && offers.length > 0,
     offers,
+    offer: sale,
     chatDelete,
   };
 }

@@ -35,6 +35,7 @@ import 'chat_live.dart';
 import 'chat_media_picker.dart';
 import 'chat_models.dart';
 import 'chat_status_bar.dart';
+import 'emoji_panel.dart';
 import 'hold_to_record.dart';
 import 'last_chat.dart';
 import 'wa_chat_header.dart';
@@ -48,6 +49,8 @@ import 'typing_signal.dart';
 import 'voice_playback.dart';
 import 'wa_selection.dart';
 import 'voice_recorder.dart';
+
+export 'wa_composer.dart' show composerHintGap;
 
 /// One conversation. It opens at once from the messages kept on the device (`ChatCache`), then the newest page from
 /// the API is merged in. With Ably configured on the server, live events (`ChatLive`) trigger a fetch at once and the
@@ -100,15 +103,22 @@ class ChatRoomScreen extends ConsumerStatefulWidget {
   ConsumerState<ChatRoomScreen> createState() => _ChatRoomScreenState();
 }
 
-/// The room kept between the composer's start edge (where the cursor stands) and its hint
-const composerHintGap = 6.0;
-
 /// A failed photo or voice note whose file the phone has since removed
 const mediaFileGoneText = 'لم يعد الملف موجوداً على الهاتف، يمكنك إرساله من جديد';
 
 /// The microphone refused: the first time, and once the phone no longer asks (refused before)
 const micRefusedText = 'لإرسال رسالة صوتية يلزم السماح باستخدام الميكروفون.';
 const micBlockedText = 'الميكروفون غير مسموح لنصيبك. يمكنك السماح به من إعدادات الهاتف.';
+
+/// The hold ended while the microphone prompt was up and the answer was «سماح»: how to record now (audit U3).
+/// Follows the viewer's gender, as on the website (never a masculine command for everyone)
+String micAllowedHint(bool female) => 'تم السماح بالميكروفون، ${forViewer(female, 'اضغط', 'اضغطي')} مطولاً للتسجيل';
+
+/// A camera that couldn't open (none, or refused)
+const cameraFailedText = 'تعذّر فتح الكاميرا';
+
+/// The emoji panel is never shorter than this (no keyboard seen yet)
+const emojiPanelMinHeight = 260.0;
 
 /// Shared preferences: the microphone was refused once on this phone (the next refusal points to the settings)
 const micRefusedKey = 'mic_refused_once';
@@ -220,8 +230,17 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
   /// doesn't change shape when the server copy replaces it
   final Map<String, String> _waveSeeds = {};
 
-  /// The gallery is open (a second tap does nothing)
+  /// The gallery or the camera is open (a second tap does nothing)
   bool _picking = false;
+
+  /// The emoji panel is in the keyboard's place (back closes it first)
+  bool _emojiOpen = false;
+
+  /// The last keyboard height seen (logical px): the emoji panel takes it
+  double _keyboardHeight = 0;
+
+  /// The hold on the mic ended while the microphone prompt was up for this recorder (U3: «سماح» then says how)
+  VoiceRecorder? _releasedAsking;
 
   /// The voice note being recorded (one recorder per note; null when idle or released)
   _Voice _voice = _Voice.idle;
@@ -314,6 +333,10 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // The field taken back (a tap on it, «رد»): the keyboard returns and the emoji panel leaves
+    _inputFocus.addListener(() {
+      if (_inputFocus.hasFocus && _emojiOpen && mounted) setState(() => _emojiOpen = false);
+    });
     // This chat's own (another chat pushed on top, e.g. from a notice, has its own and never touches this one's)
     _playback = VoicePlayback(
       createPlayer: ref.read(voicePlayerFactoryProvider),
@@ -977,7 +1000,10 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
   bool _keyboardOpen = false;
   void _followKeyboard() {
     if (!mounted) return;
-    final open = (View.maybeOf(context)?.viewInsets.bottom ?? 0) > 0;
+    final view = View.maybeOf(context);
+    final inset = view == null ? 0.0 : view.viewInsets.bottom / view.devicePixelRatio;
+    if (inset > 0) _keyboardHeight = inset;
+    final open = inset > 0;
     if (open != _keyboardOpen) setState(() => _keyboardOpen = open);
   }
 
@@ -1169,6 +1195,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
       if (retry == null) {
         _input.clear();
         _replyTo = null;
+        _emojiOpen = false;
       }
       // I answered: what was new has been read
       _unreadFromId = null;
@@ -1222,15 +1249,25 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
 
   String _newNonce() => 'app-${DateTime.now().microsecondsSinceEpoch}-${_nonceSeq++}';
 
-  /// The photo button (Pro): pick from the gallery, refuse over 10 MB, then send.
-  Future<void> _pickPhoto() async {
+  /// The paperclip (Pro): its sheet «المعرض» / «الكاميرا», then the photo from that source. The emoji panel closes.
+  Future<void> _attach() async {
+    if (_picking) return;
+    if (_emojiOpen) setState(() => _emojiOpen = false);
+    _inputFocus.unfocus();
+    final source = await showAttachSheet(context);
+    if (source == null || !mounted) return;
+    await _pickPhoto(camera: source == AttachSource.camera);
+  }
+
+  /// A photo (Pro) from the gallery or the camera: refuse over 10 MB, show the preview, then send.
+  Future<void> _pickPhoto({bool camera = false}) async {
     if (_picking) return;
     _picking = true;
     // The keyboard closes before the system picker opens: an open text field under the picker and the preview could
     // get the iPhone keyboard back afterwards with nothing focused, so nothing could close it (TestFlight report)
     _inputFocus.unfocus();
     try {
-      await _pickPhotoAndSend();
+      await _pickPhotoAndSend(camera: camera);
     } finally {
       _hideOrphanKeyboard();
     }
@@ -1242,12 +1279,12 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     SystemChannels.textInput.invokeMethod<void>('TextInput.hide');
   }
 
-  Future<void> _pickPhotoAndSend() async {
+  Future<void> _pickPhotoAndSend({required bool camera}) async {
     PickedPhoto? photo;
     try {
-      photo = await ref.read(chatPhotoPickerProvider)();
+      photo = await ref.read(camera ? chatCameraPickerProvider : chatPhotoPickerProvider)();
     } catch (_) {
-      if (mounted) showSnack(context, 'تعذّر اختيار الصورة');
+      if (mounted) showSnack(context, camera ? cameraFailedText : 'تعذّر اختيار الصورة');
     } finally {
       _picking = false;
     }
@@ -1432,13 +1469,19 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     _recorder = rec;
     // Recording and playback never overlap (they share the phone's audio session)
     _playback.pauseCurrent();
-    setState(() => _voice = _Voice.starting);
+    setState(() {
+      _voice = _Voice.starting;
+      // The recording bar takes the composer's place: no emoji panel under it
+      _emojiOpen = false;
+    });
     var allowed = false;
     _askingMic = rec;
     try {
       allowed = await rec.hasPermission();
     } catch (_) {}
     if (_askingMic == rec) _askingMic = null;
+    final heldThroughPrompt = _releasedAsking == rec;
+    if (heldThroughPrompt) _releasedAsking = null;
     // A refusal is said even when the hold already ended (the finger lifted to answer the prompt): the first
     // «لا» used to vanish with the dropped recorder (QA A2-L5)
     if (!allowed) {
@@ -1447,6 +1490,14 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
       _holding = false;
       _drop(rec);
       if (mounted) _micRefused();
+      return;
+    }
+    // The finger lifted to answer the prompt (U3): nothing records, but the member learns the mic works now
+    if (heldThroughPrompt) {
+      _drop(rec);
+      if (mounted && _recorder == null) {
+        showSnack(context, micAllowedHint(ref.read(authControllerProvider).me?.isFemale ?? false));
+      }
       return;
     }
     if (_recorder != rec || !mounted || !_voiceAllowed) return _drop(rec);
@@ -1625,6 +1676,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
       // Let go before the recorder started: nothing is recorded. A short hold says so, like any hold under 1 s;
       // a release while the microphone prompt was up (the member was answering it) says nothing.
       final asking = _askingMic != null && _askingMic == rec;
+      if (asking) _releasedAsking = rec;
       _releaseVoice();
       setState(() => _voice = _Voice.idle);
       if (!asking) showSnack(context, holdTooShortText);
@@ -2167,14 +2219,17 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     // Gone, no longer sent, or nothing left to do with it (deleted, the chat closed): the selection ends. Derived state,
     // set here so this very build (the bar, the back button) already follows it.
     if (selected == null) _selectedId = null;
+    // No composer (the chat closed, chats off): no emoji panel either
+    if (!_canWrite) _emojiOpen = false;
     return ProviderScope(
       overrides: [voicePlaybackProvider.overrideWithValue(_playback)],
       child: PopScope(
-        canPop: !_voiceUnsent && _selectedId == null,
+        canPop: !_voiceUnsent && _selectedId == null && !_emojiOpen,
         onPopInvokedWithResult: (didPop, _) {
           if (didPop) return;
-          // Back clears the selection first, and stays in the chat
+          // Back clears the selection first, then closes the emoji panel, and stays in the chat
           if (_selectedId != null) return _clearSelection();
+          if (_emojiOpen) return setState(() => _emojiOpen = false);
           _backWhileRecording();
         },
         child: _screen(context, selected),
@@ -2631,13 +2686,39 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     );
   }
 
+  /// The composer can be written in (an open chat, chats on)
+  bool get _canWrite {
+    final chat = _chat;
+    return chat != null && chat.canSend && _chatEnabled;
+  }
+
+  /// The emoji button: the panel in the keyboard's place (the field unfocused, the keyboard hidden), or back to the
+  /// keyboard (the field focused)
+  void _toggleEmoji() {
+    if (_emojiOpen) {
+      setState(() => _emojiOpen = false);
+      _inputFocus.requestFocus();
+      return;
+    }
+    _inputFocus.unfocus();
+    SystemChannels.textInput.invokeMethod<void>('TextInput.hide');
+    setState(() => _emojiOpen = true);
+  }
+
+  /// A pick from the panel: at the cursor (the field keeps no focus, so the keyboard stays away), then like a keystroke
+  void _insertEmoji(String emoji) {
+    final next = insertAtCursor(_input.value, emoji);
+    if (identical(next, _input.value)) return;
+    _input.value = next;
+    _onTyped(next.text);
+  }
+
   Widget _footer(ChatSummary? chat) {
     if (chat == null) return const SizedBox.shrink();
     final female = ref.watch(authControllerProvider).me?.isFemale ?? false;
     // Photo and voice follow Pro: usable, greyed with a «Pro» tag for a member who could buy it, or hidden
     final media = _mediaMode(chat);
-    final canSend = chat.canSend && _chatEnabled;
-    if (!canSend) {
+    if (!_canWrite) {
       final text = !_chatEnabled
           ? 'المحادثات متوقفة حالياً.'
           : chat.blocked
@@ -2645,28 +2726,22 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
               : chat.status == 'ENDED'
                   ? (chat.endedByMe ? 'أنهيت هذه المحادثة.' : 'انتهت هذه المحادثة.')
                   : 'انتهت مدة المحادثة.';
-      return SafeArea(
-        top: false,
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          color: AppColors.line.withValues(alpha: 0.5),
-          child: Text(text, textAlign: TextAlign.center, style: const TextStyle(color: AppColors.muted)),
-        ),
-      );
+      return WaReadOnlyFooter(text: text);
     }
     final holdUi = _holding && (_voice == _Voice.starting || _voice == _Voice.recording);
     if (!holdUi && (_voice == _Voice.recording || _voice == _Voice.stopping || _voice == _Voice.stopped)) {
       return _recordingBar();
     }
     final locked = media == MediaButtons.locked;
+    final panel = _emojiOpen && !holdUi;
     // Starters while I haven't written anything (the server stops sending them after my first message)
-    final starters = !holdUi && _replyTo == null && !_messages.any((m) => m.mine) ? _starters : const <String>[];
+    final starters =
+        !holdUi && !panel && _replyTo == null && !_messages.any((m) => m.mine) ? _starters : const <String>[];
     return SafeArea(
       top: false,
       bottom: !_keyboardOpen,
-      child: Container(
-        decoration: const BoxDecoration(color: Colors.white, border: Border(top: BorderSide(color: AppColors.line))),
+      child: ColoredBox(
+        color: AppColors.chatBackdrop,
         child: ValueListenableBuilder<TextEditingValue>(
           valueListenable: _input,
           builder: (context, value, _) {
@@ -2697,7 +2772,17 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
                                     .clamp(0.0, holdCancelDistance),
                                 female: female,
                               )
-                            : _pill(female, media, locked),
+                            : WaComposerPill(
+                                controller: _input,
+                                focusNode: _inputFocus,
+                                female: female,
+                                media: media,
+                                emojiOpen: _emojiOpen,
+                                onToggleEmoji: _toggleEmoji,
+                                onAttach: _attach,
+                                onOpenPro: _openPro,
+                                onChanged: _onTyped,
+                              ),
                       ),
                       const SizedBox(width: 6),
                       // Part of the input's tap region: sending keeps the keyboard open for the next message
@@ -2705,76 +2790,15 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
                     ],
                   ),
                 ),
+                if (panel)
+                  EmojiPanel(
+                    onPick: _insertEmoji,
+                    height: _keyboardHeight < emojiPanelMinHeight ? emojiPanelMinHeight : _keyboardHeight,
+                  ),
               ],
             );
           },
         ),
-      ),
-    );
-  }
-
-  /// The pill: the text box, with the photo button inside at its end (Pro; greyed with «Pro» where it can be bought;
-  /// else hidden)
-  Widget _pill(bool female, MediaButtons media, bool locked) {
-    const none = OutlineInputBorder(borderSide: BorderSide.none);
-    return Container(
-      constraints: const BoxConstraints(minHeight: 48),
-      decoration: BoxDecoration(
-        color: AppColors.offWhite,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: AppColors.line),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          Expanded(
-            child: TextField(
-              key: const Key('chat-input'),
-              controller: _input,
-              focusNode: _inputFocus,
-              minLines: 1,
-              maxLines: 5,
-              maxLength: 2000,
-              textInputAction: TextInputAction.newline,
-              onChanged: _onTyped,
-              // A tap anywhere else (the messages, the header) closes the keyboard
-              onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
-              style: AppText.body,
-              decoration: InputDecoration(
-                // A little room at the start: the cursor of the empty, focused field stands at the very edge and
-                // would cover the hint's first letter, a thin «ا» («كتب رسالتك», simulator QA D1)
-                hint: Padding(
-                  padding: const EdgeInsetsDirectional.only(start: composerHintGap),
-                  child: Text(
-                    forViewer(female, 'اكتب رسالتك…', 'اكتبي رسالتكِ…'),
-                    key: const Key('chat-input-hint'),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppText.body.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
-                  ),
-                ),
-                counterText: '',
-                filled: false,
-                isDense: true,
-                border: none,
-                enabledBorder: none,
-                focusedBorder: none,
-                contentPadding: const EdgeInsetsDirectional.fromSTEB(16, 13, 8, 13),
-              ),
-            ),
-          ),
-          if (media != MediaButtons.hidden)
-            TextFieldTapRegion(
-              child: _MediaButton(
-                key: const Key('chat-photo'),
-                tagKey: const Key('chat-media-pro-tag'),
-                icon: Icons.photo_camera_back_outlined,
-                tooltip: locked ? 'إرسال الصور مع Pro' : 'إرسال صورة',
-                locked: locked,
-                onPressed: locked ? _openPro : _pickPhoto,
-              ),
-            ),
-        ],
       ),
     );
   }
@@ -2792,7 +2816,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
       );
     }
     if (locked) {
-      return _MediaButton(
+      return ComposerMediaButton(
         key: const Key('chat-mic'),
         tagKey: const Key('chat-mic-pro-tag'),
         icon: Icons.mic_none_rounded,
@@ -2846,59 +2870,6 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
 /// Recording a voice note: the permission prompt and start (`starting`), the clock running, the recorder finishing
 /// the file (`stopping`), stopped at the limit and waiting for «إرسال» or «إلغاء» (`stopped`)
 enum _Voice { idle, starting, recording, stopping, stopped }
-
-/// A composer media button. Locked: greyed, with a small «Pro» tag; the whole button (tag included) opens the plans.
-class _MediaButton extends StatelessWidget {
-  const _MediaButton({
-    super.key,
-    required this.tagKey,
-    required this.icon,
-    required this.tooltip,
-    required this.locked,
-    required this.onPressed,
-  });
-
-  final Key tagKey;
-  final IconData icon;
-  final String tooltip;
-  final bool locked;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 48,
-      height: 52,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          IconButton(
-              tooltip: tooltip,
-              onPressed: onPressed,
-              style: IconButton.styleFrom(minimumSize: const Size(48, 52)),
-              icon: Icon(icon, color: locked ? AppColors.muted.withValues(alpha: 0.6) : AppColors.navy),
-            ),
-          // Locked (no Pro): a small gold lock instead of a «Pro» sticker (design P2-1, DS-14); the button opens the
-          // one explanation, «عضوية Pro»
-          if (locked)
-            PositionedDirectional(
-              top: 8,
-              end: 6,
-              child: IgnorePointer(
-                child: Container(
-                  key: tagKey,
-                  width: 16,
-                  height: 16,
-                  decoration: const BoxDecoration(color: AppColors.gold, shape: BoxShape.circle),
-                  child: const Icon(Icons.lock_rounded, size: 10, color: Colors.white),
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
 
 /// «اليوم» / «أمس» / a date between the messages of two days; [floating] is the copy kept at the top while scrolling
 class _DayChip extends StatelessWidget {

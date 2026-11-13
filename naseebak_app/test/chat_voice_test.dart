@@ -22,6 +22,7 @@ import 'package:naseebak_app/features/home/counts.dart';
 import 'package:naseebak_app/features/pro/pro_repository.dart';
 import 'package:record/record.dart' show AudioEncoder;
 
+import 'helpers/chat_room_helpers.dart' show pickFromGallery;
 import 'helpers/fake_api.dart';
 import 'helpers/fake_recorder.dart';
 import 'helpers/fake_voice_player.dart';
@@ -190,9 +191,9 @@ final _clock = find.byKey(const Key('voice-clock'));
 /// The recording bar's clock ticks every 250 ms
 Future<void> _tick(WidgetTester tester) => tester.pump(const Duration(milliseconds: 300));
 
-/// The photo button, then «إرسال» on the preview (nothing is uploaded before it)
+/// The paperclip → «المعرض», then «إرسال» on the preview (nothing is uploaded before it)
 Future<void> pickAndSendPhoto(WidgetTester tester) async {
-  await tester.tap(find.byKey(const Key('chat-photo')));
+  await pickFromGallery(tester);
   final send = find.byKey(const Key('photo-preview-send'));
   for (var i = 0; i < 20 && send.evaluate().isEmpty; i++) {
     await tester.pump(const Duration(milliseconds: 20));

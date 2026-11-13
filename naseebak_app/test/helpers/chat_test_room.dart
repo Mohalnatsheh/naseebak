@@ -9,6 +9,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:naseebak_app/features/chat/chat_cache.dart';
 import 'package:naseebak_app/features/chat/chat_live.dart';
 import 'package:naseebak_app/features/chat/chat_media_picker.dart';
@@ -70,6 +71,19 @@ class ChatTestRoom {
   late ProviderContainer container;
   int picks = 0;
 
+  /// Camera picks (the paperclip's «الكاميرا»); [cameraFails] makes the camera throw
+  int cameraPicks = 0;
+  bool cameraFails = false;
+
+  /// The member's Pro state (`/api/pro` and the counts); not Pro with [canBuy] = the greyed media buttons
+  bool isPro = true;
+  bool canBuy = true;
+
+  /// Under a router with `/` (the chats list) and `/pro`; [withBack] puts the chat on top of the list
+  bool withRouter = false;
+  bool withBack = false;
+  late GoRouter router;
+
   /// Every voice player the room made (a play shows in `plays`)
   final players = <FakeVoicePlayer>[];
 
@@ -106,17 +120,17 @@ class ChatTestRoom {
         });
     })
     ..on('POST', '/api/chats/c1/end', const FakeResponse(200, {'message': 'تم'}))
-    ..handlers['GET /api/pro'] = ((_) => const FakeResponse(200, {
+    ..handlers['GET /api/pro'] = ((_) => FakeResponse(200, {
           'enabled': true,
-          'isPro': true,
+          'isPro': isPro,
           'cancelAtPeriodEnd': false,
           'pastDue': false,
-          'canBuy': true,
+          'canBuy': canBuy,
           'offers': [],
         }))
-    ..handlers['GET /api/me/counts'] = ((_) => const FakeResponse(200, {
+    ..handlers['GET /api/me/counts'] = ((_) => FakeResponse(200, {
           'flags': {},
-          'pro': {'isPro': true},
+          'pro': {'isPro': isPro},
         }))
     ..handlers['POST /api/chats/c1/messages'] = ((r) {
       final body = r.data as Map;
@@ -155,7 +169,18 @@ class ChatTestRoom {
     });
 
   Future<void> open(WidgetTester tester) async {
-    container = await openRoom(tester, adapter, MemoryChatCache(), pollInterval: pollInterval, extra: [
+    Widget Function(Widget Function() room)? app;
+    if (withRouter || withBack) {
+      app = (room) => rtlRouterApp(router = GoRouter(
+            initialLocation: withBack ? '/' : '/chats/c1',
+            routes: [
+              GoRoute(path: '/', builder: (_, _) => const Scaffold(body: Text('chats-list'))),
+              GoRoute(path: '/chats/:id', builder: (_, _) => room()),
+              GoRoute(path: '/pro', builder: (_, _) => const Scaffold(body: Text('pro-screen'))),
+            ],
+          ));
+    }
+    container = await openRoom(tester, adapter, MemoryChatCache(), pollInterval: pollInterval, app: app, extra: [
       voiceRecorderProvider.overrideWithValue(() {
         final r = FakeRecorder(dir, permission)..startGate = startGate;
         recorders.add(r);
@@ -173,8 +198,18 @@ class ChatTestRoom {
         final f = picked = File('${dir.path}/picked-$picks.jpg')..writeAsBytesSync([0xFF, 0xD8, 0xFF]);
         return PickedPhoto(path: f.path, bytes: 3);
       }),
+      chatCameraPickerProvider.overrideWithValue(() async {
+        cameraPicks++;
+        if (cameraFails) throw Exception('no camera');
+        final f = picked = File('${dir.path}/camera-$cameraPicks.jpg')..writeAsBytesSync([0xFF, 0xD8, 0xFF]);
+        return PickedPhoto(path: f.path, bytes: 3);
+      }),
       if (live != null) chatLiveProvider.overrideWith((ref) => live!),
     ]);
+    if (withBack) {
+      await tester.pump();
+      router.push('/chats/c1');
+    }
     for (var i = 0; i < 10; i++) {
       await tester.pump(const Duration(milliseconds: 20));
     }

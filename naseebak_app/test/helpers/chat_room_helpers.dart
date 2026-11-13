@@ -42,7 +42,9 @@ CachedChat cached(Iterable<int> ns, {bool hasMore = false}) => CachedChat(
 
 /// A signed-in member (id u1) with the chat room open on c1
 Future<ProviderContainer> openRoom(WidgetTester tester, FakeAdapter adapter, MemoryChatCache cache,
-    {Duration pollInterval = const Duration(hours: 1), List<Override> extra = const []}) async {
+    {Duration pollInterval = const Duration(hours: 1),
+    List<Override> extra = const [],
+    Widget Function(Widget Function() room)? app}) async {
   adapter
     ..on('GET', '/api/mobile/me', FakeResponse(200, {'user': meJson()}))
     ..on('POST', '/api/chats/c1/read', const FakeResponse(200, {'ok': true}))
@@ -57,11 +59,24 @@ Future<ProviderContainer> openRoom(WidgetTester tester, FakeAdapter adapter, Mem
     await tester.pump(const Duration(milliseconds: 10));
   }
   expect(container.read(authControllerProvider).me?.id, 'u1');
+  Widget room() => ChatRoomScreen(chatId: 'c1', pollInterval: pollInterval);
   await tester.pumpWidget(UncontrolledProviderScope(
     container: container,
-    child: rtlApp(ChatRoomScreen(chatId: 'c1', pollInterval: pollInterval)),
+    child: app != null ? app(room) : rtlApp(room()),
   ));
   return container;
+}
+
+/// The paperclip, then «المعرض» in its sheet (the gallery picker runs)
+Future<void> pickFromGallery(WidgetTester tester) async {
+  await tester.tap(find.byKey(const Key('chat-attach')));
+  // Pumped, not settled: a recording clock or a spinner elsewhere may never settle
+  final gallery = find.byKey(const Key('attach-gallery'));
+  for (var i = 0; i < 20 && gallery.evaluate().isEmpty; i++) {
+    await tester.pump(const Duration(milliseconds: 20));
+  }
+  await tester.pump(const Duration(milliseconds: 400));
+  await tester.tap(gallery);
 }
 
 /// Opens the sheet of the failed message's red ⓘ («إعادة المحاولة» / «تعديل الرسالة» / «حذف»)

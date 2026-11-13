@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:naseebak_app/features/chat/chat_live.dart';
-import 'package:naseebak_app/features/chat/chat_room_screen.dart' show composerHintGap, micRefusedText;
+import 'package:naseebak_app/features/chat/chat_room_screen.dart' show composerHintGap, micAllowedHint, micRefusedText;
 import 'package:naseebak_app/features/chat/hold_to_record.dart';
 import 'package:naseebak_app/features/chat/media_bubbles.dart';
 import 'package:naseebak_app/features/chat/voice_recorder.dart';
@@ -14,17 +14,31 @@ import 'helpers/chat_room_helpers.dart';
 import 'helpers/chat_test_room.dart';
 import 'helpers/fake_api.dart';
 
+TextField _field(WidgetTester tester) => tester.widget<TextField>(chatInput);
+
 void main() {
   group('composer', () {
-    testWidgets('one round button: mic while empty, send with text; the photo button sits inside the field',
+    testWidgets('one round button: mic while empty, send with text; emoji and paperclip sit inside the white pill',
         (tester) async {
       final r = ChatTestRoom();
       await r.open(tester);
       expect(chatMic, findsOneWidget);
       expect(find.byKey(const Key('chat-send')), findsNothing);
-      final field = tester.getRect(find.ancestor(of: chatInput, matching: find.byType(Container)).first);
-      final photo = tester.getRect(find.byKey(const Key('chat-photo')));
-      expect(field.contains(photo.center), isTrue);
+      final pill = find.byKey(const Key('chat-pill'));
+      final field = tester.getRect(pill);
+      for (final k in ['chat-attach', 'chat-emoji']) {
+        expect(field.contains(tester.getRect(find.byKey(Key(k))).center), isTrue, reason: k);
+      }
+      expect(((tester.widget<Container>(pill).decoration as BoxDecoration).color), Colors.white);
+      // From the start (right in Arabic): emoji, the text, the paperclip; the round mic outside it
+      final emoji = tester.getCenter(find.byKey(const Key('chat-emoji'))).dx;
+      final text = tester.getCenter(chatInput).dx;
+      final clip = tester.getCenter(find.byKey(const Key('chat-attach'))).dx;
+      expect(emoji > text && text > clip, isTrue);
+      expect(field.contains(tester.getCenter(chatMic)), isFalse);
+      expect(_field(tester).style?.fontSize, 16);
+      expect(_field(tester).maxLines, 6);
+      expect(_field(tester).maxLength, 2000);
       await tester.enterText(chatInput, 'السلام عليكم');
       await tester.pump();
       expect(chatMic, findsNothing);
@@ -351,7 +365,7 @@ void main() {
       await r.open(tester);
       await tester.drag(find.text('رسالة 1'), const Offset(-90, 0));
       await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const Key('chat-photo')));
+      await pickFromGallery(tester);
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('photo-preview-send')));
       await tester.pumpAndSettle();
@@ -628,7 +642,7 @@ void main() {
     testWidgets('«إلغاء» on the preview: nothing uploads and the picked copy is deleted', (tester) async {
       final r = ChatTestRoom();
       await r.open(tester);
-      await tester.tap(find.byKey(const Key('chat-photo')));
+      await pickFromGallery(tester);
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('photo-preview-send')), findsOneWidget);
       expect(r.uploads, isEmpty);
@@ -641,7 +655,7 @@ void main() {
     testWidgets('leaving the chat while the preview is open sends nothing', (tester) async {
       final r = ChatTestRoom();
       await r.open(tester);
-      await tester.tap(find.byKey(const Key('chat-photo')));
+      await pickFromGallery(tester);
       await tester.pumpAndSettle();
       await r.leave(tester);
       expect(tester.takeException(), isNull);
@@ -719,7 +733,7 @@ void main() {
       await r.leave(tester);
     });
 
-    testWidgets('released while the microphone prompt is up: nothing said (the member was answering the phone)',
+    testWidgets('released while the microphone prompt is up: «الرسالة قصيرة جداً» never said; once allowed, how to record (U3)',
         (tester) async {
       final r = ChatTestRoom();
       final answer = Completer<bool>();
@@ -729,8 +743,14 @@ void main() {
       await g.up();
       await frames(tester);
       expect(find.text(holdTooShortText), findsNothing);
+      expect(find.textContaining('تم السماح بالميكروفون'), findsNothing);
       answer.complete(true);
       await frames(tester);
+      // The member (سارة) is a woman: the feminine command, as on the website
+      expect(find.text(micAllowedHint(true)), findsOneWidget);
+      expect(micAllowedHint(true), 'تم السماح بالميكروفون، اضغطي مطولاً للتسجيل');
+      expect(micAllowedHint(false), 'تم السماح بالميكروفون، اضغط' ' مطولاً للتسجيل');
+      expect(r.rec.started, isFalse);
       expect(r.uploads, isEmpty);
       await r.leave(tester);
     });

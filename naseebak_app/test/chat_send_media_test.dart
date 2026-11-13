@@ -16,7 +16,7 @@ import 'package:naseebak_app/features/chat/chat_media_picker.dart';
 import 'package:naseebak_app/features/chat/chat_room_screen.dart';
 import 'package:naseebak_app/features/chat/media_bubbles.dart';
 
-import 'helpers/chat_room_helpers.dart' show openFailed;
+import 'helpers/chat_room_helpers.dart' show openFailed, pickFromGallery;
 import 'helpers/fake_api.dart';
 
 /// A 1×1 PNG (the bubble shows the local file while it sends)
@@ -135,12 +135,12 @@ class _Harness {
   List<RequestOptions> get uploads => adapter.to('POST', '/api/chats/c1/media');
 }
 
-final _photo = find.byKey(const Key('chat-photo'));
+final _photo = find.byKey(const Key('chat-attach'));
 final _proTag = find.byKey(const Key('chat-media-pro-tag'));
 
-/// The photo button, then «إرسال» on the preview (nothing is uploaded before it)
+/// The paperclip → «المعرض», then «إرسال» on the preview (nothing is uploaded before it)
 Future<void> pickAndSendPhoto(WidgetTester tester) async {
-  await tester.tap(find.byKey(const Key('chat-photo')));
+  await pickFromGallery(tester);
   final send = find.byKey(const Key('photo-preview-send'));
   for (var i = 0; i < 20 && send.evaluate().isEmpty; i++) {
     await tester.pump(const Duration(milliseconds: 20));
@@ -211,7 +211,7 @@ void main() {
   testWidgets('a photo over 10 MB is refused in the app and nothing is sent', (tester) async {
     final h = _Harness()..pickedBytes = 10 * 1024 * 1024 + 1;
     await h.open(tester);
-    await tester.tap(_photo);
+    await pickFromGallery(tester);
     await tester.pump();
     expect(find.text('الصورة كبيرة جداً'), findsOneWidget);
     await tester.pumpAndSettle();

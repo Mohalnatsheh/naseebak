@@ -295,6 +295,7 @@ flowchart LR
   <h2><span class="num">01</span>Sign up</h2>
   <p class="sub">A single form, then an SMS code. The account exists only after the code is verified.</p>
   <div class="flow">
+    <p>With <code>auth_profile_redesign</code> on (2026-11-13, off by default): <code>/login</code> and <code>/register</code> share one phone → code start (send-otp context <code>login</code>); a new number then fills a short card (name, gender, terms, optional invite code) and goes to a 3-step setup; profile edit becomes one list with one save bar. Same APIs.</p>
     <div class="entry"><span><b>Page</b> <code>/register</code></span><span><b>APIs</b> send-otp → verify-otp → register → referral/apply → profile/photos</span></div>
     <ol class="steps">
       <li><span class="st">Registration status check.</span> <span class="dt">If admin closed registration the form shows an alert; if the check fails the form stays open.</span></li>

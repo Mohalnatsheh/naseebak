@@ -48,7 +48,7 @@ export function ChatsShell({ layout, children }: { layout: ChatLayout; children:
             <div className="majlis flex flex-1 flex-col items-center justify-center gap-3 rounded-2xl border border-border/60 text-center">
               <LineArt kind="cupsTray" />
               <p className="font-semibold text-foreground">يمكنك اختيار محادثة لعرضها</p>
-              <p className="max-w-xs text-sm text-muted-foreground">رسائلك خاصة، والمحادثة نصية ومحدودة المدة.</p>
+              <p className="max-w-xs text-sm text-muted-foreground">رسائلك خاصة، والمحادثة محدودة المدة.</p>
             </div>
           ) : (
             children

@@ -202,13 +202,18 @@ class _PickerEmoji extends StatelessWidget {
   }
 }
 
-/// «حذف الرسالة؟»: true for «حذف لدى الجميع» (only with [canEveryone]), false for «حذف لديّ», null for «إلغاء»
+/// «حذف الرسالة؟»: true for «حذف لدى الجميع» (only with [canEveryone]), false for «حذف لديّ», null for «إلغاء».
+/// One dialog, as on the website: a choice deletes at once, so it says what each choice does.
 Future<bool?> showDeleteChoice(BuildContext context, {required bool canEveryone}) {
   ButtonStyle danger() => TextButton.styleFrom(foregroundColor: AppColors.danger, minimumSize: const Size(44, 44));
   return showDialog<bool>(
     context: context,
     builder: (ctx) => AlertDialog(
       title: const Text('حذف الرسالة؟'),
+      content: Text(
+        canEveryone ? 'يمكنك حذفها من عندك فقط، أو لديك ولدى الطرف الآخر.' : 'ستُحذف من عندك فقط، وتبقى لدى الطرف الآخر.',
+        style: AppText.body.copyWith(color: AppColors.ink),
+      ),
       actionsOverflowDirection: VerticalDirection.down,
       actions: [
         if (canEveryone)

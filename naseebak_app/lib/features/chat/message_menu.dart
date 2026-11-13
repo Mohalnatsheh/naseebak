@@ -105,7 +105,6 @@ Future<bool?> showClearChatSheet(BuildContext context, {required bool canEveryon
 }
 
 /// The confirm texts (exact copy, same as the website)
-const deleteForEveryoneConfirm = 'ستُحذف الرسالة لديك ولدى الطرف الآخر، ويظهر مكانها «تم حذف الرسالة».';
 const clearForMeConfirm = 'ستُمسح الرسائل من عندك فقط، ويبقى كل شيء لدى الطرف الآخر.';
 const clearForEveryoneConfirm =
     'ستُمسح كل رسائل هذه المحادثة لديك ولدى الطرف الآخر. تبقى المحادثة مفتوحة ويمكنكما متابعة الكتابة.';

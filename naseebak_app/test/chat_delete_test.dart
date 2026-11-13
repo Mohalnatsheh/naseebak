@@ -377,8 +377,6 @@ void main() {
       await _menuOn(tester, 'رسالة 2');
       await tester.tap(_deleteAll);
       await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const Key('delete-confirm')));
-      await tester.pumpAndSettle();
       expect(r.deletes('m002'), hasLength(1));
       expect(find.text('رسالة 2'), findsOneWidget);
       expect(find.text('نص الأصل'), findsOneWidget);
@@ -390,16 +388,19 @@ void main() {
   });
 
   group('room', () {
-    testWidgets('«حذف لدى الجميع»: the confirm text, then the trace for me (no request before it)', (tester) async {
+    testWidgets('«حذف لدى الجميع» in the one dialog sends at once (no second confirm), then the trace for me',
+        (tester) async {
       final r = _Room();
       await r.open(tester);
-      await _menuOn(tester, 'رسالة 2');
+      await _select(tester, 'رسالة 2');
+      await tester.tap(find.byKey(const Key('menu-delete')));
+      await tester.pumpAndSettle();
+      // The one dialog says what each choice does (as on the website)
+      expect(find.text('يمكنك حذفها من عندك فقط، أو لديك ولدى الطرف الآخر.'), findsOneWidget);
+      expect(r.deleteRequests, 0);
       await tester.tap(_deleteAll);
       await tester.pumpAndSettle();
-      expect(find.text('ستُحذف الرسالة لديك ولدى الطرف الآخر، ويظهر مكانها «تم حذف الرسالة».'), findsOneWidget);
-      expect(r.deleteRequests, 0);
-      await tester.tap(find.byKey(const Key('delete-confirm')));
-      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('delete-confirm')), findsNothing);
       expect((r.deletes('m002').single.data as Map)['scope'], 'everyone');
       expect(find.text('رسالة 2'), findsNothing);
       expect(find.byKey(const Key('chat-deleted-trace')), findsOneWidget);

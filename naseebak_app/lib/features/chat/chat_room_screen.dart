@@ -1911,23 +1911,14 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     );
   }
 
-  /// «حذف لديّ» / «حذف لدى الجميع». Not Pro: the Pro screen, nothing sent. «لدى الجميع» (my own message, open chat)
-  /// is confirmed first. Shown at once; a refusal puts it back and says why.
+  /// «حذف لديّ» / «حذف لدى الجميع», chosen in the bar's one dialog: sent at once (no second confirm, as on the
+  /// website). Not Pro: the Pro screen, nothing sent. Shown at once; a refusal puts it back and says why.
   Future<void> _deleteMessage(ChatMessage m, {required bool forEveryone}) async {
     final mode = _deleteModeNow();
     if (mode == DeleteMode.hidden || m.state != SendState.sent) return;
     if (mode == DeleteMode.upsell) return _openPro();
-    if (forEveryone) {
-      if (!m.mine || m.deleted || !_open) return;
-      final ok = await confirmDeleteSheet(
-        context,
-        title: 'حذف الرسالة لدى الجميع؟',
-        body: deleteForEveryoneConfirm,
-        confirmLabel: 'حذف لدى الجميع',
-      );
-      // The chat may have closed while the sheet was up: «لدى الجميع» only in an open chat
-      if (!ok || !mounted || !_open) return;
-    }
+    // «لدى الجميع» only for my own message in an open chat (it may have closed while the dialog was up)
+    if (forEveryone && (!m.mine || m.deleted || !_open)) return;
     // The copy held now (a poll may have changed it since the long-press)
     // Everything as it is now: a refusal puts back the message and the quotes of it that read as the trace
     final snapshot = List.of(_messages);

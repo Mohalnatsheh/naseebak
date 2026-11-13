@@ -136,7 +136,7 @@ class HomeScreen extends ConsumerWidget {
       }
       final chatOn = c.flags.chat || c.hasChats;
       final chats = chatOn ? ref.watch(chatListProvider) : null;
-      sections.add(HomeChatsBlock(show: chatOn, female: female));
+      sections.add(HomeChatsBlock(show: chatOn));
       // Quiet: every people block known empty (not loading, not failed), so the page offers tips instead
       bool none<T>(AsyncValue<List<T>> a) => a.hasValue && !a.hasError && !a.isLoading && a.value!.isEmpty;
       final quiet =
@@ -413,7 +413,7 @@ class _Row extends StatelessWidget {
   }
 }
 
-/// «سؤال الأسبوع» inline: the poll card, only with an active question in a country with polls; a failed load says so
+/// «سؤال الأسبوع» inline: the poll card (its own title, no block heading), only with an active question in a country with polls; a failed load says so
 class _PollBlock extends ConsumerWidget {
   const _PollBlock({required this.pollsOn});
   final bool pollsOn;
@@ -431,14 +431,8 @@ class _PollBlock extends ConsumerWidget {
     }
     final poll = async.valueOrNull;
     if (poll == null || poll.status != 'ACTIVE') return const SizedBox.shrink();
-    return const Column(
-      key: Key('home-poll'),
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        HomeBlockHeader(title: 'سؤال الأسبوع'),
-        PollCard(),
-      ],
-    );
+    // The card's own title names it: no second heading over it
+    return const PollCard(key: Key('home-poll'));
   }
 }
 

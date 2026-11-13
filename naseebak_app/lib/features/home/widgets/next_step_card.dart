@@ -24,7 +24,8 @@ class NextStepMessage {
   final String? route;
 }
 
-/// The one message, by priority (spec 2026-11-14 item 2): a family request waiting › people who showed interest ›
+/// The one message, by priority (spec 2026-11-14 item 2, minus the family request: the «بانتظار ردّك» row right under
+/// the card shows it): people who showed interest ›
 /// new suggestions › unread chats › quiet (finish the profile, else the basic conditions). Counts missing on an older
 /// server count as 0. Quiet with no [profile] (still loading, or it failed): the message alone, no button, so it
 /// never sends a member with an unfinished profile to the conditions as if it were complete.
@@ -37,17 +38,6 @@ NextStepMessage nextStepFor(
   final liked = c.likedYou ?? 0;
   final fresh = c.newSuggestions ?? 0;
 
-  if (c.pendingIntros > 0) {
-    return NextStepMessage(
-      title: c.pendingIntros == 1
-          ? 'طلب تعارف بانتظار ${g('ردّك', 'ردّكِ')}'
-          : '${_requests(c.pendingIntros)} بانتظار ${g('ردّك', 'ردّكِ')}',
-      ctaLabel: 'افتح الطلب',
-      route: c.pendingIntroMatchId != null
-          ? '/matches/${c.pendingIntroMatchId}'
-          : '/matches',
-    );
-  }
   if (liked > 0) {
     final who = arabicCount(
       liked,
@@ -107,14 +97,6 @@ NextStepMessage nextStepFor(
     route: '/profile/preferences',
   );
 }
-
-String _requests(int n) => arabicCount(
-  n,
-  one: 'طلب تعارف',
-  two: 'طلبا تعارف',
-  few: 'طلبات تعارف',
-  many: 'طلباً للتعارف',
-);
 
 /// The navy «خطوتك التالية» card with the three numbers under it.
 class NextStepCard extends StatelessWidget {

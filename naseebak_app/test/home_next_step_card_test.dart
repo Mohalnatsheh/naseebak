@@ -16,7 +16,7 @@ MyProfile profile(int pct, {List<StrengthSection> sections = const []}) =>
 void main() {
   const flags = CycleFlags(mutualSuggestions: true);
 
-  test('priority: request > likedYou > new > unread > quiet', () {
+  test('priority: likedYou > new > unread > quiet; a family request is not the card\'s (the waiting row shows it)', () {
     final all = Counts(
       flags: flags,
       pendingIntros: 1,
@@ -25,13 +25,10 @@ void main() {
       newSuggestions: 3,
       unreadChats: 4,
     );
-    final n = nextStepFor(all);
-    expect(n.title, 'طلب تعارف بانتظار ردّك');
-    expect(n.route, '/matches/m1');
-    expect(
-      nextStepFor(const Counts(flags: flags, pendingIntros: 1)).route,
-      '/matches',
-    );
+    expect(nextStepFor(all).title, 'شخصان أبديا اهتمامهما بك');
+    final onlyRequest = nextStepFor(const Counts(flags: flags, pendingIntros: 1, pendingIntroMatchId: 'm1'));
+    expect(onlyRequest.title, 'اقتراحات جديدة تصلك كل صباح');
+    expect(onlyRequest.route, isNot(startsWith('/matches')));
 
     final noReq = Counts(
       flags: flags,
@@ -74,10 +71,10 @@ void main() {
   test('gendered forms', () {
     expect(
       nextStepFor(
-        const Counts(flags: flags, pendingIntros: 1),
+        const Counts(flags: CycleFlags(freeInterestReply: true), likedYou: 1),
         female: true,
-      ).title,
-      'طلب تعارف بانتظار ردّكِ',
+      ).body,
+      'ردّكِ على من أبدى اهتمامه بكِ مجاني.',
     );
     expect(
       nextStepFor(

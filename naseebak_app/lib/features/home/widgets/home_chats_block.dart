@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/localization/digits.dart';
-import '../../../core/privacy/screen_privacy.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/widgets/brand_kit.dart';
 import '../../../shared/widgets/common.dart';
@@ -12,7 +11,6 @@ import '../../chat/chat_models.dart';
 import '../../notifications/notifications_screen.dart' show openAppRoute;
 import '../../pro/pro_badge.dart';
 import '../counts.dart';
-import '../gendered_copy.dart';
 import 'home_block_header.dart';
 import 'home_load_error_row.dart';
 
@@ -21,15 +19,14 @@ const homeChatsShown = 2;
 
 /// «المحادثات» on home (spec 2026-11-14 item 6): the latest [homeChatsShown] conversations of `chatListProvider` (the
 /// server sends them most recent first), each like a row of the chats list: the same avatar (initial and the time
-/// arc, never a photo), name, last line or status, time and unread count. Only while chat is on or the member has
-/// chats ([show]); nothing while loading or with no chats; a failed load says so with a retry. Private like the chats
-/// list (`SecureArea` while home is the tab on screen), since it shows the last messages.
+/// arc, never a photo), name, a status line, time and unread count. Never the message text: home stays unprotected
+/// (no `SecureArea`), so previews stay on the chats tab, which keeps its protection. Only while chat is on or the
+/// member has chats ([show]); nothing while loading or with no chats; a failed load says so with a retry.
 class HomeChatsBlock extends ConsumerWidget {
-  const HomeChatsBlock({super.key, required this.show, required this.female});
+  const HomeChatsBlock({super.key, required this.show});
 
   /// `counts.flags.chat || counts.hasChats`
   final bool show;
-  final bool female;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -58,30 +55,27 @@ class HomeChatsBlock extends ConsumerWidget {
             allLabel: 'الكل',
             onAll: () => openAppRoute(GoRouter.of(context), '/chats'),
           ),
-          SecureArea(
-            onlyWhileShown: true,
-            child: Material(
-              color: AppColors.surface,
-              clipBehavior: Clip.antiAlias,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppRadius.md),
-                side: const BorderSide(color: AppColors.line, width: 0.5),
-              ),
-              child: Column(
-                children: [
-                  for (var i = 0; i < chats.length; i++) ...[
-                    if (i > 0)
-                      const Divider(
-                        height: 0.5,
-                        thickness: 0.5,
-                        indent: AppSpace.lg,
-                        endIndent: AppSpace.lg,
-                        color: AppColors.line,
-                      ),
-                    HomeChatRow(chat: chats[i], female: female),
-                  ],
+          Material(
+            color: AppColors.surface,
+            clipBehavior: Clip.antiAlias,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppRadius.md),
+              side: const BorderSide(color: AppColors.line, width: 0.5),
+            ),
+            child: Column(
+              children: [
+                for (var i = 0; i < chats.length; i++) ...[
+                  if (i > 0)
+                    const Divider(
+                      height: 0.5,
+                      thickness: 0.5,
+                      indent: AppSpace.lg,
+                      endIndent: AppSpace.lg,
+                      color: AppColors.line,
+                    ),
+                  HomeChatRow(chat: chats[i]),
                 ],
-              ),
+              ],
             ),
           ),
         ],
@@ -90,25 +84,32 @@ class HomeChatsBlock extends ConsumerWidget {
   }
 }
 
+/// What a home chat row says under the name, never the message text: «رسائل جديدة» while unread, else the chats
+/// list's state line (ended / read-only, or the time left on an open chat), else nothing
+String? homeChatStatusLine(ChatSummary c, {DateTime? now}) {
+  if (c.unread > 0) return 'رسائل جديدة';
+  final status = homeChatEndedLabel(c);
+  if (status != null) return status;
+  return c.status == 'ACTIVE' ? chatTimeLeft(c.expiresAt, now: now)?.text : null;
+}
+
+/// The chats list's label for a chat that is over or read-only
+String? homeChatEndedLabel(ChatSummary c) => switch (c.status) {
+  'ENDED' => 'منتهية',
+  'EXPIRED' => 'انتهت المدة',
+  _ => c.blocked ? 'للقراءة فقط' : null,
+};
+
 /// One conversation: opens the chat, then re-reads the list and the counts
 class HomeChatRow extends ConsumerWidget {
-  const HomeChatRow({super.key, required this.chat, required this.female});
+  const HomeChatRow({super.key, required this.chat});
   final ChatSummary chat;
-  final bool female;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final c = chat;
-    // The chats list's labels
-    final status = switch (c.status) {
-      'ENDED' => 'منتهية',
-      'EXPIRED' => 'انتهت المدة',
-      _ => c.blocked ? 'للقراءة فقط' : null,
-    };
-    final ended = status != null;
-    final line = c.lastMessage != null
-        ? '${c.lastMine ? '${forViewer(female, 'أنت', 'أنتِ')}: ' : ''}${c.lastMessage}'
-        : status ?? forViewer(female, 'ابدأ المحادثة بالسلام', 'ابدئي المحادثة بالسلام');
+    final ended = homeChatEndedLabel(c) != null;
+    final line = homeChatStatusLine(c);
     final unread = c.unread > 0;
     final name = Text(
       c.partnerName,
@@ -149,15 +150,16 @@ class HomeChatRow extends ConsumerWidget {
                             child: NameWithBadge(isPro: true, child: name),
                           )
                         : name,
-                    Text(
-                      line,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppText.caption.copyWith(
-                        color: unread ? AppColors.ink : AppColors.muted,
-                        fontWeight: unread ? FontWeight.w600 : null,
+                    if (line != null)
+                      Text(
+                        line,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppText.caption.copyWith(
+                          color: unread ? AppColors.ink : AppColors.muted,
+                          fontWeight: unread ? FontWeight.w600 : null,
+                        ),
                       ),
-                    ),
                   ],
                 ),
               ),

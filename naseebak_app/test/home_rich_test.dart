@@ -5,7 +5,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:naseebak_app/core/push/push_permission.dart';
 import 'package:naseebak_app/core/storage/token_store.dart';
+import 'package:naseebak_app/features/chat/chat_models.dart';
 import 'package:naseebak_app/features/home/home_screen.dart';
+import 'package:naseebak_app/features/home/widgets/home_chats_block.dart';
 import 'package:naseebak_app/features/home/poll_card.dart';
 import 'package:naseebak_app/features/home/widgets/home_tips.dart';
 import 'package:naseebak_app/features/profile/profile_repository.dart';
@@ -74,7 +76,7 @@ void main() {
 
   Map<String, dynamic> page(List<Map<String, dynamic>> items) => {'items': items, 'page': 1, 'totalPages': 1};
 
-  // SecureArea's channel: record what home asks for (and keep the test output free of MissingPluginException)
+  // The privacy channel: record whether home asks for protection (and keep the test output free of MissingPluginException)
   final secureCalls = <bool>[];
   setUp(() {
     secureCalls.clear();
@@ -283,7 +285,7 @@ void main() {
   });
 
   group('«المحادثات»', () {
-    testWidgets('the latest 2 chats: initial avatar (no photo), last line, my prefix, unread; «الكل» to the tab', (
+    testWidgets('the latest 2 chats: initial avatar (no photo), a status line, never a message; «الكل» to the tab', (
       tester,
     ) async {
       await pumpBusy(tester);
@@ -291,14 +293,19 @@ void main() {
       expect(find.descendant(of: block, matching: find.text('يوسف')), findsOneWidget);
       expect(find.descendant(of: block, matching: find.text('زياد')), findsOneWidget);
       expect(find.descendant(of: block, matching: find.text('فادي')), findsNothing);
-      expect(find.descendant(of: block, matching: find.text('أهلاً وسهلاً')), findsOneWidget);
-      expect(find.descendant(of: block, matching: find.text('أنتِ: شكراً')), findsOneWidget);
+      // Unread: «رسائل جديدة» with the count; read: the time left (the chat runs 5 more days)
+      expect(inKey('home-chat-c1', find.text('رسائل جديدة')), findsOneWidget);
       expect(inKey('home-chat-c1', find.text('2')), findsOneWidget);
+      expect(inKey('home-chat-c2', find.text('تبقّى 5 أيام')), findsOneWidget);
+      // No message text anywhere on home, mine or theirs
+      for (final text in ['أهلاً وسهلاً', 'شكراً', 'مرحباً']) {
+        expect(find.textContaining(text), findsNothing, reason: text);
+      }
       final avatars = tester.widgetList<MemberAvatar>(find.descendant(of: block, matching: find.byType(MemberAvatar)));
       expect(avatars.length, 2);
       expect(avatars.every((a) => a.photo == null), isTrue);
-      // Private like the chats list
-      expect(secureCalls, contains(true));
+      // No previews, so home is not a protected screen (the chats tab keeps its protection)
+      expect(secureCalls, isEmpty);
       await tapAndSettle(tester, find.descendant(of: block, matching: find.text('الكل')));
       expect(find.text('route:chats'), findsOneWidget);
     });
@@ -313,7 +320,7 @@ void main() {
       final adapter = await pumpHome(tester, chats: [chat('c1', 'يوسف', last: 'مرحباً')]);
       expect(find.byKey(const Key('home-chats')), findsNothing);
       expect(adapter.requests.where((r) => r.path.endsWith('/api/chats')), isEmpty);
-      expect(secureCalls, isNot(contains(true)));
+      expect(secureCalls, isEmpty);
     });
 
     testWidgets('chat off but the member has chats: shown', (tester) async {
@@ -411,8 +418,11 @@ void main() {
   group('«سؤال الأسبوع»', () {
     testWidgets('inline poll card with an active question', (tester) async {
       await pumpHome(tester, poll: activePoll);
-      expect(inKey('home-poll', find.byType(PollCard)), findsOneWidget);
+      expect(tester.widget(find.byKey(const Key('home-poll'))), isA<PollCard>());
       expect(inKey('home-poll', find.text('ما أهم صفة في شريك الحياة؟')), findsOneWidget);
+      // The card's own title, no second heading over it
+      expect(find.text('سؤال نصيبك'), findsOneWidget);
+      expect(find.text('سؤال الأسبوع'), findsNothing);
     });
 
     testWidgets('no question or a closed one: nothing', (tester) async {
@@ -433,6 +443,26 @@ void main() {
       expect(find.byKey(const Key('home-poll-error')), findsOneWidget);
       expect(find.byKey(const Key('home-poll')), findsNothing);
     });
+  });
+
+  test('chat status line: unread › ended / read-only › time left › nothing; never the message', () {
+    ChatSummary c({int unread = 0, String status = 'ACTIVE', bool blocked = false, DateTime? expiresAt}) => ChatSummary(
+      id: 'c',
+      matchId: 'm',
+      partnerId: 'p',
+      partnerName: 'يوسف',
+      status: status,
+      blocked: blocked,
+      expiresAt: expiresAt,
+      unread: unread,
+      lastMessage: 'نص الرسالة',
+    );
+    final now = DateTime.utc(2026, 11, 14, 12);
+    expect(homeChatStatusLine(c(unread: 3, status: 'ENDED'), now: now), 'رسائل جديدة');
+    expect(homeChatStatusLine(c(status: 'EXPIRED'), now: now), 'انتهت المدة');
+    expect(homeChatStatusLine(c(blocked: true), now: now), 'للقراءة فقط');
+    expect(homeChatStatusLine(c(expiresAt: now.add(const Duration(days: 2))), now: now), 'تبقّى يومان');
+    expect(homeChatStatusLine(c(), now: now), isNull);
   });
 
   test('tips: the conditions tip always, «نبذة» only for a loaded profile without one; masculine forms', () {

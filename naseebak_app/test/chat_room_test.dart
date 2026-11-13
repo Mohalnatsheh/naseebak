@@ -88,6 +88,23 @@ void main() {
       expect(saved.messages.length, 42);
     });
 
+    testWidgets('reduced motion: «الأحدث» jumps at once', (tester) async {
+      tester.platformDispatcher.accessibilityFeaturesTestValue = const FakeAccessibilityFeatures(disableAnimations: true);
+      addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
+      final cache = MemoryChatCache();
+      await cache.write('u1', 'c1', cached(List.generate(40, (i) => i + 1), hasMore: true));
+      final adapter = FakeAdapter()..on('GET', '/api/chats/c1', FakeResponse(200, page(List.generate(30, (i) => i + 13), hasMore: true)));
+      await openRoom(tester, adapter, cache);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('chat-newest')), findsOneWidget);
+      final list = tester.widget<ListView>(find.byType(ListView).first);
+      expect(list.controller!.offset, greaterThan(0));
+      await tester.tap(find.byKey(const Key('chat-newest')));
+      await tester.pump();
+      // No scroll animation: already at the newest after one frame
+      expect(list.controller!.offset, 0);
+    });
+
     testWidgets('scrolled up, a poll brings 2 partner messages: the jump button counts 2', (tester) async {
       var extra = false;
       final adapter = FakeAdapter()

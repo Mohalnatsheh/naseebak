@@ -50,6 +50,24 @@ void main() {
     });
   });
 
+  testWidgets('reduced motion: the mic disc grows under the finger with no animation', (tester) async {
+    tester.platformDispatcher.accessibilityFeaturesTestValue = const FakeAccessibilityFeatures(disableAnimations: true);
+    addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
+    final r = ChatTestRoom();
+    await r.open(tester);
+    final disc = find.byKey(const Key('chat-mic-disc'));
+    expect(tester.widget<AnimatedContainer>(disc).duration, Duration.zero);
+    await r.leave(tester);
+  });
+
+  testWidgets('normal motion: the mic disc animates in 150 ms', (tester) async {
+    final r = ChatTestRoom();
+    await r.open(tester);
+    expect(tester.widget<AnimatedContainer>(find.byKey(const Key('chat-mic-disc'))).duration,
+        const Duration(milliseconds: 150));
+    await r.leave(tester);
+  });
+
   group('composer on an iPhone (simulator QA D1, D2)', () {
     testWidgets('the hint starts a little after the cursor edge, so its first letter is never under the cursor',
         (tester) async {

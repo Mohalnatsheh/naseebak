@@ -1170,7 +1170,10 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
 
   void _toNewest() {
     if (!_scroll.hasClients) return;
-    _scroll.animateTo(0, duration: const Duration(milliseconds: 300), curve: Curves.easeOutCubic);
+    // Reduced motion: straight there (a zero-length animateTo isn't allowed)
+    final d = AppMotion.of(context, const Duration(milliseconds: 300));
+    if (d == Duration.zero) return _scroll.jumpTo(0);
+    _scroll.animateTo(0, duration: d, curve: Curves.easeOutCubic);
   }
 
   Future<void> _loadOlder() async {
@@ -2949,7 +2952,8 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
         alignment: Alignment.center,
         children: [
           AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
+            key: const Key('chat-mic-disc'),
+            duration: AppMotion.of(context, const Duration(milliseconds: 150)),
             width: 52,
             height: 52,
             transform: Matrix4.diagonal3Values(holdUi ? 1.15 : 1, holdUi ? 1.15 : 1, 1),

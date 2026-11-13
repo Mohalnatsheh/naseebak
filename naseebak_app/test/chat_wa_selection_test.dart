@@ -141,15 +141,66 @@ void main() {
     expect(r.adapter.to('POST', '/api/chats/c1/messages/m001/reaction'), isEmpty);
   });
 
-  testWidgets('Android back clears the selection and stays in the chat', (tester) async {
-    final r = ChatTestRoom();
+  testWidgets('Android back clears the selection and stays in the chat; the next back leaves', (tester) async {
+    final r = ChatTestRoom()..withBack = true;
     await r.open(tester);
+    await tester.pumpAndSettle();
     await tester.longPress(find.text('رسالة 1'));
     await tester.pumpAndSettle();
+    expect(_close, findsOneWidget);
     await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();
     expect(_close, findsNothing);
     expect(chatInput, findsOneWidget);
+    expect(find.text('chats-list'), findsNothing);
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(find.text('chats-list'), findsOneWidget);
+    expect(chatInput, findsNothing);
+  });
+
+  testWidgets('selected with a voice note unsent: the first back clears the selection, the second asks about the note',
+      (tester) async {
+    final r = ChatTestRoom()..withBack = true;
+    await r.open(tester);
+    await tester.pumpAndSettle();
+    // A tap records hands-free (the locked bar)
+    await tester.tap(chatMic);
+    await frames(tester);
+    expect(r.rec.started, isTrue);
+    await tester.longPress(find.text('رسالة 1'));
+    await frames(tester, 20);
+    expect(_close, findsOneWidget);
+    await tester.binding.handlePopRoute();
+    await frames(tester, 20);
+    expect(_close, findsNothing);
+    expect(find.text('حذف الرسالة الصوتية؟'), findsNothing);
+    await tester.binding.handlePopRoute();
+    await frames(tester, 20);
+    expect(find.text('حذف الرسالة الصوتية؟'), findsOneWidget);
+    expect(find.text('chats-list'), findsNothing);
+    expect(r.rec.cancelled, isFalse);
+    await r.leave(tester);
+  });
+
+  testWidgets('while selecting, a tap with a little sideways jitter (≤ 10 px) moves the selection and never replies',
+      (tester) async {
+    final r = ChatTestRoom(messages: [msg(1), msg(2, mine: true)]);
+    await r.open(tester);
+    await tester.longPress(find.text('رسالة 2'));
+    await tester.pumpAndSettle();
+    // The partner's bubble: inward is left in Arabic
+    final g = await tester.startGesture(tester.getCenter(find.text('رسالة 1')));
+    await g.moveBy(const Offset(-5, 0));
+    await tester.pump(const Duration(milliseconds: 16));
+    await g.moveBy(const Offset(-5, 0));
+    await tester.pump(const Duration(milliseconds: 16));
+    await g.up();
+    await tester.pumpAndSettle();
+    expect(_close, findsOneWidget);
+    expect(_wash(tester, find.text('رسالة 1')), AppColors.chatSelect);
+    expect(_wash(tester, find.text('رسالة 2')), isNot(AppColors.chatSelect));
+    expect(find.byKey(const Key('chat-reply-strip')), findsNothing);
   });
 
   testWidgets('a long-press on a photo selects it; no viewer opens; while selecting, a tap on a photo selects it',

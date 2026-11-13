@@ -1,6 +1,6 @@
 # «الديانة» (religion) field
 
-Date: 2026-11-13. Status: draft for the owner's approval.
+Date: 2026-11-13. Status: approved by the owner (2026-11-13).
 
 ## Intent
 

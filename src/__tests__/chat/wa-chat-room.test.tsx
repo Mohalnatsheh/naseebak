@@ -212,6 +212,15 @@ describe("WaChatRoom: message area", () => {
     expect(divider.className).toContain("bg-chat-chip");
   });
 
+  it("the unread strip's count is taken at open: later messages don't grow it", () => {
+    const messages = [msg("a", 1, { mine: true, readAt: at(1) }), msg("u1", 2), msg("u2", 3)];
+    const { container, rerender } = render(<WaChatRoom model={makeModel({ messages, unreadFromId: "u1" })} />);
+    const strip = () => container.querySelector<HTMLElement>("[data-unread-divider]")!.textContent;
+    expect(strip()).toBe("رسالتان غير مقروءتين");
+    rerender(<WaChatRoom model={makeModel({ messages: [...messages, msg("u3", 4), msg("u4", 5)], unreadFromId: "u1" })} />);
+    expect(strip()).toBe("رسالتان غير مقروءتين");
+  });
+
   it("a failed message's «حذف» calls dismissFailed", async () => {
     const model = makeModel({ messages: [msg("f1", 1, { mine: true, pending: "failed" })] });
     render(<WaChatRoom model={model} />);
@@ -251,6 +260,19 @@ describe("WaChatRoom: selection", () => {
     fireEvent.contextMenu(bubbleOf("نص b"));
     fireEvent.click(screen.getByRole("log"));
     expect(bar()).toBeNull();
+  });
+
+  it("Escape gives the focus back to the selected message's row", () => {
+    vi.useFakeTimers();
+    render(<WaChatRoom model={makeModel({ activeRowId: "b" })} />);
+    fireEvent.contextMenu(bubbleOf("نص b"));
+    (document.activeElement as HTMLElement | null)?.blur();
+    fireEvent.keyDown(document, { key: "Escape" });
+    act(() => {
+      vi.advanceTimersByTime(50);
+    });
+    expect(screen.queryByRole("button", { name: "إلغاء التحديد" })).toBeNull();
+    expect(document.activeElement?.getAttribute("data-message-id")).toBe("b");
   });
 
   it("ends when the selected message is deleted for everyone and the chat closes (Review Focus 3)", () => {

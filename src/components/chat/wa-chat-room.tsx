@@ -103,11 +103,20 @@ export function WaChatRoom({ model }: { model: ChatRoomModel }) {
     if (!escapeClears) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape" || e.defaultPrevented) return;
-      setSel(null);
+      // as ✕: the focus goes back to the row
+      clearRef.current();
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [escapeClears]);
+
+  // The unread strip's count is taken once, when the chat opens on that point: messages that arrive later don't add to it
+  const [strip, setStrip] = useState<{ from: string; count: number } | null>(null);
+  if (unreadFromId && strip?.from !== unreadFromId) {
+    const at = messages.findIndex((m) => m.id === unreadFromId);
+    if (at >= 0) setStrip({ from: unreadFromId, count: messages.slice(at).filter((m) => !m.mine).length });
+  }
+  const unreadCount = unreadFromId && strip?.from === unreadFromId ? strip.count : 0;
 
   function select(m: UiMessage) {
     const el = scroller.current;
@@ -166,8 +175,6 @@ export function WaChatRoom({ model }: { model: ChatRoomModel }) {
   const ready = model.ready;
   const { conversation, canSend, endable, familyStep, statusBar, left, startersShown, composerMedia, messageActions, viewerPhotos } = ready;
   const partnerName = conversation.partner.firstName;
-  const unreadAt = unreadFromId ? messages.findIndex((m) => m.id === unreadFromId) : -1;
-  const unreadCount = unreadAt < 0 ? 0 : messages.slice(unreadAt).filter((m) => !m.mine).length;
 
   return (
     <div

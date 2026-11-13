@@ -13,7 +13,8 @@ export function EmojiPanel({ onPick, className }: { onPick: (emoji: string) => v
   const current = EMOJI_GROUPS[group] ?? EMOJI_GROUPS[0];
   return (
     <div role="group" aria-label="لوحة الرموز التعبيرية" className={cn("flex min-h-0 flex-col bg-card", className)}>
-      <div className="flex flex-wrap justify-center gap-1 border-b border-border/60 px-1 py-1">
+      {/* One line at 390 px: the tabs share the width, and scroll inside the strip if ever too narrow */}
+      <div data-testid="emoji-tabs" className="flex flex-nowrap gap-0.5 overflow-x-auto overscroll-x-contain border-b border-border/60 px-1 py-1 [scrollbar-width:none]">
         {EMOJI_GROUPS.map((g, i) => (
           <button
             key={g.label}
@@ -22,7 +23,7 @@ export function EmojiPanel({ onPick, className }: { onPick: (emoji: string) => v
             onPointerDown={(e) => e.preventDefault()}
             onClick={() => setGroup(i)}
             className={cn(
-              "min-h-11 rounded-full px-3 text-label transition-colors motion-reduce:transition-none",
+              "min-h-11 flex-1 shrink-0 whitespace-nowrap rounded-full px-2 text-label transition-colors motion-reduce:transition-none",
               i === group ? "bg-primary/10 font-bold text-primary" : "text-muted-foreground hover:bg-muted"
             )}
           >

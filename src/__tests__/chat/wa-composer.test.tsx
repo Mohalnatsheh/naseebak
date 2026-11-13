@@ -149,6 +149,7 @@ describe("WaComposer: emoji", () => {
     expect(total).toBeLessThanOrEqual(240);
   });
 
+  // First in the file to open the panel: once the chunk has loaded, next/dynamic renders it at once
   it("shows a muted loading box while the panel's chunk loads", async () => {
     renderComposer();
     fireEvent.click(screen.getByRole("button", { name: "الرموز التعبيرية" }));
@@ -157,6 +158,20 @@ describe("WaComposer: emoji", () => {
     expect(loading.textContent).toBe("جارٍ التحميل…");
     expect(await screen.findByRole("button", { name: "😊" })).toBeTruthy();
     expect(screen.queryByTestId("emoji-panel-loading")).toBeNull();
+  });
+
+  it("the group tabs stay on one line (scrolling inside the strip if ever needed), labels at 14 px", async () => {
+    renderComposer();
+    fireEvent.click(screen.getByRole("button", { name: "الرموز التعبيرية" }));
+    await screen.findByRole("button", { name: "😊" });
+    const tabs = screen.getByTestId("emoji-tabs");
+    expect(tabs.className).toContain("flex-nowrap");
+    expect(tabs.className).toContain("overflow-x-auto");
+    expect(tabs.className).not.toMatch(/(^|\s)flex-wrap(\s|$)/);
+    for (const tab of Array.from(tabs.querySelectorAll("button"))) {
+      expect(tab.className).toContain("whitespace-nowrap");
+      expect(tab.className).toContain("text-label");
+    }
   });
 
   it("on a phone, picking two emoji never focuses the box (iOS would close the panel) and keeps both in order", async () => {

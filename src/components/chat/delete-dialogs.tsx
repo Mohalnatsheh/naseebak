@@ -298,6 +298,13 @@ function ClearChatDialog({
   );
 }
 
+/** `value` while `open`; the last value seen open once it closes (so a dialog's text doesn't change as it fades out) */
+export function useHeldWhileClosed<T>(value: T, open: boolean): T {
+  const [held, setHeld] = useState(value);
+  if (open && !Object.is(held, value)) setHeld(value);
+  return open ? value : held;
+}
+
 /** «حذف الرسالة؟» (selection bar): «حذف لدى الجميع» (when allowed), «حذف لديّ», «إلغاء». A choice deletes at once */
 function DeleteMessageChoiceDialog({
   open,
@@ -312,17 +319,19 @@ function DeleteMessageChoiceDialog({
   onChoose: (scope: DeleteScope) => void;
   onClose: () => void;
 }) {
+  // While it fades out the question is gone (`canEveryone` false): keep showing what was asked
+  const everyone = useHeldWhileClosed(canEveryone, open);
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent dir="rtl" className="text-right sm:max-w-md" onCloseAutoFocus={returnFocus ? returnFocusTo(returnFocus) : undefined}>
         <DialogHeader className="text-right sm:text-right">
           <DialogTitle className="text-lg">حذف الرسالة؟</DialogTitle>
           <DialogDescription className="text-right leading-relaxed">
-            {canEveryone ? "يمكنك حذفها من عندك فقط، أو لديك ولدى الطرف الآخر." : "ستُحذف من عندك فقط، وتبقى لدى الطرف الآخر."}
+            {everyone ? "يمكنك حذفها من عندك فقط، أو لديك ولدى الطرف الآخر." : "ستُحذف من عندك فقط، وتبقى لدى الطرف الآخر."}
           </DialogDescription>
         </DialogHeader>
         <DialogFooter className="gap-2 sm:flex-row-reverse sm:justify-start">
-          {canEveryone && (
+          {everyone && (
             <Button variant="destructive" onClick={() => onChoose("everyone")} className="min-h-11 flex-1 sm:flex-none">
               حذف لدى الجميع
             </Button>

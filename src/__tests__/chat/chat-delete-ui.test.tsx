@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, renderHook, screen, waitFor, within } from "@testing-library/react";
 
 const dashboard = vi.hoisted(() => ({ value: { profile: { gender: "MALE" }, country: "JO", counts: { pro: { isPro: false } } } as Record<string, unknown> }));
 vi.mock("@/contexts/dashboard-context", () => ({ useDashboardData: () => dashboard.value }));
@@ -29,7 +29,7 @@ import { MessageBubble } from "@/components/chat/message-bubble";
 import type { MessageActions } from "@/components/chat/message-menu";
 import type { UiMessage } from "@/components/chat/chat-utils";
 import { ChatRoom } from "@/components/chat/chat-room";
-import { useChatDelete, type DeleteEntryMode } from "@/components/chat/delete-dialogs";
+import { useChatDelete, useHeldWhileClosed, type DeleteEntryMode } from "@/components/chat/delete-dialogs";
 import { useEffect, useRef, useState } from "react";
 
 class RO {
@@ -423,6 +423,19 @@ describe("requestDeleteChoice", () => {
       expect(within(dialog).queryByRole("button", { name: "حذف لدى الجميع" })).toBeNull();
       cleanup();
     }
+  });
+
+  it("the choice dialog's text holds while it fades out (useHeldWhileClosed)", () => {
+    const { result, rerender } = renderHook(({ v, open }) => useHeldWhileClosed(v, open), { initialProps: { v: true, open: true } });
+    expect(result.current).toBe(true);
+    // closing: the ask is gone, so «لدى الجميع» would read false
+    rerender({ v: false, open: false });
+    expect(result.current).toBe(true);
+    // the next open shows the new question
+    rerender({ v: false, open: true });
+    expect(result.current).toBe(false);
+    rerender({ v: true, open: false });
+    expect(result.current).toBe(false);
   });
 
   it("«إلغاء» closes and sends nothing", async () => {

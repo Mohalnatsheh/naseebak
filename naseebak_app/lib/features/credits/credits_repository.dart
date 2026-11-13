@@ -15,6 +15,7 @@ class CreditPackage {
     this.chargeLabel,
     this.popular = false,
     this.wasPrice,
+    this.bonusCredits = 0,
   });
 
   factory CreditPackage.fromJson(Map<String, dynamic> j) => CreditPackage(
@@ -27,6 +28,7 @@ class CreditPackage {
         chargeLabel: asString(j['chargeLabel']),
         popular: asBool(j['popular']) ?? false,
         wasPrice: asDouble(j['wasPrice']),
+        bonusCredits: asInt(j['bonusCredits']) ?? 0,
       );
 
   final String id;
@@ -40,18 +42,42 @@ class CreditPackage {
   final String? chargeLabel;
   final bool popular;
   final double? wasPrice;
+
+  /// Extra credits from a sale offer (0 = none). [name] already carries «+ N هدية» for older apps; [credits] stays
+  /// the package's own.
+  final int bonusCredits;
+}
+
+/// The sale offer open now (`offer` of `/api/payments/plans`, sent only where buying is open)
+class CreditOffer {
+  const CreditOffer({required this.percent, required this.title, required this.endsAt});
+
+  /// Null when the server sent no usable offer (an older server sends none at all)
+  static CreditOffer? fromJson(Object? raw) {
+    final j = asMap(raw);
+    final endsAt = asDate(j['endsAt']);
+    final percent = asInt(j['percent']) ?? 0;
+    if (endsAt == null || percent <= 0) return null;
+    return CreditOffer(percent: percent, title: asStringOr(j['title']), endsAt: endsAt);
+  }
+
+  final int percent;
+  final String title;
+  final DateTime endsAt;
 }
 
 class Plans {
-  const Plans({required this.country, required this.purchasesEnabled, required this.packages});
+  const Plans({required this.country, required this.purchasesEnabled, required this.packages, this.offer});
   factory Plans.fromJson(Map<String, dynamic> j) => Plans(
         country: asStringOr(j['country']),
         purchasesEnabled: asBool(j['purchasesEnabled']) ?? false,
         packages: asMapList(j['packages']).map(CreditPackage.fromJson).toList(),
+        offer: CreditOffer.fromJson(j['offer']),
       );
   final String country;
   final bool purchasesEnabled;
   final List<CreditPackage> packages;
+  final CreditOffer? offer;
 }
 
 class CheckoutStart {

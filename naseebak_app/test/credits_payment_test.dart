@@ -233,13 +233,13 @@ void main() {
     pay.adapter.on('POST', '/api/payments/checkout',
         const FakeResponse(403, {'error': 'الشراء غير متاح في التطبيق حالياً', 'code': 'APP_PURCHASES_DISABLED'}));
     await pumpScreen(tester, pay);
-    expect(find.text('الباقات'), findsOneWidget);
+    expect(find.text('شراء رصيد'), findsOneWidget);
 
     pay.appPayments = false;
     await tester.tap(find.byKey(const Key('buy-p1')));
     await tester.pumpAndSettle();
     expect(find.text('الشراء غير متاح في التطبيق حالياً'), findsOneWidget);
-    expect(find.text('الباقات'), findsNothing);
+    expect(find.text('شراء رصيد'), findsNothing);
     expect(find.text('السجل'), findsNothing);
     expect(pay.opened, isEmpty);
   });

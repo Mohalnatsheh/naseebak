@@ -13,18 +13,21 @@ class NextStepMessage {
   const NextStepMessage({
     required this.title,
     this.body,
-    required this.ctaLabel,
-    required this.route,
+    this.ctaLabel,
+    this.route,
   });
   final String title;
   final String? body;
-  final String ctaLabel;
-  final String route;
+
+  /// The button; null (with [route]) for no button: the quiet message while the profile isn't known
+  final String? ctaLabel;
+  final String? route;
 }
 
 /// The one message, by priority (spec 2026-11-14 item 2): a family request waiting › people who showed interest ›
 /// new suggestions › unread chats › quiet (finish the profile, else the basic conditions). Counts missing on an older
-/// server count as 0.
+/// server count as 0. Quiet with no [profile] (still loading, or it failed): the message alone, no button, so it
+/// never sends a member with an unfinished profile to the conditions as if it were complete.
 NextStepMessage nextStepFor(
   Counts c, {
   MyProfile? profile,
@@ -96,8 +99,10 @@ NextStepMessage nextStepFor(
       route: open?.route ?? '/profile/edit',
     );
   }
+  final quiet = 'اقتراحات جديدة تصل${g('ك', 'كِ')} كل صباح';
+  if (profile == null) return NextStepMessage(title: quiet);
   return NextStepMessage(
-    title: 'اقتراحات جديدة تصل${g('ك', 'كِ')} كل صباح',
+    title: quiet,
     ctaLabel: g('راجع شروطك الأساسية', 'راجعي شروطكِ الأساسية'),
     route: '/profile/preferences',
   );
@@ -154,20 +159,23 @@ class NextStepCard extends StatelessWidget {
               style: AppText.label.copyWith(color: Colors.white70),
             ),
           ],
-          const SizedBox(height: AppSpace.md),
-          Align(
-            alignment: AlignmentDirectional.centerStart,
-            child: FilledButton(
-              key: const Key('next-step-cta'),
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.gold,
-                foregroundColor: AppColors.navyDeep,
-                minimumSize: const Size(44, 44),
+          if (step.route != null) ...[
+            const SizedBox(height: AppSpace.md),
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: FilledButton(
+                key: const Key('next-step-cta'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.gold,
+                  foregroundColor: AppColors.navyDeep,
+                  minimumSize: const Size(44, 44),
+                ),
+                onPressed: () =>
+                    openAppRoute(GoRouter.of(context), step.route!),
+                child: Text(step.ctaLabel ?? ''),
               ),
-              onPressed: () => openAppRoute(GoRouter.of(context), step.route),
-              child: Text(step.ctaLabel),
             ),
-          ),
+          ],
           const SizedBox(height: AppSpace.md),
           Row(
             children: [

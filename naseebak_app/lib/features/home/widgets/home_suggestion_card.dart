@@ -10,6 +10,7 @@ import '../../discovery/suggestion_card.dart' show ScorePill;
 import '../../discovery/suggestion_models.dart';
 import '../../notifications/notifications_screen.dart' show openAppRoute;
 import '../../pro/pro_badge.dart';
+import 'home_block_header.dart';
 import 'home_load_error_row.dart';
 
 /// How many suggestions «اقتراحات اليوم» shows
@@ -24,35 +25,6 @@ void openOnSuggestions(BuildContext context, FeedTab tab, String id) {
   final router = GoRouter.of(context);
   openAppRoute(router, '/suggestions?tab=${tab.apiName}');
   feedOpenRequest.ask(tab, id);
-}
-
-/// A home block's heading with «عرض الكل» at the end
-class HomeBlockHeader extends StatelessWidget {
-  const HomeBlockHeader({super.key, required this.title, required this.onAll});
-  final String title;
-  final VoidCallback onAll;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsetsDirectional.only(start: AppSpace.xs, bottom: AppSpace.sm),
-      child: Row(
-        children: [
-          Expanded(
-            child: Semantics(
-              header: true,
-              child: Text(title, style: AppText.headline.copyWith(color: AppColors.ink)),
-            ),
-          ),
-          TextButton(
-            onPressed: onAll,
-            style: TextButton.styleFrom(minimumSize: const Size(44, 44)),
-            child: const Text('عرض الكل'),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 /// «اقتراحات اليوم» (spec 2026-11-14 item 4): the first [homeSuggestionsShown] cards of «جديدة», side by side.

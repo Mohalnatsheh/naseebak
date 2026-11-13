@@ -132,11 +132,19 @@ void main() {
     );
     expect(done.ctaLabel, 'راجع شروطك الأساسية');
     expect(done.route, '/profile/preferences');
-    // profile not loaded yet: no claim that it is complete? falls to the conditions step
-    expect(
-      nextStepFor(const Counts(flags: CycleFlags())).route,
-      '/profile/preferences',
-    );
+    // Profile not loaded (or failed): the quiet message alone, never the "complete" step
+    final unknown = nextStepFor(const Counts(flags: CycleFlags()));
+    expect(unknown.title, 'اقتراحات جديدة تصلك كل صباح');
+    expect(unknown.route, isNull);
+    expect(unknown.ctaLabel, isNull);
+  });
+
+  testWidgets('quiet with no profile: no button on the card', (tester) async {
+    await tester.pumpWidget(const MaterialApp(
+      home: Scaffold(body: NextStepCard(counts: Counts(flags: CycleFlags()), female: false)),
+    ));
+    expect(find.byKey(const Key('next-step-title')), findsOneWidget);
+    expect(find.byKey(const Key('next-step-cta')), findsNothing);
   });
 
   testWidgets(

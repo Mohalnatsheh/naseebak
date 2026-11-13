@@ -9,7 +9,8 @@ import '../../discovery/suggestion_models.dart';
 import '../../notifications/notifications_screen.dart' show openAppRoute;
 import '../gendered_copy.dart';
 import 'home_load_error_row.dart';
-import 'home_suggestion_card.dart' show HomeBlockHeader, openOnSuggestions;
+import 'home_block_header.dart';
+import 'home_suggestion_card.dart' show openOnSuggestions;
 
 /// How many people «مهتمون بك» shows on home
 const homeInterestedCardsShown = 3;

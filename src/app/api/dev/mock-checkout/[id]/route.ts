@@ -68,7 +68,7 @@ const seconds = (d: Date) => Math.floor(d.getTime() / 1000);
 /** A Pro mock checkout: Stripe-shaped fakes through the same handlers as the webhook */
 async function proOutcome(
   outcome: Exclude<Outcome, "cancelled">,
-  payment: { id: string; stripeSessionId: string; amount: unknown; currency: string; createdAt: Date },
+  payment: { id: string; stripeSessionId: string; amount: unknown; currency: string; createdAt: Date; bonusCredits: number | null },
   plan: ProPlanId,
   userId: string
 ) {
@@ -79,7 +79,15 @@ async function proOutcome(
 
   if (outcome === "paid") {
     const me = await db.user.findUnique({ where: { id: userId }, select: { country: true } });
-    const metadata = { app: CHECKOUT_APP, kind: "pro", userId, plan, country: me?.country ?? "JO", paymentId: payment.id };
+    const metadata = {
+      app: CHECKOUT_APP,
+      kind: "pro",
+      userId,
+      plan,
+      country: me?.country ?? "JO",
+      paymentId: payment.id,
+      ...(payment.bonusCredits ? { offerBonus: String(payment.bonusCredits) } : {}),
+    };
     // Anchored on the checkout's time, so a repeat sends the very same invoice
     const start = payment.createdAt;
     const checkout = await handleProCheckoutCompleted(

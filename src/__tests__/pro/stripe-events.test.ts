@@ -188,6 +188,30 @@ describe("handleProInvoicePaid", () => {
     expect(grants.keys.size).toBe(1);
   });
 
+  it("sale offer: the first invoice also grants the bonus, once, on the same payment", async () => {
+    pendingCheckoutRow();
+    const inv = firstInvoice({ metadata: { ...META, offerBonus: "4" } });
+    expect(await handleProInvoicePaid(inv)).toBe("ok");
+    const sub = store.subs[0];
+    expect(sub.creditsPerGrant).toBe(8);
+    expect(grants.grantProCredits).toHaveBeenCalledWith({ subscriptionId: sub.id, paymentId: "pay1", key: "offer:in_1", credits: 4, silent: true });
+    await handleProInvoicePaid(inv);
+    expect(grants.keys).toEqual(new Set(["invoice:in_1", "offer:in_1"]));
+  });
+
+  it("sale offer: a renewal never grants the bonus", async () => {
+    pendingCheckoutRow();
+    await handleProInvoicePaid(firstInvoice({ metadata: { ...META, offerBonus: "4" } }));
+    await handleProInvoicePaid(firstInvoice({ id: "in_2", periodStart: T1, periodEnd: T2, billingReason: "subscription_cycle", metadata: { ...META, offerBonus: "4" } }));
+    expect(grants.keys).toEqual(new Set(["invoice:in_1", "offer:in_1", "invoice:in_2"]));
+  });
+
+  it("sale offer: a nonsense bonus in the metadata grants nothing extra", async () => {
+    pendingCheckoutRow();
+    await handleProInvoicePaid(firstInvoice({ metadata: { ...META, offerBonus: "9999" } }));
+    expect(grants.keys).toEqual(new Set(["invoice:in_1"]));
+  });
+
   it("a renewal invoice creates a second COMPLETED Payment and grant, moves the period, no second 'started' notice", async () => {
     pendingCheckoutRow();
     await handleProInvoicePaid(firstInvoice());

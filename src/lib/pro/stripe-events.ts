@@ -85,6 +85,12 @@ function settingsFor(meta: Meta): Promise<CountrySettings> {
   return getCountrySettings(toCountry(meta.country));
 }
 
+/** A sale offer's first-payment bonus from the checkout metadata (lib/payments/offer); 0 when absent or out of range */
+function offerBonusFromMeta(meta: Meta): number {
+  const n = Number(meta.offerBonus);
+  return Number.isInteger(n) && n > 0 && n <= 200 ? n : 0;
+}
+
 /** Credits per grant the member saw at checkout (metadata), or null for an older checkout without them */
 function creditsFromMeta(meta: Meta): number | null {
   const n = Number(meta.credits);
@@ -305,6 +311,18 @@ export async function handleProInvoicePaid(invoice: Stripe.Invoice): Promise<Pro
     granted = result === "granted";
   } else {
     console.warn("[pro] paid invoice of 0, no credits:", invoice.id);
+  }
+
+  // Sale offer: the first invoice's bonus (metadata offerBonus), once by its own key, on the same payment so a refund
+  // of that payment takes it back with the rest. Never on a renewal, never on a not-live invoice (handled above)
+  const offerBonus = offerBonusFromMeta(meta!);
+  if (offerBonus > 0 && invoice.billing_reason === "subscription_create" && (invoice.amount_paid ?? 0) > 0) {
+    try {
+      await grantProCredits({ subscriptionId: sub.id, paymentId, key: `offer:${invoice.id}`, credits: offerBonus, silent: true });
+    } catch (e) {
+      // Never blocks the membership or its «started» notice; the admins can add the bonus by hand
+      console.error("[pro] offer bonus grant failed", sub.id, invoice.id, e);
+    }
   }
 
   // «started» once: by whoever grants the checkout's invoice (the grant is once per key, so two racing deliveries can't

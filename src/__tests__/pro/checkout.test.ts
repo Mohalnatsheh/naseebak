@@ -12,10 +12,11 @@ const mocks = vi.hoisted(() => ({
   currentProSubscription: vi.fn(),
   paymentsMockEnabled: vi.fn(),
   jodChargingFor: vi.fn(),
+  activeOfferFor: vi.fn(),
 }));
 vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/stripe", () => ({ getStripe: () => ({ checkout: { sessions: { create: stripe.create, expire: stripe.expire } } }) }));
-vi.mock("@/lib/settings", () => ({ getProEnabled: mocks.getProEnabled, jodChargingFor: mocks.jodChargingFor }));
+vi.mock("@/lib/settings", () => ({ getProEnabled: mocks.getProEnabled, jodChargingFor: mocks.jodChargingFor, activeOfferFor: mocks.activeOfferFor }));
 vi.mock("@/lib/countries/settings", () => ({ getCountrySettings: mocks.getCountrySettings, purchasesAvailable: mocks.purchasesAvailable }));
 vi.mock("@/lib/pro/status", () => ({ currentProSubscription: mocks.currentProSubscription }));
 vi.mock("@/lib/payments/mock", () => ({ MOCK_SESSION_PREFIX: "mock_", paymentsMockEnabled: mocks.paymentsMockEnabled }));
@@ -37,6 +38,7 @@ beforeEach(() => {
   mocks.currentProSubscription.mockResolvedValue(null);
   mocks.paymentsMockEnabled.mockReturnValue(false);
   mocks.jodChargingFor.mockResolvedValue(false);
+  mocks.activeOfferFor.mockResolvedValue(null);
   db.user.findUnique.mockResolvedValue({ country: "JO" });
   db.payment.create.mockResolvedValue({});
   db.payment.findMany.mockResolvedValue([]);
@@ -191,5 +193,22 @@ describe("POST /api/pro/checkout", () => {
     expect(res.status).toBe(502);
     expect(await res.json()).toEqual({ error: "تعذّر بدء عملية الدفع الآن. يمكنك المحاولة مرة أخرى بعد قليل.", code: "CHECKOUT_FAILED" });
     spy.mockRestore();
+  });
+});
+
+describe("startProCheckout, sale offer", () => {
+  it("puts the first payment's bonus in the metadata and the row, never in the credits per grant", async () => {
+    mocks.activeOfferFor.mockResolvedValue({ percent: 50, title: "عروض الجمعة البيضاء", endsAt: "2026-11-30T21:59:00.000Z" });
+    await startProCheckout("u1", "monthly");
+    const meta = stripe.create.mock.calls[0][0].metadata;
+    expect(meta).toMatchObject({ credits: "8", offerBonus: "4" });
+    expect(stripe.create.mock.calls[0][0].subscription_data.metadata).toMatchObject({ offerBonus: "4" });
+    expect(db.payment.create.mock.calls[0][0].data.bonusCredits).toBe(4);
+  });
+
+  it("no offer: no bonus anywhere", async () => {
+    await startProCheckout("u1", "monthly");
+    expect(stripe.create.mock.calls[0][0].metadata.offerBonus).toBeUndefined();
+    expect(db.payment.create.mock.calls[0][0].data.bonusCredits).toBeNull();
   });
 });

@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { db } from "@/lib/db";
 import { getStripe } from "@/lib/stripe";
-import { getProEnabled, jodChargingFor } from "@/lib/settings";
+import { activeOfferFor, getProEnabled, jodChargingFor } from "@/lib/settings";
+import { bonusFor } from "@/lib/payments/offer";
 import { toCountry } from "@/lib/countries";
 import { getCountrySettings, purchasesAvailable } from "@/lib/countries/settings";
 import { CHECKOUT_APP } from "@/lib/payments/fulfil";
@@ -88,6 +89,11 @@ export async function startProCheckout(userId: string, plan: ProPlanId): Promise
 
   await expireOpenProCheckouts(userId);
 
+  // Sale offer (lib/payments/offer): extra credits with the FIRST paid invoice only, never in the credits per grant
+  // (renewals). Yearly: a share of what the first invoice grants (its first month). Fixed now, like the credits
+  const sale = await activeOfferFor(true);
+  const bonus = sale ? bonusFor(offer.credits, sale.percent) : 0;
+
   const paymentId = randomUUID();
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
   const mock = paymentsMockEnabled();
@@ -98,7 +104,16 @@ export async function startProCheckout(userId: string, plan: ProPlanId): Promise
     url = `${PRO_PAGE_PATH}?mockPro=${paymentId}`;
   } else {
     // credits: what the offer said, so a plan changed in the checkout window never alters what was bought
-    const metadata = { app: CHECKOUT_APP, kind: "pro", userId, plan, country, paymentId, credits: String(offer.credits) };
+    const metadata = {
+      app: CHECKOUT_APP,
+      kind: "pro",
+      userId,
+      plan,
+      country,
+      paymentId,
+      credits: String(offer.credits),
+      ...(bonus > 0 && { offerBonus: String(bonus) }),
+    };
     const checkout = await getStripe().checkout.sessions.create({
       mode: "subscription",
       line_items: [
@@ -131,6 +146,7 @@ export async function startProCheckout(userId: string, plan: ProPlanId): Promise
       type: "SUBSCRIPTION",
       planName: proPlanName(plan),
       amount: offer.price,
+      bonusCredits: bonus > 0 ? bonus : null,
       currency: offer.currency,
       // Stripe bills every renewal of this subscription in this currency
       chargeCurrency: offer.chargeCurrency,

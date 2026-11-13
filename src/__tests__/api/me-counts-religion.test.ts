@@ -9,6 +9,7 @@ vi.mock("@/lib/auth", () => ({ requireUser: vi.fn(async () => ({ session: { user
 vi.mock("@/lib/settings", () => ({
   getCycleFlags: vi.fn(async () => ({ introRequests: sw.introRequests, chat: false, mutualSuggestions: false })),
   getDashboardRedesign: vi.fn(async () => false),
+  getAuthRedesignEnabled: vi.fn(async () => false),
   getReligionEnabled: vi.fn(async () => {
     if (sw.religion === "throw") throw new Error("settings down");
     return sw.religion === "true";

@@ -25,6 +25,8 @@ import {
 import { blockConfirmText, reportBlockText } from "@/lib/gendered-copy";
 import { CandidateDetails } from "@/components/suggestions/candidate-details";
 import { DealbreakersCard } from "@/components/suggestions/dealbreakers-card";
+import { SuggestionCard } from "@/components/suggestions/suggestion-card";
+import { ProfileSheet } from "@/components/suggestions/profile-sheet";
 import { MatchesView } from "@/components/matches/matches-view";
 import { useSearchParams } from "next/navigation";
 import { InterestDialog, rechargeToContinue, type IntroPreferenceChoice } from "@/components/suggestions/interest-dialog";
@@ -220,6 +222,9 @@ export function MutualSuggestionsView({
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  // Switch dashboard_redesign: the short card, and one profile sheet for the card it was opened from
+  const redesign = !!counts.dashboardRedesign;
+  const [openId, setOpenId] = useState<string | null>(null);
   const [blockFor, setBlockFor] = useState<OpenFeedItem | null>(null);
   const [blocking, setBlocking] = useState(false);
   const [loadFailed, setLoadFailed] = useState(false);
@@ -365,6 +370,8 @@ export function MutualSuggestionsView({
   const nextFocus = useRef<number | null>(null);
   // The «مهتم» dialog closed after a decision: it must not pull the focus back to the button that is gone
   const decidedInDialog = useRef(false);
+  // The card the «مهتم» dialog was opened for (redesign: the focus goes back to it when the dialog is cancelled)
+  const interestOpenedFor = useRef<string | null>(null);
   const focusNextCard = useCallback(() => {
     const index = nextFocus.current;
     if (index === null) return;
@@ -453,6 +460,7 @@ export function MutualSuggestionsView({
    * also asks chat or family, older items (no choice to make) confirm the credit only.
    */
   function onInterested(item: OpenFeedItem) {
+    interestOpenedFor.current = item.id;
     if (creditOnInterest) setInterestFor(item);
     else void decide(item, true);
   }
@@ -783,6 +791,13 @@ export function MutualSuggestionsView({
     );
   }
 
+  // The open profile: gone with its card (answered, blocked, reloaded away) or on the matches tab
+  const sheetIndex = redesign && !showMatches && openId ? items.findIndex((i) => i.id === openId) : -1;
+  const sheetItem = sheetIndex >= 0 ? items[sheetIndex] : null;
+  // Forget a sheet whose card left, so it never reopens by itself if the card comes back (an undone «لا», a reload)
+  if (openId !== null && sheetIndex < 0) setOpenId(null);
+  const closeSheet = () => setOpenId(null);
+
   return (
     <div className="space-y-5 pb-8">
       <PageHeader
@@ -1005,6 +1020,23 @@ export function MutualSuggestionsView({
             </div>
           )}
           {items.map((item, index) => {
+            if (redesign) {
+              // The short card (switch dashboard_redesign): the body opens the profile sheet, the answers stay on it
+              const status = renderStatus(item);
+              const declined = tab === "waiting" && !!item.declined;
+              return (
+                <div key={item.id} data-feed-card="" data-feed-id={item.id} tabIndex={-1} className="animate-appear outline-none" style={{ animationDelay: `${Math.min(index, 6) * 40}ms` }}>
+                  <SuggestionCard
+                    item={declined ? { ...item, activity: undefined } : item}
+                    partnerGender={partnerGender}
+                    country={country}
+                    status={status && <div className="flex flex-wrap items-center gap-1.5">{status}</div>}
+                    onOpen={() => setOpenId(item.id)}
+                    actions={renderAnswers(item, index)}
+                  />
+                </div>
+              );
+            }
             const c = item.candidate;
             const score = Math.round(item.compatibilityScore);
             const isOpen = expanded.has(item.id);
@@ -1081,6 +1113,15 @@ export function MutualSuggestionsView({
       </div>
       )}
 
+      {redesign && (
+        <ProfileSheet
+          item={sheetItem}
+          onClose={closeSheet}
+          menu={sheetItem && renderMenu(sheetItem)}
+          footer={sheetItem && renderAnswers(sheetItem, sheetIndex, { onDone: closeSheet, noMenu: true })}
+        />
+      )}
+
       {creditOnInterest && (
         <InterestDialog
           open={!!interestFor}
@@ -1093,7 +1134,15 @@ export function MutualSuggestionsView({
           free={!!interestFor && isFreeReply(interestFor)}
           likedYou={!!interestFor?.likedYou}
           onCloseAutoFocus={(e) => {
-            if (!decidedInDialog.current) return;
+            if (!decidedInDialog.current) {
+              // Opened from the profile sheet (gone by now): back to that card's «مهتم», as if opened from the card
+              if (!redesign || !interestOpenedFor.current) return;
+              const back = document.querySelector<HTMLElement>(`[data-feed-id="${CSS.escape(interestOpenedFor.current)}"] [data-primary-action]`);
+              if (!back) return;
+              e.preventDefault();
+              back.focus();
+              return;
+            }
             decidedInDialog.current = false;
             e.preventDefault();
             focusNextCard();

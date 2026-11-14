@@ -11,6 +11,7 @@ import '../../core/network/api_exception.dart';
 import '../../core/network/json.dart';
 import '../../core/review/store_review.dart';
 import '../../core/push/push_permission.dart';
+import '../../core/routing/popup_tracker.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/brand_kit.dart';
 import '../../shared/widgets/common.dart';
@@ -528,7 +529,9 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
     final initials = [first(me), first(item.candidate.firstName)].where((e) => e.isNotEmpty).join(' · ');
     // Taken now: this list may be rebuilt or gone by the time the button is pressed
     final router = GoRouter.of(context);
-    showDialog<void>(
+    // A tracked popup: the notifications reminder never opens over it (review I-2)
+    final popups = ref.read(popupShowingProvider.notifier);
+    popups.track(() => showDialog<void>(
       context: context,
       barrierLabel: 'إغلاق',
       builder: (ctx) => AlertDialog(
@@ -548,7 +551,7 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
           ),
         ],
       ),
-    ).then((_) {
+    )).then((_) {
       // A chat opened: asked when that chat is left after a reply (chat room), never over it now
       if (res.intro != 'CHAT') review.afterFirstMatch();
     });

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../app/providers.dart';
 import '../../core/network/json.dart';
+import '../../core/routing/popup_tracker.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/common.dart';
 import '../notifications/notifications_screen.dart';
@@ -64,30 +65,13 @@ class _AlertGateState extends ConsumerState<AlertGate> with WidgetsBindingObserv
 
   Future<void> _check() async {
     if (_showing || !mounted) return;
-    AppAlert? alert;
-    try {
-      final j = await ref.read(apiClientProvider).get('/api/alerts/current', query: {'platform': 'app'});
-      final a = asMapOrNull(j['alert']);
-      alert = a == null ? null : AppAlert.fromJson(a);
-    } catch (_) {
-      return; // Next time the app comes back
-    }
-    if (alert == null || !mounted || _showing) return;
-    _showing = true;
-    final openLink = await showDialog<bool>(
-      context: context,
-      useRootNavigator: true,
-      builder: (_) => AlertDialogView(alert: alert!),
-    );
-    _showing = false;
-    // Closed by tapping outside / back counts as closed: the member saw it
-    try {
-      await ref.read(apiClientProvider).post('/api/alerts/${alert.id}/dismiss');
-    } catch (_) {
-      // Shown again next time: better than lost
-    }
-    if (!mounted) return;
-    if (openLink == true && alert.hasButton) {
+    // Counted as a popup from the question to the server until it closes: the notifications reminder waits meanwhile,
+    // so the two never stack (review I-2)
+    final popups = ref.read(popupShowingProvider.notifier);
+    final openLink = await popups.track(() => _askAndShow());
+    if (openLink == null || !mounted) return;
+    final (alert, link) = openLink;
+    if (link && alert.hasButton) {
       final url = alert.buttonUrl!;
       if (url.startsWith('/')) {
         openAppRoute(GoRouter.of(context), appRouteForLink(url: url));
@@ -97,6 +81,35 @@ class _AlertGateState extends ConsumerState<AlertGate> with WidgetsBindingObserv
       return;
     }
     _check();
+  }
+
+  /// The waiting alert, shown and closed on the server; null when none was shown
+  Future<(AppAlert, bool)?> _askAndShow() async {
+    // Taken now: the dismiss below still goes out if the tabs are gone by then
+    final api = ref.read(apiClientProvider);
+    AppAlert? alert;
+    try {
+      final j = await api.get('/api/alerts/current', query: {'platform': 'app'});
+      final a = asMapOrNull(j['alert']);
+      alert = a == null ? null : AppAlert.fromJson(a);
+    } catch (_) {
+      return null; // Next time the app comes back
+    }
+    if (alert == null || !mounted || _showing) return null;
+    _showing = true;
+    final openLink = await showDialog<bool>(
+      context: context,
+      useRootNavigator: true,
+      builder: (_) => AlertDialogView(alert: alert!),
+    );
+    _showing = false;
+    // Closed by tapping outside / back counts as closed: the member saw it
+    try {
+      await api.post('/api/alerts/${alert.id}/dismiss');
+    } catch (_) {
+      // Shown again next time: better than lost
+    }
+    return (alert, openLink == true);
   }
 
   @override

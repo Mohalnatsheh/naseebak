@@ -8,6 +8,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/providers.dart';
 import '../../features/home/gendered_copy.dart';
 import '../auth/auth_controller.dart';
+import '../routing/popup_tracker.dart';
+import '../routing/route_observer.dart';
 import '../theme/app_theme.dart';
 import 'push_service.dart';
 
@@ -283,11 +285,83 @@ class PushAskGate extends ConsumerStatefulWidget {
   ConsumerState<PushAskGate> createState() => _PushAskGateState();
 }
 
-class _PushAskGateState extends ConsumerState<PushAskGate> {
+class _PushAskGateState extends ConsumerState<PushAskGate> with WidgetsBindingObserver, RouteAware {
   bool _asked = false;
+  final _watched = <ModalRoute<dynamic>>[];
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Told when a page, sheet or dialog above home (on any navigator up to the root) closes: check again then
+    final routes = _enclosingRoutes(context);
+    if (!_sameRoutes(routes)) {
+      appRouteObserver.unsubscribe(this);
+      _watched
+        ..clear()
+        ..addAll(routes);
+      for (final r in routes) {
+        appRouteObserver.subscribe(this, r);
+      }
+    }
+  }
+
+  bool _sameRoutes(List<ModalRoute<dynamic>> routes) =>
+      routes.length == _watched.length && Iterable.generate(routes.length).every((i) => routes[i] == _watched[i]);
+
+  @override
+  void dispose() {
+    appRouteObserver.unsubscribe(this);
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && mounted) setState(() {});
+  }
+
+  @override
+  void didPopNext() {
+    if (mounted) setState(() {});
+  }
+
+  /// The routes holding home: its tab's page, then the shell's page on the root navigator
+  static List<ModalRoute<dynamic>> _enclosingRoutes(BuildContext context) {
+    final routes = <ModalRoute<dynamic>>[];
+    BuildContext? c = context;
+    while (c != null) {
+      final route = ModalRoute.of(c);
+      if (route == null) break;
+      routes.add(route);
+      c = route.navigator?.context;
+    }
+    return routes;
+  }
+
+  /// Home is what the member sees: the app in front, home's tab selected, nothing (page, sheet, dialog) above it on
+  /// any navigator, and none of the app's own popups (admin popup, match dialog) open or on the way (review I-2)
+  bool _homeVisible() {
+    final life = WidgetsBinding.instance.lifecycleState;
+    if (life != null && life != AppLifecycleState.resumed) return false;
+    if (!TickerMode.valuesOf(context).enabled) return false;
+    if (ref.read(popupShowingProvider) > 0) return false;
+    return _enclosingRoutes(context).every((r) => r.isCurrent);
+  }
 
   Future<void> _ask({required bool reminder}) async {
     if (!mounted) return;
+    // Checked again just before: something may have opened since the frame. If home is not visible now, nothing is
+    // stamped, so the reminder waits for the next time home shows
+    if (!_homeVisible()) {
+      _asked = false;
+      return;
+    }
     final prefs = ref.read(sharedPreferencesProvider);
     await prefs.setBool(pushExplainedKey, true);
     await prefs.setInt(pushReminderAtKey, DateTime.now().millisecondsSinceEpoch);
@@ -308,7 +382,11 @@ class _PushAskGateState extends ConsumerState<PushAskGate> {
   @override
   Widget build(BuildContext context) {
     final allowed = ref.watch(pushAllowedProvider).valueOrNull;
-    if (allowed == false && !_asked) {
+    // Rebuilt when a tracked popup closes, the tab changes (TickerMode) or home's own page comes back on top
+    final popups = ref.watch(popupShowingProvider);
+    final tickers = TickerMode.valuesOf(context).enabled;
+    final onTop = ModalRoute.of(context)?.isCurrent ?? true;
+    if (allowed == false && !_asked && popups == 0 && tickers && onTop && _homeVisible()) {
       final prefs = ref.read(sharedPreferencesProvider);
       final explained = prefs.getBool(pushExplainedKey) ?? false;
       final last = prefs.getInt(pushReminderAtKey);

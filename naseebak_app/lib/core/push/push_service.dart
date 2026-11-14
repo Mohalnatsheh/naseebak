@@ -10,6 +10,7 @@ import '../../app/providers.dart';
 import '../../features/home/counts.dart';
 import '../../features/notifications/notifications_screen.dart';
 import '../routing/router.dart';
+import '../theme/app_theme.dart';
 
 /// True once `Firebase.initializeApp()` worked in `main()` (needs android/app/google-services.json).
 /// False in tests and in builds without Firebase: push is then simply off.
@@ -201,7 +202,7 @@ class PushService with WidgetsBindingObserver {
           importance: Importance.high,
           priority: Priority.high,
           icon: 'ic_stat_notify',
-          color: const Color(0xFFC19250),
+          color: AppColors.gold,
           tag: tag,
         ),
         // Same chat thread as the system's pushes; sound like they would have had

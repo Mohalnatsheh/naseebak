@@ -153,4 +153,20 @@ void main() {
     // Not a raw keyboard field
     expect(find.byType(TextField), findsNothing);
   });
+
+  testWidgets('a stored birth date older than the picker allows (a website date) still opens it', (tester) async {
+    final now = DateTime.now();
+    final old = DateTime(now.year - 85, now.month, 1);
+    final young = DateTime(now.year - 10, 1, 1);
+    for (final dob in [old, young]) {
+      final iso = '${dob.year.toString().padLeft(4, '0')}-${dob.month.toString().padLeft(2, '0')}-01';
+      await pumpControl(tester, 'dateOfBirth', values: {'dateOfBirth': iso});
+      await tester.tap(find.byKey(const Key('field-dateOfBirth')));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(find.byType(DatePickerDialog), findsOneWidget);
+      await tester.tapAt(const Offset(5, 5));
+      await tester.pumpAndSettle();
+    }
+  });
 }

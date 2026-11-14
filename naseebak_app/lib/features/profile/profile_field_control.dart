@@ -286,12 +286,13 @@ class ProfileFieldControl extends StatelessWidget {
 
   Future<void> _pickDate(BuildContext context, DateTime? current) async {
     final now = DateTime.now();
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: current ?? DateTime(now.year - 25),
-      firstDate: DateTime(now.year - 80),
-      lastDate: DateTime(now.year - 18, now.month, now.day),
-    );
+    final first = DateTime(now.year - 80);
+    final last = DateTime(now.year - 18, now.month, now.day);
+    // A stored date outside the range (the website allows others) must not break the picker
+    var initial = current ?? DateTime(now.year - 25);
+    if (initial.isBefore(first)) initial = first;
+    if (initial.isAfter(last)) initial = last;
+    final picked = await showDatePicker(context: context, initialDate: initial, firstDate: first, lastDate: last);
     if (picked != null) {
       onChanged('dateOfBirth',
           '${picked.year.toString().padLeft(4, '0')}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}');

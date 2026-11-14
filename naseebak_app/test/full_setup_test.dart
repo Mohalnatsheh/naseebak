@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart' show RequestOptions;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -236,7 +237,9 @@ void main() {
     expect(body['prefAgeMax'], 38);
   });
 
-  testWidgets('step 7 with no preference filled: a line saying it can be skipped', (tester) async {
+  // The age range is required on step 6, so step 7 always has its toggle: DealbreakerToggles' empty line («لم
+  // تحدّدي تفضيلات بعد…») can't show in setup
+  testWidgets('step 7 with only the age range filled: only the age toggle', (tester) async {
     await openFullSetup(tester, {...fullStep1, ...fullStep2, ...fullStep3, ...fullStep4});
     await tester.enterText(find.byKey(const Key('age-min')), '28');
     await tester.enterText(find.byKey(const Key('age-max')), '38');
@@ -301,5 +304,85 @@ void main() {
     await tester.pumpAndSettle();
     await tapNext(tester);
     expect(find.text('الخطوة 6 من 7'), findsOneWidget);
+  });
+
+  group('emptied answers and the server\'s rules', () {
+    /// The server's schema for what these tests touch: numbers are numbers (never ""), texts strings, lists lists
+    FakeResponse serverRules(RequestOptions r) {
+      final body = dataOf(r.data);
+      for (final k in ['height', 'weight', 'numberOfSiblings', 'childrenCount', 'prefAgeMin', 'prefAgeMax']) {
+        if (body.containsKey(k) && body[k] is! int) return const FakeResponse(400, {'error': 'Expected number'});
+      }
+      for (final k in ['aboutMe', 'area', 'tribe']) {
+        if (body.containsKey(k) && body[k] is! String) return const FakeResponse(400, {'error': 'Expected string'});
+      }
+      for (final k in ['prefCity', 'prefEducation']) {
+        if (body.containsKey(k) && body[k] is! List) return const FakeResponse(400, {'error': 'Expected array'});
+      }
+      return const FakeResponse(200, {'ok': true});
+    }
+
+    Future<(FakeAdapter, ProviderContainer)> open(WidgetTester tester, Map<String, dynamic> profile) async {
+      final (adapter, container) = await openFullSetup(tester, profile);
+      adapter.handlers['PATCH /api/profile/draft'] = serverRules;
+      adapter.handlers['PUT /api/profile'] = serverRules;
+      adapter.on('GET', '/api/mobile/me', FakeResponse(200, {'user': meJson(country: 'SA')}));
+      return (adapter, container);
+    }
+
+    testWidgets('an emptied stored height is left out (never ""), and the final save succeeds', (tester) async {
+      final step1 = {...fullStep1, 'height': 170}..remove('skinColor');
+      final (adapter, container) =
+          await open(tester, {...step1, ...fullStep2, ...fullStep3, ...fullStep4, ...fullStep6});
+      expect(find.text('الخطوة 1 من 7'), findsOneWidget);
+      await tester.enterText(find.byKey(const Key('field-height')), '');
+      await tapIn(tester, find.byKey(const Key('skinColor-حنطي')));
+      await tapNext(tester);
+      expect(dataOf(adapter.to('PATCH', '/api/profile/draft').single.data).keys, isNot(contains('height')));
+      for (var i = 0; i < 6; i++) {
+        await tapNext(tester);
+      }
+      expect(dataOf(adapter.to('PUT', '/api/profile').single.data).keys, isNot(contains('height')));
+      expect(container.read(authControllerProvider).me!.profileComplete, isTrue);
+    });
+
+    testWidgets('a city without areas clears the stored area ("")', (tester) async {
+      final step1 = {...fullStep1, 'area': 'العليا'}..remove('skinColor');
+      final (adapter, _) = await open(tester, {...step1, ...fullStep2, ...fullStep3, ...fullStep4, ...fullStep6});
+      expect(tester.widget<ChoiceChip>(find.byKey(const Key('area-العليا'))).selected, isTrue);
+      await tapIn(tester, find.byKey(const Key('city-جدة')));
+      expect(find.byKey(const Key('area-العليا')), findsNothing);
+      await tapIn(tester, find.byKey(const Key('skinColor-حنطي')));
+      await tapNext(tester);
+      final draft = dataOf(adapter.to('PATCH', '/api/profile/draft').single.data);
+      expect(draft['city'], 'جدة');
+      expect(draft['area'], '');
+    });
+
+    testWidgets('an emptied stored text is sent "" and an emptied list [], and the save succeeds', (tester) async {
+      final (adapter, container) = await open(tester, {
+        ...fullStep1, ...fullStep2, ...fullStep3, ...fullStep4, 'aboutMe': 'نبذة قديمة', 'prefCity': ['جدة'],
+      });
+      // The age range is missing: step 6; back to step 5 for the text
+      expect(find.text('الخطوة 6 من 7'), findsOneWidget);
+      await tester.tap(find.byTooltip('السابق'));
+      await tester.pumpAndSettle();
+      expect(find.text('الخطوة 5 من 7'), findsOneWidget);
+      await tester.enterText(find.byKey(const Key('field-aboutMe')), '');
+      await tester.pumpAndSettle();
+      await tapNext(tester);
+      expect(dataOf(adapter.to('PATCH', '/api/profile/draft').single.data)['aboutMe'], '');
+      await tester.enterText(find.byKey(const Key('age-min')), '28');
+      await tester.enterText(find.byKey(const Key('age-max')), '38');
+      await tester.pumpAndSettle();
+      await tapIn(tester, find.widgetWithText(FilterChip, 'جدة'));
+      await tapNext(tester);
+      expect(dataOf(adapter.to('PATCH', '/api/profile/draft').last.data)['prefCity'], <String>[]);
+      await tapNext(tester);
+      final body = dataOf(adapter.to('PUT', '/api/profile').single.data);
+      expect(body['aboutMe'], '');
+      expect(body['prefCity'], <String>[]);
+      expect(container.read(authControllerProvider).me!.profileComplete, isTrue);
+    });
   });
 }

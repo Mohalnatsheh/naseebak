@@ -257,7 +257,8 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
 
   /// One question's stored keys and values
   Map<String, Object?> _entries(String key, Map<String, Object?> values) => switch (key) {
-        'city' => {'city': values['city'], if (setupShown('area', values, _ctx)) 'area': values['area']},
+        // A city without areas clears the stored area (the website's `handleCityChange`)
+        'city' => {'city': values['city'], 'area': setupShown('area', values, _ctx) ? values['area'] : null},
         'hijab' => {'hijab': values['hijab'], 'niqab': values['niqab']},
         'job' => {'job': values['job'] == profileJobOther ? null : values['job']},
         _ => {key: values[key]},
@@ -273,7 +274,9 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
       final v = raw is String ? raw.trim() : raw;
       if (!isEmptyStored(v)) {
         out[key] = v;
-      } else if (!isEmptyStored(_stored[key]) && (v is List || _textKeys.contains(key) || _clearableTexts.contains(key))) {
+      } else if (!isEmptyStored(_stored[key]) &&
+          (v is List || profileShortTexts.contains(key) || profileLongTexts.contains(key) || _clearableTexts.contains(key))) {
+        // Numbers are never sent empty: the server takes only a number (an emptied one stays as stored)
         out[key] = v is List ? <String>[] : '';
       }
     }

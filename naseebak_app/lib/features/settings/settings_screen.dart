@@ -54,7 +54,7 @@ Future<void> pauseAccount(BuildContext context, WidgetRef ref, MyProState? pro, 
       ..invalidate(proStateProvider)
       ..invalidate(countsProvider);
     await container.read(authControllerProvider.notifier).refreshMe();
-    _sayIfStillActive(context, container);
+    if (context.mounted) _sayIfStillActive(context, container);
   } catch (e) {
     if (context.mounted) showSnack(context, ApiException.messageOf(e));
   } finally {
@@ -65,7 +65,7 @@ Future<void> pauseAccount(BuildContext context, WidgetRef ref, MyProState? pro, 
 /// The router shows the paused page once `me` says paused; still active here means `me` wasn't read
 void _sayIfStillActive(BuildContext context, ProviderContainer container) {
   final me = container.read(authControllerProvider).me;
-  if (me != null && !me.deactivated && context.mounted) showSnack(context, pausedButStuckMessage);
+  if (me != null && !me.deactivated) showSnack(context, pausedButStuckMessage);
 }
 
 /// «حذف الحساب»: the dialog, then the request (shared by «الإعدادات»)
@@ -91,7 +91,7 @@ Future<void> deleteAccount(BuildContext context, WidgetRef ref, MyProState? pro,
     container.invalidate(proStateProvider);
     // The account is paused at once: the router shows the paused page with the deletion date
     await container.read(authControllerProvider.notifier).refreshMe();
-    _sayIfStillActive(context, container);
+    if (context.mounted) _sayIfStillActive(context, container);
   } catch (e) {
     if (context.mounted) showSnack(context, ApiException.messageOf(e));
   } finally {

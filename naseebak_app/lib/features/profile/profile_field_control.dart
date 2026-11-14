@@ -104,6 +104,7 @@ class ProfileFieldControl extends StatelessWidget {
     this.controller,
     this.error,
     this.clearable = true,
+    this.onTextChanged,
   });
 
   final String fieldKey;
@@ -116,6 +117,12 @@ class ProfileFieldControl extends StatelessWidget {
 
   /// false: tapping the chosen chip keeps it (a required choice is changed, never cleared)
   final bool clearable;
+
+  /// Typing in the field's text (a text, a number, the «أخرى» job text), with [fieldKey]: lets the owner clear a
+  /// shown error while the member types
+  final ValueChanged<String>? onTextChanged;
+
+  void _typed(String _) => onTextChanged?.call(fieldKey);
 
   String get _title => switch (fieldKey) {
         'height' => 'الطول (سم)',
@@ -261,6 +268,7 @@ class ProfileFieldControl extends StatelessWidget {
               controller: controller,
               maxLength: 100,
               onTapOutside: _unfocus,
+              onChanged: onTextChanged == null ? null : _typed,
               decoration: InputDecoration(hintText: female ? 'حدّدي وظيفتكِ...' : 'حدّد وظيفتك...'),
             ),
           ),
@@ -316,6 +324,7 @@ class ProfileFieldControl extends StatelessWidget {
           inputFormatters: [LatinDigitsFormatter()],
           textDirection: number ? TextDirection.ltr : null,
           onTapOutside: _unfocus,
+          onChanged: onTextChanged == null ? null : _typed,
           decoration: InputDecoration(hintText: _hints[fieldKey]),
         ),
       ],

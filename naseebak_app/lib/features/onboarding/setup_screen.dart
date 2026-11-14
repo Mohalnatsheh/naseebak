@@ -374,6 +374,22 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
       _showFirstError(errors.keys.first);
       return;
     }
+    // The final save checks every earlier step too (the website's `finish()`): a stored answer an earlier step
+    // refuses (a website draft, say) opens that step with its errors instead of being sent
+    if (_step == total - 1) {
+      for (var i = 0; i < _step; i++) {
+        final earlier = _validate(i);
+        if (earlier.isEmpty) continue;
+        setState(() {
+          _clearSavedAwaitingMe();
+          _step = i;
+          _errors = earlier;
+          _checked = true;
+        });
+        _showFirstError(earlier.keys.first);
+        return;
+      }
+    }
     ref.read(analyticsProvider).setupStep(_step + 1);
     if (_step < total - 1) {
       _saveDraft(_step);
@@ -736,6 +752,8 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
                       controller: k == 'job' ? _jobCustom : _text[k],
                       error: _errors[k],
                       clearable: !setupRequired(k, values, _ctx),
+                      // Once checked, the errors follow the answers: typing clears the field's error at once
+                      onTextChanged: (_) => setState(() {}),
                     ),
             ),
         ];

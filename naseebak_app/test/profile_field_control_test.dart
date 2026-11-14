@@ -169,4 +169,24 @@ void main() {
       await tester.pumpAndSettle();
     }
   });
+
+  testWidgets('typing in a text, number or «أخرى» job field reports the field key', (tester) async {
+    final typed = <String>[];
+    Future<void> pump(String key, Map<String, Object?> values) => tester.pumpWidget(rtlApp(Scaffold(
+          body: ProfileFieldControl(
+            fieldKey: key,
+            values: values,
+            onChanged: (_, _) {},
+            onTextChanged: typed.add,
+            lists: lists,
+            female: true,
+            controller: TextEditingController(),
+          ),
+        )));
+    await pump('height', const {});
+    await tester.enterText(find.byKey(const Key('field-height')), '165');
+    await pump('job', const {'job': 'أخرى'});
+    await tester.enterText(find.byKey(const Key('field-jobCustom')), 'طيّارة');
+    expect(typed, ['height', 'job']);
+  });
 }

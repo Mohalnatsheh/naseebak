@@ -385,4 +385,32 @@ void main() {
       expect(container.read(authControllerProvider).me!.profileComplete, isTrue);
     });
   });
+
+  testWidgets('typing clears a shown error at once (children count)', (tester) async {
+    final step1 = {...fullStep1, 'maritalStatus': 'مطلق/مطلقة'}..remove('childrenCount');
+    await openFullSetup(tester, step1);
+    expect(find.text('الخطوة 1 من 7'), findsOneWidget);
+    await tapNext(tester);
+    expect(find.text('عدد الأبناء مطلوب'), findsOneWidget);
+    await tester.enterText(find.byKey(const Key('field-childrenCount')), '2');
+    await tester.pumpAndSettle();
+    expect(find.text('عدد الأبناء مطلوب'), findsNothing);
+    expect(find.text('الخطوة 1 من 7'), findsOneWidget);
+  });
+
+  testWidgets('«حفظ والبدء» checks every step: a stored answer an earlier step refuses opens that step, no PUT',
+      (tester) async {
+    final now = DateTime.now();
+    // A website birth date 85 years ago: answered (so the setup resumes past it) but refused by the app's 18–80 rule
+    final dob = '${now.year - 85}-01-01T00:00:00.000Z';
+    final (adapter, _) = await openFullSetup(
+      tester,
+      {...fullStep1, 'dateOfBirth': dob, ...fullStep2, ...fullStep3, ...fullStep4, ...fullStep6},
+    );
+    expect(find.text('الخطوة 7 من 7'), findsOneWidget);
+    await tapNext(tester);
+    expect(adapter.to('PUT', '/api/profile'), isEmpty);
+    expect(find.text('الخطوة 1 من 7'), findsOneWidget);
+    expect(find.text('تاريخ الميلاد غير صالح'), findsOneWidget);
+  });
 }

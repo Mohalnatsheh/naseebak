@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
 import '../../core/network/api_client.dart';
+import '../../core/network/api_exception.dart';
 import '../../core/network/json.dart';
 
 class CreditPackage {
@@ -182,6 +183,8 @@ final paymentHistoryProvider = FutureProvider.autoDispose((ref) => ref.watch(cre
 
 /// Polls the payment until it leaves PENDING (every [interval], up to [timeout]); null on timeout or when [cancelled].
 /// The window is counted in polls, so time the app spends frozen in the background doesn't use it up.
+/// An answer that will never change (the payment not found, signed out, refused) is thrown as its [ApiException]
+/// at once; only a network gap or a server error is waited through.
 Future<PaymentStatus?> waitForPayment(
   CreditsRepository repo,
   String paymentId, {
@@ -196,6 +199,9 @@ Future<PaymentStatus?> waitForPayment(
       final s = await repo.status(paymentId);
       if (cancelled?.call() ?? false) return null;
       if (s.status != 'PENDING') return s;
+    } on ApiException catch (e) {
+      if (_finalPollError(e)) rethrow;
+      // Keep polling through a brief network gap
     } catch (_) {
       // Keep polling through a brief network gap
     }
@@ -204,3 +210,7 @@ Future<PaymentStatus?> waitForPayment(
   }
   return null;
 }
+
+/// A status answer that polling again would not change (audit M9: the wait ran its full 10 minutes on a 404)
+bool _finalPollError(ApiException e) =>
+    e.kind == ApiErrorKind.notFound || e.kind == ApiErrorKind.unauthorized || e.kind == ApiErrorKind.forbidden;

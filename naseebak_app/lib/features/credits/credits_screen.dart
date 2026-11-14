@@ -204,6 +204,15 @@ class _CreditsScreenState extends ConsumerState<CreditsScreen> with WidgetsBindi
       showSnack(context, 'لم يصلنا تأكيد الدفع بعد. سيُضاف رصيدك تلقائياً عند التأكيد.');
       ref.read(authControllerProvider.notifier).refreshMe();
       ref.invalidate(paymentHistoryProvider);
+    }, onError: (Object e) {
+      // An answer that won't change (the payment not found): stop following it and say so
+      if (run != _pollRun || !mounted) return;
+      _polling = false;
+      _untrack();
+      _closeWaitDialog();
+      showSnack(context, ApiException.messageOf(e));
+      ref.read(authControllerProvider.notifier).refreshMe();
+      ref.invalidate(paymentHistoryProvider);
     });
   }
 

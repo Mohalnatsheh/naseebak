@@ -243,4 +243,33 @@ void main() {
     expect(find.text('السجل'), findsNothing);
     expect(pay.opened, isEmpty);
   });
+
+  // Audit 2026-11-14 M9: an answer that will never change (404: no such payment) stops the wait at once
+  testWidgets('the payment is not found: the wait stops at once with the server\'s message', (tester) async {
+    final pay = FakePayments();
+    await pumpScreen(tester, pay);
+    pay.adapter.on('GET', '/api/payments/pay1/status', const FakeResponse(404, {'error': 'الدفعة غير موجودة'}));
+    await buy(tester);
+    returnToApp(tester);
+    await advance(tester, const Duration(seconds: 3));
+    expect(waiting, findsNothing);
+    expect(find.text('الدفعة غير موجودة'), findsOneWidget);
+    expect(find.byKey(const Key('payment-pending')), findsNothing);
+    final polls = pay.adapter.to('GET', '/api/payments/pay1/status').length;
+    await advance(tester, const Duration(seconds: 10));
+    expect(pay.adapter.to('GET', '/api/payments/pay1/status').length, polls, reason: 'no more polling');
+    await unmount(tester);
+  });
+
+  testWidgets('a network gap keeps the wait going', (tester) async {
+    final pay = FakePayments();
+    await pumpScreen(tester, pay);
+    pay.adapter.on('GET', '/api/payments/pay1/status', const FakeResponse.network());
+    await buy(tester);
+    returnToApp(tester);
+    await advance(tester, const Duration(seconds: 7));
+    expect(waiting, findsOneWidget);
+    expect(pay.adapter.to('GET', '/api/payments/pay1/status').length, greaterThan(2));
+    await unmount(tester);
+  });
 }

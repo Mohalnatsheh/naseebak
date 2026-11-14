@@ -78,8 +78,8 @@ void main() {
       expect(FeedItem.fromJson(card(candidate: {'photoPreview': preview})).candidate.photoPreview, preview);
     });
 
-    test('on the card itself', () {
-      expect(FeedItem.fromJson(card(extra: {'photoPreview': preview})).candidate.photoPreview, preview);
+    test('only read from the candidate (the server never puts it on the card)', () {
+      expect(FeedItem.fromJson(card(extra: {'photoPreview': preview})).candidate.photoPreview, isNull);
     });
 
     test('null stays null', () {

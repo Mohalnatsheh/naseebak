@@ -93,10 +93,6 @@ FeedKind parseFeedKind(String? v) => switch (v) {
       _ => FeedKind.unknown,
     };
 
-/// The candidate's map with the card's own `photoPreview` when the server put it on the card rather than the person
-Map<String, dynamic> _withPreview(Map<String, dynamic> candidate, Object? cardPreview) =>
-    candidate['photoPreview'] == null && cardPreview != null ? {...candidate, 'photoPreview': cardPreview} : candidate;
-
 /// One card of `GET /api/suggestions/feed` (see src/lib/suggestions/feed-types.ts).
 class FeedItem {
   const FeedItem({
@@ -121,7 +117,7 @@ class FeedItem {
         createdAt: asDate(j['createdAt']),
         expiresAt: asDate(j['expiresAt']),
         activity: asString(j['activity']),
-        candidate: PersonDetails.fromJson(_withPreview(asMap(j['candidate']), j['photoPreview'])),
+        candidate: PersonDetails.fromJson(asMap(j['candidate'])),
         likedYou: asBool(j['likedYou']) ?? false,
         declined: asBool(j['declined']) ?? false,
         isPro: asBool(j['isPro']) ?? false,

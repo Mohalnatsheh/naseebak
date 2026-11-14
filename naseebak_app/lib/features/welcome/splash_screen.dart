@@ -10,6 +10,7 @@ import '../../core/network/api_exception.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/alpha_fade.dart';
 import '../../shared/widgets/common.dart';
+import '../auth/logout_button.dart';
 import 'brand_visuals.dart';
 import 'welcome_state.dart';
 
@@ -147,15 +148,14 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerPr
                       ),
                     ),
                     const SizedBox(height: 16),
+                    // A retry turns the status back to unknown: the dots show while it checks
                     FilledButton(
-                      style: FilledButton.styleFrom(backgroundColor: AppColors.gold),
+                      style: FilledButton.styleFrom(backgroundColor: AppColors.gold, foregroundColor: AppColors.navyDeep),
                       onPressed: () => ref.read(authControllerProvider.notifier).restore(),
                       child: const Text('إعادة المحاولة'),
                     ),
-                    TextButton(
-                      onPressed: () => ref.read(authControllerProvider.notifier).logout(),
-                      child: const Text('تسجيل الخروج', style: TextStyle(color: Colors.white70)),
-                    ),
+                    // A spinner while it signs out (one sign-out, however many taps)
+                    const LogoutButton(onDark: true),
                   ] else
                     // Still checking the saved session after the animation: three gold dots
                     SizedBox(height: 24, child: done ? const _Dots() : null),

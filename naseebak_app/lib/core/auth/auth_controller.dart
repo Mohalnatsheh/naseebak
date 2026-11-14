@@ -42,13 +42,34 @@ class AuthState {
 bool isSuspendedAnswer(ApiException e) =>
     e.kind == ApiErrorKind.suspended || (e.kind == ApiErrorKind.forbidden && e.statusCode == 403);
 
+/// Why the sign-in page shows up on its own (the token expired or was revoked): said once there
+const sessionEndedMessage = 'انتهت الجلسة. يُرجى تسجيل الدخول من جديد.';
+
+/// The one-shot reason for the sign-in page (null = nothing to say); the phone screen clears it once used
+class SessionNotice extends Notifier<String?> {
+  @override
+  String? build() => null;
+
+  void set(String? message) => state = message;
+}
+
+final sessionNoticeProvider = NotifierProvider<SessionNotice, String?>(SessionNotice.new);
+
 /// The member's session: token in secure storage, the `/api/mobile/me` summary in memory.
 class AuthController extends Notifier<AuthState> {
   /// Back in the foreground: `me` is re-read at most this often (pause / suspension from elsewhere)
   static const resumeRefreshGap = Duration(seconds: 60);
 
+  /// After a failed restore there is no session to revoke from here: the server's sign-out is tried, but never
+  /// waited on longer than this (it took up to 30 s offline with the button looking dead)
+  @visibleForTesting
+  static Duration offlineLogoutWait = const Duration(seconds: 5);
+
   DateTime? _lastMeRead;
   Future<void>? _refreshing;
+  Future<void>? _restoring;
+  Future<void>? _loggingOut;
+  Future<void>? _signingOut;
 
   @override
   AuthState build() {
@@ -56,7 +77,12 @@ class AuthController extends Notifier<AuthState> {
     return const AuthState.unknown();
   }
 
-  Future<void> restore() async {
+  /// Reads the saved session. A retry shows the wait again (status unknown: the splash's dots), and taps made
+  /// meanwhile share the one on the way.
+  Future<void> restore() => _restoring ??= _restore().whenComplete(() => _restoring = null);
+
+  Future<void> _restore() async {
+    if (state.status == AuthStatus.restoreFailed) state = const AuthState.unknown();
     final store = ref.read(tokenStoreProvider);
     final token = await store.read();
     if (token == null || token.isEmpty) {
@@ -71,6 +97,7 @@ class AuthController extends Notifier<AuthState> {
     } on ApiException catch (e) {
       if (e.kind == ApiErrorKind.unauthorized) {
         await store.clear();
+        ref.read(sessionNoticeProvider.notifier).set(sessionEndedMessage);
         state = const AuthState.signedOut();
       } else if (isSuspendedAnswer(e)) {
         // Not a connection problem: retrying would never help
@@ -87,6 +114,7 @@ class AuthController extends Notifier<AuthState> {
   Future<Me> signInWithCode({required String phone, required String code}) async {
     final res = await ref.read(authRepositoryProvider).issueToken(phone: phone, code: code, device: 'naseebak-app');
     await ref.read(tokenStoreProvider).write(res.token);
+    ref.read(sessionNoticeProvider.notifier).set(null);
     await _rememberCountry(res.me);
     _lastMeRead = DateTime.now();
     state = AuthState(AuthStatus.signedIn, me: res.me);
@@ -108,7 +136,7 @@ class AuthController extends Notifier<AuthState> {
       state = AuthState(AuthStatus.signedIn, me: me);
     } on ApiException catch (e) {
       if (e.kind == ApiErrorKind.unauthorized) {
-        await _signOutLocally();
+        await _endedByServer();
       } else if (isSuspendedAnswer(e) && state.status != AuthStatus.signedOut) {
         _lastMeRead = DateTime.now();
         state = AuthState(AuthStatus.suspended, error: e.message);
@@ -118,6 +146,8 @@ class AuthController extends Notifier<AuthState> {
 
   /// The app came back to the foreground: re-read `me` unless it was read in the last [resumeRefreshGap].
   Future<void> refreshOnResume({DateTime? now}) async {
+    // The saved session couldn't be checked (offline at launch): try again now the app is back, no tap needed
+    if (state.status == AuthStatus.restoreFailed) return restore();
     final last = _lastMeRead;
     if (last != null && (now ?? DateTime.now()).difference(last) < resumeRefreshGap) return;
     await refreshMe();
@@ -131,22 +161,38 @@ class AuthController extends Notifier<AuthState> {
     }
   }
 
-  Future<void> logout() async {
+  /// Signs out (taps made meanwhile share the one on the way).
+  Future<void> logout() => _loggingOut ??= _logout().whenComplete(() => _loggingOut = null);
+
+  Future<void> _logout() async {
+    // Offline at launch: the server is likely unreachable, so its sign-out is tried briefly only
+    final offline = state.status == AuthStatus.restoreFailed;
     // Before the token is revoked: the server must still know who removes the push token
     await ref.read(pushServiceProvider).unregister();
     try {
-      await ref.read(authRepositoryProvider).logout();
+      final call = ref.read(authRepositoryProvider).logout();
+      await (offline ? call.timeout(offlineLogoutWait) : call);
     } catch (_) {
       // Offline: the token is still forgotten on this device
     }
-    await _signOutLocally();
+    await _signOutOnce();
   }
 
-  /// A 401 from any authenticated call: the token is gone or revoked.
+  /// A 401 from any authenticated call: the token is gone or revoked. Several at once sign out once.
   void handleUnauthorized() {
     if (state.status == AuthStatus.signedOut) return;
-    _signOutLocally();
+    _endedByServer().catchError((Object _) {});
   }
+
+  /// The server ended the session (not the member's own sign-out): the sign-in page says why
+  Future<void> _endedByServer() {
+    if (_loggingOut == null && state.status == AuthStatus.signedIn) {
+      ref.read(sessionNoticeProvider.notifier).set(sessionEndedMessage);
+    }
+    return _signOutOnce();
+  }
+
+  Future<void> _signOutOnce() => _signingOut ??= _signOutLocally().whenComplete(() => _signingOut = null);
 
   Future<void> _signOutLocally() async {
     // Photos of the last member's matches never stay in memory for the next sign-in (first: nothing below can skip it)

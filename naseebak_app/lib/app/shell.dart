@@ -42,10 +42,10 @@ class AppShell extends ConsumerWidget {
         if (!didPop) shell.goBranch(0);
       },
       child: Scaffold(
-      // The admin's popup alert, over whichever tab is open
+      // The admin's popup alert: on the home tab only
       body: Stack(
         children: [
-          TabBackScope(handlesBack: shell.currentIndex != 0, child: AlertGate(child: shell)),
+          TabBackScope(handlesBack: shell.currentIndex != 0, child: AlertGate(active: shell.currentIndex == 0, child: shell)),
           // An optional update: one card just above the tab bar, on the tabs only
           const PositionedDirectional(start: 12, end: 12, bottom: 12, child: OptionalUpdateCard()),
         ],

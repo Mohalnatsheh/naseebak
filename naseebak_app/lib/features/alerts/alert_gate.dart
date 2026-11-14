@@ -32,11 +32,16 @@ class AppAlert {
   bool get hasButton => (buttonLabel ?? '').isNotEmpty && (buttonUrl ?? '').isNotEmpty;
 }
 
-/// Shows the waiting popup alert over the tabs: when they open and when the app comes back to the front. Closing it
-/// or tapping its button tells the server, so it never shows again (on the website either); then the next one, if any.
+/// Shows the waiting popup alert on home only (owner, 2026-11-14): when home opens, when the member comes back to the
+/// home tab or to home from a page pushed over it, and when the app comes back to the front. Never over another tab,
+/// a pushed page, sign-in or setup. Closing it or tapping its button tells the server, so it never shows again (on
+/// the website either); then the next one, if any.
 class AlertGate extends ConsumerStatefulWidget {
-  const AlertGate({super.key, required this.child});
+  const AlertGate({super.key, required this.child, this.active = true});
   final Widget child;
+
+  /// True while the home tab is the selected tab (the tab shell passes it)
+  final bool active;
 
   @override
   ConsumerState<AlertGate> createState() => _AlertGateState();
@@ -44,12 +49,40 @@ class AlertGate extends ConsumerStatefulWidget {
 
 class _AlertGateState extends ConsumerState<AlertGate> with WidgetsBindingObserver {
   bool _showing = false;
+  bool _checking = false;
+
+  /// Whether the tabs' route is the top one (kept current through the route's scope dependency)
+  bool _routeIsCurrent = true;
+
+  /// Home is what the member sees: the home tab, nothing pushed over the tabs, the app in front
+  bool _onHome() {
+    if (!widget.active || !mounted) return false;
+    final life = WidgetsBinding.instance.lifecycleState;
+    if (life != null && life != AppLifecycleState.resumed) return false;
+    return _routeIsCurrent;
+  }
+
+  void _checkSoon() => WidgetsBinding.instance.addPostFrameCallback((_) => _check());
+
+  @override
+  void didUpdateWidget(covariant AlertGate oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!oldWidget.active && widget.active) _checkSoon();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Read here so this state depends on it: closing a page pushed over the tabs makes the route current again and
+    // calls this again, and home may be visible now
+    _routeIsCurrent = ModalRoute.isCurrentOf(context) ?? true;
+    _checkSoon();
+  }
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _check());
   }
 
   @override
@@ -64,7 +97,16 @@ class _AlertGateState extends ConsumerState<AlertGate> with WidgetsBindingObserv
   }
 
   Future<void> _check() async {
-    if (_showing || !mounted) return;
+    if (_showing || _checking || !_onHome()) return;
+    _checking = true;
+    try {
+      await _checkNow();
+    } finally {
+      _checking = false;
+    }
+  }
+
+  Future<void> _checkNow() async {
     // Counted as a popup from the question to the server until it closes: the notifications reminder waits meanwhile,
     // so the two never stack (review I-2)
     final popups = ref.read(popupShowingProvider.notifier);
@@ -84,7 +126,7 @@ class _AlertGateState extends ConsumerState<AlertGate> with WidgetsBindingObserv
       }
       return;
     }
-    _check();
+    _checkSoon();
   }
 
   /// The waiting alert, shown and closed on the server; null when none was shown
@@ -99,7 +141,8 @@ class _AlertGateState extends ConsumerState<AlertGate> with WidgetsBindingObserv
     } catch (_) {
       return null; // Next time the app comes back
     }
-    if (alert == null || !mounted || _showing) return null;
+    // Left home while asking: shown next time home is visible (not dismissed)
+    if (alert == null || !mounted || _showing || !_onHome()) return null;
     _showing = true;
     final openLink = await showDialog<bool>(
       context: context,

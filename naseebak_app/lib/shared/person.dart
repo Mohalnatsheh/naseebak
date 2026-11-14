@@ -39,6 +39,7 @@ class PersonDetails {
     this.drivingLicense,
     this.willingToRelocate,
     this.familyValues,
+    this.religion,
   });
 
   factory PersonDetails.fromJson(Map<String, dynamic> j) => PersonDetails(
@@ -77,6 +78,7 @@ class PersonDetails {
         drivingLicense: asBool(j['drivingLicense']),
         willingToRelocate: asString(j['willingToRelocate']),
         familyValues: asString(j['familyValues']),
+        religion: asString(j['religion']),
       );
 
   final String id;
@@ -120,6 +122,9 @@ class PersonDetails {
   final bool? drivingLicense;
   final String? willingToRelocate;
   final String? familyValues;
+
+  /// «الديانة» (null: switch off or an older server)
+  final String? religion;
 }
 
 /// The «المذهب» answer never shown to other members (the server already sends null for it) and never a partner
@@ -150,6 +155,7 @@ class OptionLabels {
     'maritalStatus': {'أعزب/عزباء': 'عزباء', 'مطلق/مطلقة': 'مطلقة', 'أرمل/أرملة': 'أرملة'},
     'religiosity': {'ملتزم جداً': 'ملتزمة جداً', 'ملتزم': 'ملتزمة', 'متوسط': 'متوسطة', 'غير ملتزم': 'غير ملتزمة'},
     'sect': {'سني': 'سنية', 'شيعي': 'شيعية'},
+    'religion': {'مسلم': 'مسلمة', 'مسيحي': 'مسيحية'},
     'lifestyle': {'نشيط': 'نشيطة', 'هادئ': 'هادئة', 'متوازن': 'متوازنة', 'اجتماعي': 'اجتماعية'},
     'smokingStatus': {'لا أدخن': 'غير مدخنة', 'أدخن': 'مدخنة', 'أدخن أحياناً': 'تدخن أحياناً', 'تركت التدخين': 'تركت التدخين'},
     'cookingAbility': {'لا أطبخ': 'لا تطبخ', 'أطبخ قليلاً': 'تطبخ قليلاً', 'أطبخ جيداً': 'تطبخ جيداً', 'أطبخ ممتازاً': 'تطبخ بإتقان'},

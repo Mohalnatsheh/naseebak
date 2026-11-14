@@ -23,6 +23,7 @@ class SuggestionCard extends StatelessWidget {
     this.busy = false,
     this.tribeLabel = 'العائلة',
     this.lebanon = false,
+    this.viewerReligion,
     this.interestDisabled = false,
     this.creditNote,
     this.onBlock,
@@ -47,6 +48,9 @@ class SuggestionCard extends StatelessWidget {
   /// The viewer is in Lebanon: «المذهب» takes the tribe fact's place
   final bool lebanon;
 
+  /// My religion (null while unknown): a card shows the other's religion only when it differs
+  final String? viewerReligion;
+
   /// 0 credits with credit on interest: «مهتم» waits for a recharge, «لا» stays free
   final bool interestDisabled;
 
@@ -61,7 +65,7 @@ class SuggestionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = item.candidate;
     final actionable = item.actionableIn(tab);
-    final all = cardFacts(c, female: candidateFemale, tribeLabel: tribeLabel, lebanon: lebanon);
+    final all = cardFacts(c, female: candidateFemale, tribeLabel: tribeLabel, lebanon: lebanon, viewerReligion: viewerReligion);
     // A short phone (360x640): the first four facts and no «عنها», so «مهتم» and «لا» stay on the first screen;
     // the rest is in the full profile
     final short = MediaQuery.sizeOf(context).height < 700;

@@ -19,7 +19,7 @@ import 'helpers/fake_api.dart';
 /// Home's people cards (spec 2026-11-14 items 4 and 5): «اقتراحات اليوم» and «مهتمون بك», and a tap opening that
 /// person on the suggestions tab.
 void main() {
-  Map<String, dynamic> person(String id, String name, {bool likedYou = false, String reason = 'نفس المدينة'}) => {
+  Map<String, dynamic> person(String id, String name, {bool likedYou = false, String reason = 'نفس المدينة', String? religion}) => {
         'kind': 'mutual',
         'id': id,
         'compatibilityScore': 86,
@@ -36,6 +36,7 @@ void main() {
           'religiosity': 'ملتزم',
           'beard': true,
           'height': 178,
+          'religion': ?religion,
         },
       };
 
@@ -49,6 +50,7 @@ void main() {
     FakeResponse? freshResponse,
     FakeResponse? interestedResponse,
     bool freeReply = false,
+    String? myReligion,
   }) async {
     final adapter = FakeAdapter()
       ..on('GET', '/api/mobile/me', FakeResponse(200, {'user': meJson()}))
@@ -64,6 +66,16 @@ void main() {
         'guardian': {'exists': true, 'consented': true},
       }))
       ..on('GET', '/api/suggestions', const FakeResponse(200, {'mutualView': true}))
+      ..on('GET', '/api/profile', FakeResponse(200, {
+        'user': {
+          'id': 'u1',
+          'firstName': 'سارة',
+          'lastName': 'أحمد',
+          'gender': 'FEMALE',
+          'profile': {'religion': myReligion},
+        },
+        'completeness': {'total': 60, 'sections': []},
+      }))
       ..on('GET', '/api/profile/dealbreakers', const FakeResponse(200, {'profile': {'dealbreakers': []}}));
     adapter.handlers['GET /api/suggestions/feed'] = (r) => switch (r.queryParameters['tab']) {
           'new' => freshResponse ?? FakeResponse(200, page(fresh)),
@@ -138,6 +150,33 @@ void main() {
       expect(avatars.length, 5);
       expect(avatars.every((a) => a.locked && a.photo == null), isTrue);
       expect(find.descendant(of: cards, matching: find.byType(Image)), findsNothing);
+    });
+
+    testWidgets('a different religion shows on the card once my own is loaded',
+        (tester) async {
+      final adapter = await pumpCards(tester,
+          fresh: [person('s1', 'أحمد', religion: 'مسيحي')], myReligion: 'مسلم');
+      final first = find.byKey(const Key('home-suggestion-s1'));
+      expect(find.descendant(of: first, matching: find.text('مسيحي')), findsOneWidget);
+      expect(adapter.to('GET', '/api/profile'), isNotEmpty);
+    });
+
+    testWidgets('the same religion shows no line (positive control above)', (tester) async {
+      await pumpCards(tester, fresh: [person('s1', 'أحمد', religion: 'مسلم')], myReligion: 'مسلم');
+      final first = find.byKey(const Key('home-suggestion-s1'));
+      await tester.ensureVisible(first);
+      await tester.pumpAndSettle();
+      expect(find.descendant(of: first, matching: find.text('بكالوريوس')), findsOneWidget);
+      expect(find.descendant(of: first, matching: find.text('مسلم')), findsNothing);
+    });
+
+    testWidgets('cards with no religion: my profile is never requested', (tester) async {
+      final adapter = await pumpCards(tester, fresh: [person('s1', 'أحمد')], myReligion: 'مسلم');
+      final first = find.byKey(const Key('home-suggestion-s1'));
+      await tester.ensureVisible(first);
+      await tester.pumpAndSettle();
+      expect(find.descendant(of: first, matching: find.text('بكالوريوس')), findsOneWidget);
+      expect(adapter.to('GET', '/api/profile'), isEmpty);
     });
 
     testWidgets('no reason: no reason line', (tester) async {

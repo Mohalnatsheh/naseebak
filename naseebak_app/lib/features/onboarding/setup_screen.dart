@@ -10,6 +10,7 @@ import '../../core/network/api_exception.dart';
 import '../../core/network/json.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/person.dart';
+import '../../shared/religion.dart';
 import '../../shared/widgets/common.dart';
 import '../auth/pending_auth.dart';
 import '../auth/logout_button.dart';
@@ -59,6 +60,12 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
   final _children = TextEditingController();
   String? _religiosity;
   String? _sect;
+  String? _religion;
+  String? _prefReligion;
+
+  /// «الديانة» choices (`options.religion`, only while the server sends them); empty = not asked, not sent
+  List<String> _religionOptions = const [];
+  List<String> _prefReligionOptions = const [];
 
   /// «المذهب» choices of the member's country (`options.sect`, Lebanon only); empty = not asked
   List<String> _sectOptions = const [];
@@ -104,6 +111,8 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
     _marital = asString(p.field('maritalStatus'));
     _religiosity = asString(p.field('religiosity'));
     _sect = asString(p.field('sect'));
+    _religion = asString(p.field('religion'));
+    _prefReligion = asString(p.field('prefReligion'));
     final kids = asInt(p.field('childrenCount'));
     if (kids != null && kids > 0) _children.text = '$kids';
     final min = asInt(p.field('prefAgeMin'));
@@ -111,6 +120,9 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
     if (min != null) _ageMin.text = '$min';
     if (max != null) _ageMax.text = '$max';
   }
+
+  /// «المذهب» is asked only where the country has it and never of a Christian
+  bool get _asksSect => _sectOptions.isNotEmpty && _religion != religionChristian;
 
   bool _guardianStep(Counts? counts) => counts != null && !counts.flags.introRequests;
 
@@ -132,8 +144,9 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
             e['children'] = 'عدد الأبناء يجب أن يكون بين 0 و 20';
           }
         }
+        if (_religionOptions.isNotEmpty && !_religionOptions.contains(_religion)) e['religion'] = 'الديانة مطلوبة';
         if (_religiosity == null) e['religiosity'] = 'مستوى التدين مطلوب';
-        if (_sectOptions.isNotEmpty && !_sectOptions.contains(_sect)) e['sect'] = 'المذهب مطلوب';
+        if (_asksSect && !_sectOptions.contains(_sect)) e['sect'] = 'المذهب مطلوب';
       case 2:
         final min = int.tryParse(toLatinDigits(_ageMin.text.trim()));
         final max = int.tryParse(toLatinDigits(_ageMax.text.trim()));
@@ -175,9 +188,11 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
         'maritalStatus': _marital,
         if (_marital != null) 'childrenCount': single ? 0 : number(_children),
         'religiosity': _religiosity,
-        if (_sectOptions.isNotEmpty) 'sect': _sect,
+        if (_religionOptions.isNotEmpty) 'religion': _religion,
+        if (_asksSect) 'sect': _sect,
         'prefAgeMin': number(_ageMin),
         'prefAgeMax': number(_ageMax),
+        if (_prefReligionOptions.isNotEmpty) 'prefReligion': _prefReligion,
       };
     }
     return {
@@ -188,9 +203,11 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
       'maritalStatus': _marital,
       'childrenCount': single ? 0 : (int.tryParse(toLatinDigits(_children.text.trim())) ?? 0),
       'religiosity': _religiosity,
-      if (_sectOptions.isNotEmpty) 'sect': _sect,
+      if (_religionOptions.isNotEmpty) 'religion': _religion,
+      if (_asksSect) 'sect': _sect,
       'prefAgeMin': int.parse(toLatinDigits(_ageMin.text.trim())),
       'prefAgeMax': int.parse(toLatinDigits(_ageMax.text.trim())),
+      if (_prefReligionOptions.isNotEmpty) 'prefReligion': _prefReligion,
     };
   }
 
@@ -229,8 +246,8 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
     final p = _payload(partial: true);
     final fields = switch (step) {
       0 => ['dateOfBirth', 'nationality', 'city', 'education'],
-      1 => ['maritalStatus', 'childrenCount', 'religiosity', 'sect'],
-      2 => ['prefAgeMin', 'prefAgeMax'],
+      1 => ['maritalStatus', 'childrenCount', 'religion', 'religiosity', 'sect'],
+      2 => ['prefAgeMin', 'prefAgeMax', 'prefReligion'],
       _ => const <String>[],
     };
     final body = {for (final f in fields) if (p[f] != null) f: p[f]};
@@ -345,6 +362,8 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
     }
     final lists = details.requireValue.lists;
     _sectOptions = lists.option('sect');
+    _religionOptions = lists.option('religion');
+    _prefReligionOptions = lists.option('prefReligion');
     final p = profile.valueOrNull;
     final guardianStep = _guardianStep(counts.valueOrNull);
     final total = guardianStep ? 4 : 3;
@@ -355,6 +374,8 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
       _resumeStep(total);
     }
     _nationality ??= female ? me?.country.nationalityFemale : me?.country.nationalityMale;
+    // Also when /api/profile failed (no prefill): the question's default is the same-religion answer
+    if (_prefReligionOptions.isNotEmpty) _prefReligion ??= prefReligionSame;
     final titles = ['معلوماتك الأساسية', 'حالتك الاجتماعية', forViewer(female, 'من تبحث عنه', 'من تبحثين عنه'), 'وليّ الأمر'];
     final theme = Theme.of(context);
 
@@ -478,6 +499,17 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
               decoration: InputDecoration(hintText: '0', errorText: _errors['children']),
             ),
           ],
+          if (_religionOptions.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            _label('الديانة'),
+            _chips(
+              _religionOptions,
+              _religion,
+              (v) => setState(() => _religion = v),
+              _errors['religion'],
+              labelOf: (v) => OptionLabels.self('religion', v, female: female),
+            ),
+          ],
           const SizedBox(height: 16),
           _label('مستوى التدين'),
           _chips(
@@ -487,7 +519,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
             _errors['religiosity'],
             labelOf: (v) => OptionLabels.self('religiosity', v, female: female),
           ),
-          if (_sectOptions.isNotEmpty) ...[
+          if (_asksSect) ...[
             const SizedBox(height: 16),
             _label('المذهب'),
             _chips(
@@ -527,6 +559,16 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
               ),
             ],
           ),
+          if (_prefReligionOptions.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            _label('الديانة لدى الشريك'),
+            _chips(_prefReligionOptions, _prefReligion, (v) => setState(() => _prefReligion = v), null),
+            for (final h in prefReligionHints(_religion, _prefReligion, const []))
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(h, style: AppText.labelRegular.copyWith(color: AppColors.muted)),
+              ),
+          ],
           const SizedBox(height: 10),
           Text('${forViewer(female, 'يمكنك', 'يمكنكِ')} إضافة تفضيلات أخرى لاحقاً من «تفضيلاتي» في حسابك.',
               style: AppText.labelRegular.copyWith(color: AppColors.muted)),

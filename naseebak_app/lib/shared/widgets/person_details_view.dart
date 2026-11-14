@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../person.dart';
+import '../religion.dart';
 
 /// Key facts (always shown) + the rest behind «عرض التفاصيل».
 class PersonDetailsView extends StatefulWidget {
@@ -47,7 +48,9 @@ class _PersonDetailsViewState extends State<PersonDetailsView> {
       if (p.maritalStatus != null)
         _Fact(Icons.favorite_border_rounded, 'الحالة الاجتماعية',
             '${_d('maritalStatus', p.maritalStatus)}${p.childrenCount > 0 ? ' · ${_children(p.childrenCount)}' : ''}'),
-      if (p.religiosity != null) _Fact(Icons.mosque_outlined, 'التدين', _d('religiosity', p.religiosity)),
+      if (p.religion != null)
+        _Fact(Icons.auto_stories_outlined, 'الديانة', OptionLabels.describe('religion', p.religion!, female: f)),
+      if (p.religiosity != null) _Fact(isChristian(p.religion) ? Icons.auto_stories_outlined : Icons.mosque_outlined, 'التدين', _d('religiosity', p.religiosity)),
       if (p.sect != null && p.sect!.isNotEmpty && p.sect != sectUndisclosed)
         _Fact(Icons.menu_book_outlined, 'المذهب', _d('sect', p.sect)),
     ];

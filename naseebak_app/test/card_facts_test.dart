@@ -35,6 +35,18 @@ void main() {
       'tribe': 'الحديد',
     };
 
+    test('a different religion leads as a ninth fact; same or unknown shows none', () {
+      final c = person({...full, 'religion': 'مسيحي', 'hijab': null, 'niqab': null});
+      final f = cardFacts(c, female: true, tribeLabel: 'العشيرة', lebanon: false, viewerReligion: 'مسلم');
+      expect(f.first.key, 'religion');
+      expect(f.first.label, 'الديانة');
+      expect(f.first.value, 'مسيحية');
+      expect(keys(f).contains('veil'), isFalse);
+      expect(keys(cardFacts(c, female: true, tribeLabel: 'x', lebanon: false, viewerReligion: 'مسيحي')).contains('religion'), isFalse);
+      expect(keys(cardFacts(c, female: true, tribeLabel: 'x', lebanon: false)).contains('religion'), isFalse);
+      expect(keys(cardFacts(person(full), female: true, tribeLabel: 'x', lebanon: false, viewerReligion: 'مسيحي')).contains('religion'), isFalse);
+    });
+
     test('a woman: fixed order with the veil, labels as on the website', () {
       final f = cardFacts(person(full), female: true, tribeLabel: 'العشيرة', lebanon: false);
       expect(keys(f), ['job', 'education', 'religiosity', 'veil', 'height', 'maritalStatus', 'smoking', 'tribe']);
@@ -82,6 +94,22 @@ void main() {
       expect(he[0].value, OptionLabels.describe('religiosity', 'ملتزم', female: false));
       expect(she[1].value, OptionLabels.describe('maritalStatus', 'أعزب', female: true));
       expect(he[1].value, OptionLabels.describe('maritalStatus', 'أعزب', female: false));
+    });
+  });
+
+  group('PersonDetailsView religion', () {
+    testWidgets('the full profile always shows «الديانة»; a Christian gets no mosque icon', (tester) async {
+      await tester.pumpWidget(rtlApp(PersonDetailsView(
+          person: person({'religion': 'مسلم', 'religiosity': 'ملتزم'}), female: true, alwaysExpanded: true)));
+      expect(find.text('الديانة'), findsOneWidget);
+      expect(find.text('مسلمة'), findsOneWidget);
+      expect(find.byIcon(Icons.mosque_outlined), findsOneWidget);
+      await tester.pumpWidget(rtlApp(PersonDetailsView(
+          person: person({'religion': 'مسيحي', 'religiosity': 'ملتزم'}), female: false, alwaysExpanded: true)));
+      expect(find.text('مسيحي'), findsOneWidget);
+      expect(find.byIcon(Icons.mosque_outlined), findsNothing);
+      await tester.pumpWidget(rtlApp(PersonDetailsView(person: person({'religiosity': 'ملتزم'}), female: true, alwaysExpanded: true)));
+      expect(find.text('الديانة'), findsNothing);
     });
   });
 

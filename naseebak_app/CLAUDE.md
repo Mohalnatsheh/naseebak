@@ -72,6 +72,13 @@ needed a release.
 - **«المذهب» (1.2.0, Lebanon only):** asked only when the country detail's `options` carries `sect` (setup step 2 after
   religiosity, required; profile edit; partner `prefSect` + «شرط أساسي» `sect` when `options.prefSect` is there). Cards
   show `sect` when the payload has one (the server sends null for «أفضّل عدم الذكر»); female labels «سنية» / «شيعية».
+- **«الديانة» (next app version, not released):** no switch in the app; it follows the server's lists. Asked only when the
+  country detail's `options` carries `religion` (setup step 2, required; profile edit, a change goes to review) and
+  `prefReligion` (setup step 3 and preferences, with the two hints). A Christian (shown or stored religion) never sees
+  hijab/niqab, beard, «المذهب» or their preferences and «شروط أساسية» (`shared/religion.dart`). Cards show `religion`
+  only when it differs from mine (`viewerReligionProvider`, read from `/api/profile` only when a card carries a
+  religion, since `/api/mobile/me` and `/api/profile/dealbreakers` don't carry it); the full profile always. «ملفي»
+  shows «الديانة» and «الديانة لدى الشريك» when `counts.religionEnabled`. Old servers: nothing shown, nothing sent.
 - **Pro priority line (1.2.0):** the plans screen lists «أولوية في الاقتراحات» like the website (text only; Pro never touches suggestions yet).
 
 ## Integrations

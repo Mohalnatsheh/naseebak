@@ -5,8 +5,10 @@ import '../../core/auth/auth_controller.dart';
 import '../../core/localization/digits.dart';
 import '../../core/localization/safe_input_formatter.dart';
 import '../../core/network/api_exception.dart';
+import '../../core/network/json.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/person.dart';
+import '../../shared/religion.dart';
 import '../../shared/widgets/common.dart';
 import '../country_selection/country_providers.dart';
 import '../home/counts.dart';
@@ -35,26 +37,42 @@ class PreferencesScreen extends ConsumerWidget {
     final prefs = ref.watch(partnerPrefsProvider);
     final counts = ref.watch(countsProvider);
     final me = ref.watch(authControllerProvider).me;
-    final details = ref.watch(countryDetailsProvider(me?.country.code ?? 'JO'));
+    final code = me?.country.code ?? 'JO';
+    final details = ref.watch(countryDetailsProvider(code));
+    // «الديانة» needs my stored religion, so `/api/profile` is waited for when the server sends the religion lists
+    // (fail closed: never show a Christian the Muslim-only questions). With sect options only (Lebanon, switch off)
+    // or a profile already cached, the stored religion is read too, but a failure then never blanks the screen.
+    // With neither, the form builds as before and no request is made.
+    final religionOptions = details.valueOrNull?.lists.option('prefReligion') ?? const <String>[];
+    final sectOptions = details.valueOrNull?.lists.option('prefSect') ?? const <String>[];
+    final religionAsked = religionOptions.isNotEmpty;
+    final readMine = religionAsked || sectOptions.isNotEmpty || ref.exists(myProfileProvider);
+    final mine = readMine ? ref.watch(myProfileProvider) : null;
+    final mineRequired = religionAsked ? mine : null;
     Widget body;
-    if (prefs.hasError || counts.hasError || details.hasError) {
+    if (prefs.hasError || counts.hasError || details.hasError || (mineRequired?.hasError ?? false)) {
       body = ErrorView(
-        error: prefs.error ?? counts.error ?? details.error!,
+        error: prefs.error ?? counts.error ?? details.error ?? mineRequired!.error!,
         onRetry: () {
           ref.invalidate(partnerPrefsProvider);
+          ref.invalidate(myProfileProvider);
           ref.invalidate(countsProvider);
-          ref.invalidate(countryDetailsProvider(me?.country.code ?? 'JO'));
+          ref.invalidate(countryDetailsProvider(code));
         },
       );
-    } else if (!prefs.hasValue || !counts.hasValue || !details.hasValue) {
+    } else if (!prefs.hasValue || !counts.hasValue || !details.hasValue || (mine != null && mine.isLoading && !mine.hasValue)) {
       body = const SkeletonList(count: 5, itemHeight: 70);
     } else {
+      final profile = mine?.valueOrNull;
       body = PreferencesForm(
         initial: prefs.requireValue,
         cities: details.requireValue.lists.cities,
         female: me?.isFemale ?? false,
         withDealbreakers: counts.requireValue.flags.mutualSuggestions,
-        sectOptions: details.requireValue.lists.option('prefSect'),
+        sectOptions: sectOptions,
+        religionOptions: religionOptions,
+        religion: asString(profile?.field('religion')),
+        initialPrefReligion: asString(profile?.field('prefReligion')),
       );
     }
     return Scaffold(appBar: AppBar(title: const Text('تفضيلات الشريك')), body: body);
@@ -69,6 +87,9 @@ class PreferencesForm extends ConsumerStatefulWidget {
     required this.female,
     required this.withDealbreakers,
     this.sectOptions = const [],
+    this.religionOptions = const [],
+    this.religion,
+    this.initialPrefReligion,
   });
 
   final PartnerPrefs initial;
@@ -78,6 +99,13 @@ class PreferencesForm extends ConsumerStatefulWidget {
 
   /// «المذهب» choices (`options.prefSect` of the member's country, Lebanon only); empty = not asked
   final List<String> sectOptions;
+
+  /// «الديانة لدى الشريك» choices (`options.prefReligion`); empty = not asked, not sent
+  final List<String> religionOptions;
+
+  /// My STORED religion (a pending change doesn't count): a Christian has no hijab / beard / sect questions
+  final String? religion;
+  final String? initialPrefReligion;
 
   @override
   ConsumerState<PreferencesForm> createState() => _PreferencesFormState();
@@ -95,9 +123,13 @@ class _PreferencesFormState extends ConsumerState<PreferencesForm> {
   late String? _yesNo = widget.female ? widget.initial.beard : widget.initial.hijab;
   late String? _children = widget.initial.children;
   // A lock saved earlier on an empty preference (older app versions) shows unticked
-  late final _dealbreakers = {...widget.initial.activeDealbreakers(female: widget.female)};
+  late final _dealbreakers = {...widget.initial.activeDealbreakers(female: widget.female, christian: _christian)};
+  late String _prefReligion = widget.initialPrefReligion ?? widget.initial.prefReligion ?? prefReligionSame;
   String? _ageError;
   bool _saving = false;
+
+  bool get _christian => isChristian(widget.religion);
+  bool get _religionAsked => widget.religionOptions.isNotEmpty;
 
   bool get _partnerFemale => !widget.female;
 
@@ -115,6 +147,7 @@ class _PreferencesFormState extends ConsumerState<PreferencesForm> {
         beard: widget.female ? _yesNo : null,
         children: _children,
         dealbreakers: _dealbreakers,
+        prefReligion: _prefReligion,
       );
 
   /// A change to a preference: a «شرط أساسي» whose preference is now empty is unticked with it
@@ -152,8 +185,12 @@ class _PreferencesFormState extends ConsumerState<PreferencesForm> {
             female: widget.female,
             withDealbreakers: widget.withDealbreakers,
             withSect: widget.sectOptions.isNotEmpty,
+            withReligion: _religionAsked,
+            christian: _christian,
           );
       container.invalidate(partnerPrefsProvider);
+      // The form's «الديانة لدى الشريك» is seeded from my profile: reopening must not show the old answer
+      if (_religionAsked) container.invalidate(myProfileProvider);
       if (mounted) showSnack(context, 'تم حفظ تفضيلاتك');
     } on ApiException catch (e) {
       if (mounted) showSnack(context, e.message);
@@ -234,6 +271,36 @@ class _PreferencesFormState extends ConsumerState<PreferencesForm> {
                   : 'تفضيلاتك لا يراها أحد وتُحفظ فوراً. ضع علامة «شرط أساسي» على ما لا تقبل التنازل عنه: لن نقترح عليك من لا يحققه. كثرة الشروط تقلّل الاقتراحات.')
               : 'تفضيلاتك لا يراها أحد وتُحفظ فوراً، وتُستخدم في حساب نسبة التوافق.',
         ),
+        if (_religionAsked) ...[
+          Padding(
+            padding: const EdgeInsets.only(top: 18, bottom: 8),
+            child: Text('الديانة لدى الشريك', style: AppText.body.copyWith(fontWeight: FontWeight.w700)),
+          ),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final o in widget.religionOptions)
+                ChoiceChip(
+                  key: Key('pref-religion-$o'),
+                  label: Text(o),
+                  selected: _prefReligion == o,
+                  onSelected: (on) => setState(() {
+                    if (on) _prefReligion = o;
+                  }),
+                ),
+            ],
+          ),
+          for (final line in prefReligionHints(
+            widget.religion,
+            _prefReligion,
+            _current().activeDealbreakers(female: widget.female, christian: _christian),
+          ))
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(line, style: AppText.labelRegular.copyWith(color: AppColors.muted)),
+            ),
+        ],
         _title('العمر المفضل', 'age'),
         Row(
           children: [
@@ -272,14 +339,16 @@ class _PreferencesFormState extends ConsumerState<PreferencesForm> {
         _title('الحالة الاجتماعية', 'maritalStatus', filled: _marital.isNotEmpty),
         _multi(ProfileOptions.maritalStatus, _marital,
             labelOf: (v) => OptionLabels.describe('maritalStatus', v, female: _partnerFemale)),
-        _title(widget.female ? 'هل تفضلين ملتحياً؟' : 'هل تفضل محجبة؟', yesNoKey,
-            filled: _yesNo != null && _yesNo != 'لا يهم'),
-        _single(_yesNo, (v) => _change(() => _yesNo = v),
-            options: widget.female ? ProfileOptions.yesNo : ProfileOptions.prefHijab, keyPrefix: 'pref-$yesNoKey'),
+        if (!_christian) ...[
+          _title(widget.female ? 'هل تفضلين ملتحياً؟' : 'هل تفضل محجبة؟', yesNoKey,
+              filled: _yesNo != null && _yesNo != 'لا يهم'),
+          _single(_yesNo, (v) => _change(() => _yesNo = v),
+              options: widget.female ? ProfileOptions.yesNo : ProfileOptions.prefHijab, keyPrefix: 'pref-$yesNoKey'),
+        ],
         _title('مستوى التدين', 'religiosity', filled: _religiosity.isNotEmpty),
         _multi(ProfileOptions.religiosity, _religiosity,
             labelOf: (v) => OptionLabels.describe('religiosity', v, female: _partnerFemale)),
-        if (widget.sectOptions.isNotEmpty) ...[
+        if (widget.sectOptions.isNotEmpty && !_christian) ...[
           _title('المذهب', 'sect', filled: _sect.isNotEmpty),
           _multi(widget.sectOptions, _sect, labelOf: (v) => OptionLabels.describe('sect', v, female: _partnerFemale)),
         ],

@@ -4,6 +4,8 @@ import { requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { recordCredit } from "@/lib/credits";
 import { memberNameSchema } from "@/lib/validations/auth";
+import { getAuthRedesignEnabled, getCycleFlags, getReligionEnabled } from "@/lib/settings";
+import { setupResumeStep } from "@/lib/setup-steps";
 
 export async function GET(
   request: Request,
@@ -114,7 +116,19 @@ export async function GET(
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ user });
+    // «Setup step»: with the new setup on, the step it reopens on (the stored `setupStep` is the legacy wizard's)
+    let setupResume: ReturnType<typeof setupResumeStep> | null = null;
+    if (user.profile && !user.profile.isComplete && (await getAuthRedesignEnabled())) {
+      const [flags, religionEnabled] = await Promise.all([getCycleFlags(), getReligionEnabled()]);
+      setupResume = setupResumeStep(user.profile as unknown as Record<string, unknown>, {
+        gender: user.gender === "FEMALE" ? "FEMALE" : "MALE",
+        country: user.country,
+        religionEnabled,
+        dealbreakers: flags.mutualSuggestions,
+      });
+    }
+
+    return NextResponse.json({ user, setupResume });
   } catch (error) {
     console.error("Admin user detail error:", error);
     return NextResponse.json({ error: "Server error" }, { status: 500 });

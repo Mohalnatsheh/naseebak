@@ -8,6 +8,7 @@
  */
 import { EDIT_SECTIONS, editField, type EditCtx, type EditField, type EditShowCtx } from "@/lib/profile-edit-fields";
 import { isEmptyStored } from "@/lib/profile-edit-split";
+import { defaultNationality } from "@/lib/profile-options";
 
 export type SetupStepId = "you" | "faith" | "work" | "family" | "about" | "looking" | "musts";
 export interface SetupStep { id: SetupStepId; title: string; fieldKeys: string[] }
@@ -68,4 +69,22 @@ export function missingOnStep(step: SetupStep, values: Record<string, unknown>, 
 export function firstIncompleteStep(steps: SetupStep[], values: Record<string, unknown>, ctx: EditCtx): number {
   const i = steps.findIndex((s) => missingOnStep(s, values, ctx).length > 0);
   return i === -1 ? steps.length - 1 : i;
+}
+
+/**
+ * Admin «Setup step»: where the setup (switch `auth_profile_redesign`) reopens for this stored profile, the same
+ * rule as `firstIncompleteStep`. The stored `setupStep` is the legacy wizard's number (the 7 steps map onto 1–5 and it
+ * never goes down), so it can't say this. Setup prefills the nationality, so an empty one is not where it stops.
+ */
+export function setupResumeStep(
+  profile: Record<string, unknown>,
+  opts: EditCtx & { dealbreakers: boolean },
+): { step: number; total: number; title: string } {
+  const steps = setupSteps({ dealbreakers: opts.dealbreakers });
+  const ctx: EditCtx = { gender: opts.gender, country: opts.country, religionEnabled: opts.religionEnabled };
+  const values = isEmptyStored(profile.nationality)
+    ? { ...profile, nationality: defaultNationality(opts.gender, opts.country) }
+    : profile;
+  const i = firstIncompleteStep(steps, values, ctx);
+  return { step: i + 1, total: steps.length, title: steps[i].title };
 }

@@ -167,6 +167,8 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
   const { id } = use(params);
   const router = useRouter();
   const [user, setUser] = useState<UserDetail | null>(null);
+  // With the new setup on: the step it reopens on for an unfinished profile (the stored `setupStep` is the legacy number)
+  const [setupResume, setSetupResume] = useState<{ step: number; total: number; title: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [suspending, setSuspending] = useState(false);
   const [creditsDialogOpen, setCreditsDialogOpen] = useState(false);
@@ -221,6 +223,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
         setUser(data.user);
+        setSetupResume(data.setupResume ?? null);
         setLoadError("");
       } else if (res.status !== 404) setLoadError(`Couldn't load this member (${res.status}).`);
     } catch (err) {
@@ -775,7 +778,12 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
                 {user.gender === "MALE" && <InfoRow label="Beard" value={p.beard === true ? "Yes" : p.beard === false ? "No" : "—"} />}
                 <InfoRow label="Tribe" value={String(p.tribe || "—")} />
                 <InfoRow label="About" value={String(p.aboutMe || "—")} />
-                {!p.isComplete && <InfoRow label="Setup Step" value={String(p.setupStep)} />}
+                {!p.isComplete && (
+                  <InfoRow
+                    label="Setup Step"
+                    value={setupResume ? `${setupResume.step} of ${setupResume.total} · ${setupResume.title}` : String(p.setupStep)}
+                  />
+                )}
                 <InfoRow label="Complete" value={p.isComplete ? "Yes" : "No"} />
               </>
             ) : (

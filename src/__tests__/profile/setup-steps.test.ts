@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { EDIT_SECTIONS, editField } from "@/lib/profile-edit-fields";
-import { firstIncompleteStep, missingOnStep, setupRequired, setupSteps } from "@/lib/setup-steps";
+import { firstIncompleteStep, missingOnStep, setupRequired, setupResumeStep, setupSteps } from "@/lib/setup-steps";
 
 import type { EditCtx } from "@/lib/profile-edit-fields";
 
@@ -110,5 +110,24 @@ describe("firstIncompleteStep", () => {
   it("gives the last step when all is filled", () => {
     const full = { ...basics, smokingStatus: "x", education: "x", job: "x", incomeRange: "x", housingType: "x", monthlyExpenses: "x", prefAgeMin: 20, prefAgeMax: 30 };
     expect(firstIncompleteStep(steps, full, ctx)).toBe(steps.length - 1);
+  });
+});
+
+describe("setupResumeStep (admin «Setup step»)", () => {
+  const jo = { gender: "MALE", country: "JO", religionEnabled: true, dealbreakers: true } as const;
+  const you = { dateOfBirth: new Date("1995-01-01"), nationality: "أردني", city: "الزرقاء", maritalStatus: "أعزب/عزباء", skinColor: "حنطي", height: 180 };
+  const faith = { religion: "مسلم", religiosity: "ملتزم", smokingStatus: "أدخن", cookingAbility: "لا أطبخ", lifestyle: "هادئ", drivingLicense: false, willingToRelocate: "yes", beard: true };
+  const work = { education: "ثانوية عامة", job: "مهندس", incomeRange: "500-1000 د.أ" };
+  const family = { housingType: "ملك", monthlyExpenses: "أقل من 300 د.أ" };
+
+  it("names the step the member resumes on, 1-based, out of the step count", () => {
+    expect(setupResumeStep({ ...you, ...faith, ...work, setupStep: 4 }, jo)).toEqual({ step: 4, total: 7, title: "العائلة" });
+    expect(setupResumeStep({ ...you, ...faith, ...work, ...family, aboutMe: "x", setupStep: 4 }, jo)).toEqual({ step: 6, total: 7, title: "من تبحث عنه" });
+  });
+  it("counts the default nationality as answered (the setup fills it in)", () => {
+    expect(setupResumeStep({ ...you, nationality: null }, jo).step).toBe(2);
+  });
+  it("has 6 steps without «شروط أساسية» and starts at 1 for an empty profile", () => {
+    expect(setupResumeStep({}, { ...jo, dealbreakers: false })).toEqual({ step: 1, total: 6, title: "عنك" });
   });
 });

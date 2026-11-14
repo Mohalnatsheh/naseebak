@@ -19,6 +19,7 @@ import '../home/counts.dart';
 import '../pro/pro_repository.dart';
 import '../pro/pro_section.dart';
 import 'credits_repository.dart';
+import 'sale_offer_banner.dart';
 
 /// Balance, packages and checkout. Credits are added by the server only after the payment is confirmed.
 ///
@@ -410,7 +411,7 @@ class _CreditsScreenState extends ConsumerState<CreditsScreen> with WidgetsBindi
       children: [
         if (offer != null) ...[
           const SizedBox(height: AppSpace.xl),
-          _OfferBanner(offer: offer),
+          SaleOfferBanner(offer: offer),
         ],
         const _GroupHeader('شراء رصيد'),
         if (!p.purchasesEnabled) ...[
@@ -559,40 +560,6 @@ class _BalanceHero extends StatelessWidget {
           Text(
             interestCostsOne ? 'رصيد متاح · «مهتم» برصيد واحد' : 'رصيد متاح',
             style: AppText.labelRegular.copyWith(color: AppColors.muted),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// The sale offer (Admin → Settings → «Sale offer»): its title, the gift share and when it ends
-class _OfferBanner extends StatelessWidget {
-  const _OfferBanner({required this.offer});
-  final CreditOffer offer;
-
-  @override
-  Widget build(BuildContext context) {
-    final title = offer.title.trim().isEmpty ? 'عرض لفترة محدودة' : offer.title.trim();
-    return Container(
-      key: const Key('offer-banner'),
-      padding: const EdgeInsets.all(AppSpace.lg),
-      decoration: BoxDecoration(color: AppColors.goldSoft, borderRadius: BorderRadius.circular(AppRadius.md)),
-      child: Row(
-        children: [
-          const Icon(Icons.local_offer_outlined, color: AppColors.goldText),
-          const SizedBox(width: AppSpace.md),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: AppText.label.copyWith(color: AppColors.ink, fontWeight: FontWeight.w800)),
-                Text(
-                  '${offer.percent}% رصيد هدية مع كل باقة · حتى ${formatDate(offer.endsAt, withYear: false)}',
-                  style: AppText.caption.copyWith(color: AppColors.goldText),
-                ),
-              ],
-            ),
           ),
         ],
       ),

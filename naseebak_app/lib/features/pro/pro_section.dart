@@ -9,6 +9,7 @@ import '../../shared/widgets/brand_kit.dart';
 import '../../shared/widgets/common.dart';
 import '../home/counts.dart';
 import '../home/gendered_copy.dart';
+import '../credits/sale_offer_banner.dart';
 import 'pro_repository.dart';
 
 /// Plan order on the selector (weekly first = on the right in RTL), like the website's `PRO_PLAN_IDS`
@@ -143,6 +144,11 @@ class ProSection extends StatelessWidget {
         if (state.isPro)
           MyProCard(state: state, female: female)
         else if (showChooser) ...[
+          // Sale offer: only to someone who can start a plan (the gift comes with the first payment), like the website
+          if (state.canBuy && state.offer != null) ...[
+            SaleOfferBanner(offer: state.offer!, pro: true),
+            const SizedBox(height: 12),
+          ],
           ProPlansCard(
             offers: state.offers,
             canBuy: state.canBuy,
@@ -288,7 +294,8 @@ class _ProPlansCardState extends State<ProPlansCard> {
                               ),
                             ],
                           ),
-                          if (offer.chargeCurrency.toLowerCase() == 'usd')
+                          // Already in dollars (Lebanon): no second «… بالدولار» line
+                          if (offer.chargeCurrency.toLowerCase() == 'usd' && offer.currency.toUpperCase() != 'USD')
                             Text(
                               '${forViewer(widget.female, 'تدفع', 'تدفعين')} ${_ltr('${(offer.chargeAmount / 100).toStringAsFixed(2)}\$')} بالدولار',
                               style: AppText.caption.copyWith(
@@ -310,6 +317,7 @@ class _ProPlansCardState extends State<ProPlansCard> {
                     color: AppColors.goldText,
                     text: proCreditsLine(offer),
                     strong: true,
+                    gift: offer.bonusCredits > 0 ? '+${offer.bonusCredits} هدية مع أول دفعة' : null,
                   ),
                 for (final f in proFeatureLabels(chatDelete: widget.chatDelete))
                   _FeatureLine(icon: Icons.check_circle_outline_rounded, color: AppColors.navy, text: f),
@@ -388,11 +396,21 @@ class _Segment extends StatelessWidget {
 }
 
 class _FeatureLine extends StatelessWidget {
-  const _FeatureLine({super.key, required this.icon, required this.color, required this.text, this.strong = false});
+  const _FeatureLine({
+    super.key,
+    required this.icon,
+    required this.color,
+    required this.text,
+    this.strong = false,
+    this.gift,
+  });
   final IconData icon;
   final Color color;
   final String text;
   final bool strong;
+
+  /// The sale offer's tag after the text («+N هدية مع أول دفعة»)
+  final String? gift;
 
   @override
   Widget build(BuildContext context) {
@@ -403,11 +421,28 @@ class _FeatureLine extends StatelessWidget {
           Icon(icon, size: 18, color: color),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(
-              text,
-              style: AppText.label.copyWith(
-                color: strong ? AppColors.ink : AppColors.muted,
-                fontWeight: strong ? FontWeight.w700 : FontWeight.w500),
+            child: Wrap(
+              spacing: 6,
+              runSpacing: 4,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                Text(
+                  text,
+                  style: AppText.label.copyWith(
+                    color: strong ? AppColors.ink : AppColors.muted,
+                    fontWeight: strong ? FontWeight.w700 : FontWeight.w500),
+                ),
+                if (gift != null)
+                  Container(
+                    key: const Key('pro-gift'),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(color: AppColors.goldSoft, borderRadius: BorderRadius.circular(999)),
+                    child: Text(
+                      gift!,
+                      style: AppText.caption.copyWith(color: AppColors.goldText, fontWeight: FontWeight.w700),
+                    ),
+                  ),
+              ],
             ),
           ),
         ],

@@ -63,6 +63,9 @@ class FakePro {
   bool cancelAtPeriodEnd = false;
   bool pastDue = false;
   bool failState = false;
+
+  /// The sale offer (`offer` + each plan's `bonusCredits`); null = none (and every server before the offer)
+  Map<String, dynamic>? sale;
   String checkoutUrl = 'https://checkout.stripe.com/c/pro_cs1';
   final opened = <Uri>[];
 
@@ -74,7 +77,13 @@ class FakePro {
     'cancelAtPeriodEnd': cancelAtPeriodEnd,
     'pastDue': pastDue,
     'canBuy': canBuy,
-    'offers': canBuy ? _offers : const [],
+    'offers': canBuy
+        ? [
+            for (final o in _offers)
+              {...o, if (sale != null) 'bonusCredits': ((o['credits'] as int) * (sale!['percent'] as int) / 100).ceil()},
+          ]
+        : const [],
+    'offer': ?sale,
   };
 
   late final FakeAdapter adapter = FakeAdapter()
@@ -194,6 +203,48 @@ void main() {
     // Pro has its own screen: no credit packages here
     expect(find.text('الباقات'), findsNothing);
     expect(find.byKey(const Key('buy-p1')), findsNothing);
+  });
+
+  testWidgets('sale offer: the banner and «+N هدية مع أول دفعة» on the plan, like the website', (tester) async {
+    final pro = FakePro()..sale = {'percent': 50, 'title': 'عروض الجمعة البيضاء', 'endsAt': '2026-11-20T22:00:00.000Z'};
+    await _pump(tester, pro);
+    expect(find.byKey(const Key('pro-offer-banner')), findsOneWidget);
+    expect(find.text('عروض الجمعة البيضاء'), findsOneWidget);
+    expect(find.textContaining('رصيد إضافي بنسبة 50% عند أول دفعة اشتراك في Pro'), findsOneWidget);
+    // Monthly: 5 credits, 50% → +3
+    expect(find.text('+3 هدية مع أول دفعة'), findsOneWidget);
+    await tester.tap(find.text('سنوي'));
+    await tester.pumpAndSettle();
+    expect(find.text('+4 هدية مع أول دفعة'), findsOneWidget);
+  });
+
+  testWidgets('no sale offer (or an older server): no banner, no gift line', (tester) async {
+    final pro = FakePro();
+    await _pump(tester, pro);
+    expect(find.byKey(const Key('pro-offer-banner')), findsNothing);
+    expect(find.textContaining('هدية'), findsNothing);
+  });
+
+  testWidgets('the offer banner shows only to someone who can buy (a Pro member does not see it)', (tester) async {
+    final pro = FakePro()
+      ..isPro = true
+      ..canBuy = false
+      ..sale = {'percent': 50, 'title': 'عرض', 'endsAt': '2026-11-20T22:00:00.000Z'};
+    await _pump(tester, pro);
+    expect(find.byType(MyProCard), findsOneWidget);
+    expect(find.byKey(const Key('pro-offer-banner')), findsNothing);
+  });
+
+  testWidgets('a plan priced in dollars (Lebanon) has no extra «… بالدولار» line', (tester) async {
+    final o = [
+      {..._offers[1], 'currency': 'USD', 'price': 5, 'chargeAmount': 500},
+    ].map(ProOffer.fromJson).toList();
+    await tester.pumpWidget(rtlApp(Scaffold(
+      body: SingleChildScrollView(
+        child: ProPlansCard(offers: o, canBuy: true, female: false, busy: false, onSubscribe: (_) {}),
+      ),
+    )));
+    expect(find.textContaining('بالدولار'), findsNothing);
   });
 
   testWidgets('a member who can\'t buy (canBuy false, not Pro) sees «غير متاحة», nothing to buy', (tester) async {

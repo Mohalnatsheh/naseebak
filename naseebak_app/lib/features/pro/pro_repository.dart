@@ -5,6 +5,7 @@ import '../../app/providers.dart';
 import '../../core/auth/auth_controller.dart';
 import '../../core/network/api_client.dart';
 import '../../core/network/json.dart';
+import '../credits/credits_repository.dart';
 
 /// One sellable plan of the member's country (`offers[]` of `GET /api/pro`).
 class ProOffer {
@@ -16,6 +17,7 @@ class ProOffer {
     required this.chargeAmount,
     required this.credits,
     required this.interval,
+    this.bonusCredits = 0,
   });
 
   factory ProOffer.fromJson(Map<String, dynamic> j) => ProOffer(
@@ -26,6 +28,7 @@ class ProOffer {
         chargeAmount: asInt(j['chargeAmount']) ?? 0,
         credits: asInt(j['credits']) ?? 0,
         interval: asStringOr(j['interval']),
+        bonusCredits: asInt(j['bonusCredits']) ?? 0,
       );
 
   /// weekly | monthly | yearly
@@ -44,6 +47,9 @@ class ProOffer {
 
   /// week | month | year
   final String interval;
+
+  /// The sale offer's gift with the first payment (0: no offer, and every server before it)
+  final int bonusCredits;
 }
 
 /// `GET /api/pro`
@@ -60,6 +66,7 @@ class MyProState {
     this.creditsPerGrant,
     this.nextGrantAt,
     this.chatDelete = false,
+    this.offer,
   });
 
   factory MyProState.fromJson(Map<String, dynamic> j) => MyProState(
@@ -74,7 +81,11 @@ class MyProState {
         creditsPerGrant: asInt(j['creditsPerGrant']),
         nextGrantAt: asDate(j['nextGrantAt']),
         chatDelete: asBool(j['chatDelete']) ?? false,
+        offer: CreditOffer.fromJson(j['offer']),
       );
+
+  /// The sale offer open now (null: none, and every server before it)
+  final CreditOffer? offer;
 
   /// `chat_delete_enabled` on the server: the plans list «حذف الرسائل ومسح المحادثة» (an older server sends none)
   final bool chatDelete;

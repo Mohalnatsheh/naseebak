@@ -58,8 +58,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('مكة المكرمة'), findsOneWidget);
     expect(find.text('الرياض'), findsOneWidget);
-    // No guardian step when intro requests are on: 3 steps
-    expect(find.text('الخطوة 1 من 3'), findsOneWidget);
+    // No guardian step when intro requests are on: 7 steps (with «شروط أساسية»)
+    expect(find.text('الخطوة 1 من 7'), findsOneWidget);
     // Default nationality in the member's own gender
     expect(find.text('سعودية'), findsOneWidget);
   });

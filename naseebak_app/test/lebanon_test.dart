@@ -22,7 +22,7 @@ import 'package:naseebak_app/features/profile/profile_edit_screen.dart';
 
 import 'account_parity_test.dart' show lists, profileWith, storedProfile;
 import 'helpers/fake_api.dart';
-import 'setup_progress_test.dart' show setupWith, basics;
+import 'setup_progress_test.dart' show answerStep2Rest, setupWith, basics, step2Rest;
 
 const sectOptions = ['سني', 'شيعي', 'أفضّل عدم الذكر'];
 const prefSectOptions = ['سني', 'شيعي'];
@@ -287,29 +287,32 @@ void main() {
       );
       await tester.pumpWidget(ProviderScope(overrides: overrides, child: rtlApp(const SetupScreen())));
       await tester.pumpAndSettle();
-      // The sect is still missing: back at step 2, not 3
-      expect(find.text('الخطوة 2 من 3'), findsOneWidget);
+      // The sect is still missing: on step 2
+      expect(find.text('الخطوة 2 من 7'), findsOneWidget);
       expect(find.text('المذهب'), findsOneWidget);
       expect(find.text('أفضّل عدم الذكر'), findsOneWidget);
+      await answerStep2Rest(tester);
 
-      await tester.scrollUntilVisible(find.byKey(const Key('setup-next')), 300);
-      await tester.tap(find.byKey(const Key('setup-next')));
+      final next = find.byKey(const Key('setup-next'));
+      await tester.scrollUntilVisible(next, 300, scrollable: find.byType(Scrollable).first);
+      await tester.tap(next);
       await tester.pumpAndSettle();
-      expect(find.text('الخطوة 2 من 3'), findsOneWidget);
+      expect(find.text('الخطوة 2 من 7'), findsOneWidget);
       expect(find.text('المذهب مطلوب'), findsOneWidget);
 
       // Her own answer, in her gender
+      await tester.ensureVisible(find.text('سنية'));
       await tester.tap(find.text('سنية'));
       await tester.pumpAndSettle();
       expect(find.text('المذهب مطلوب'), findsNothing);
-      await tester.tap(find.byKey(const Key('setup-next')));
+      await tester.scrollUntilVisible(next, 300, scrollable: find.byType(Scrollable).first);
+      await tester.tap(next);
       await tester.pumpAndSettle();
-      expect(find.text('الخطوة 3 من 3'), findsOneWidget);
+      expect(find.text('الخطوة 3 من 7'), findsOneWidget);
       expect(adapter.to('PATCH', '/api/profile/draft').single.data, {
-        'maritalStatus': 'أعزب/عزباء',
-        'childrenCount': 0,
         'religiosity': 'ملتزم',
         'sect': 'سني',
+        ...step2Rest,
       });
     });
 
@@ -320,17 +323,15 @@ void main() {
       );
       await tester.pumpWidget(ProviderScope(overrides: overrides, child: rtlApp(const SetupScreen())));
       await tester.pumpAndSettle();
-      expect(find.text('الخطوة 2 من 3'), findsOneWidget);
+      expect(find.text('الخطوة 2 من 7'), findsOneWidget);
       expect(find.text('المذهب'), findsNothing);
-      await tester.scrollUntilVisible(find.byKey(const Key('setup-next')), 300);
-      await tester.tap(find.byKey(const Key('setup-next')));
+      await answerStep2Rest(tester);
+      final next = find.byKey(const Key('setup-next'));
+      await tester.scrollUntilVisible(next, 300, scrollable: find.byType(Scrollable).first);
+      await tester.tap(next);
       await tester.pumpAndSettle();
-      expect(find.text('الخطوة 3 من 3'), findsOneWidget);
-      expect(adapter.to('PATCH', '/api/profile/draft').single.data, {
-        'maritalStatus': 'أعزب/عزباء',
-        'childrenCount': 0,
-        'religiosity': 'ملتزم',
-      });
+      expect(find.text('الخطوة 3 من 7'), findsOneWidget);
+      expect(adapter.to('PATCH', '/api/profile/draft').single.data, {'religiosity': 'ملتزم', ...step2Rest});
     });
   });
 }

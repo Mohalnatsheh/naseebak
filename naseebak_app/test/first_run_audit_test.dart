@@ -28,9 +28,12 @@ import 'package:naseebak_app/features/home/counts.dart';
 import 'package:naseebak_app/features/onboarding/setup_screen.dart';
 
 import 'helpers/fake_api.dart';
-import 'setup_progress_test.dart' show basics, setupWith;
+import 'setup_progress_test.dart' show allAnswered, basics, setupWith;
 
 /// The first-run and account audit (2026-11-14): setup, sign-in, splash, gates and settings.
+/// Step 1 answered (on the website, say): the setup opens on step 2
+const step1Done = {...basics, 'maritalStatus': 'أعزب/عزباء', 'childrenCount': 0};
+
 void main() {
   group('setup', () {
     Future<ProviderContainer> openSetup(WidgetTester tester, FakeAdapter adapter, List<Override> overrides) async {
@@ -42,9 +45,9 @@ void main() {
     }
 
     testWidgets('I1: a counts refresh (back in the app, a push) keeps the form, never the skeleton', (tester) async {
-      final (adapter, overrides) = await setupWith(basics, savedStep: 1);
+      final (adapter, overrides) = await setupWith(step1Done);
       final container = await openSetup(tester, adapter, overrides);
-      expect(find.text('الخطوة 2 من 3'), findsOneWidget);
+      expect(find.text('الخطوة 2 من 7'), findsOneWidget);
       final release = Completer<void>();
       adapter.hold('GET', '/api/me/counts', release.future);
       container.invalidate(countsProvider);
@@ -52,15 +55,15 @@ void main() {
       await tester.pump(const Duration(milliseconds: 50));
       expect(container.read(countsProvider).isLoading, isTrue);
       expect(find.byKey(const Key('setup-next')), findsOneWidget);
-      expect(find.text('الخطوة 2 من 3'), findsOneWidget);
+      expect(find.text('الخطوة 2 من 7'), findsOneWidget);
       release.complete();
       await tester.pumpAndSettle();
-      expect(find.text('الخطوة 2 من 3'), findsOneWidget);
+      expect(find.text('الخطوة 2 من 7'), findsOneWidget);
     });
 
     testWidgets('I2: /api/profile failing shows an error with a retry, never an empty form that could save',
         (tester) async {
-      final (adapter, overrides) = await setupWith(basics, savedStep: 1);
+      final (adapter, overrides) = await setupWith(step1Done);
       final good = adapter.handlers['GET /api/profile']!;
       adapter.on('GET', '/api/profile', const FakeResponse.network());
       await openSetup(tester, adapter, overrides);
@@ -70,19 +73,16 @@ void main() {
       adapter.handlers['GET /api/profile'] = good;
       await tester.tap(find.text('إعادة المحاولة'));
       await tester.pumpAndSettle();
-      // The draft came back: prefilled and resumed at the saved step
-      expect(find.text('الخطوة 2 من 3'), findsOneWidget);
+      // The draft came back: prefilled and resumed at the first step with something missing
+      expect(find.text('الخطوة 2 من 7'), findsOneWidget);
     });
 
     testWidgets('I3: saved but `me` could not be read: a clear line, and the next tap only re-reads `me`',
         (tester) async {
-      final (adapter, overrides) = await setupWith(
-        {...basics, 'maritalStatus': 'أعزب/عزباء', 'childrenCount': 0, 'religiosity': 'ملتزم', 'prefAgeMin': 25, 'prefAgeMax': 35},
-        savedStep: 2,
-      );
+      final (adapter, overrides) = await setupWith(allAnswered);
       adapter.on('PUT', '/api/profile', const FakeResponse(200, {'profile': {}}));
       final container = await openSetup(tester, adapter, overrides);
-      expect(find.text('الخطوة 3 من 3'), findsOneWidget);
+      expect(find.text('الخطوة 7 من 7'), findsOneWidget);
 
       adapter.on('GET', '/api/mobile/me', const FakeResponse.network());
       await tester.ensureVisible(find.byKey(const Key('setup-next')));
@@ -100,10 +100,7 @@ void main() {
     });
 
     Future<(FakeAdapter, ProviderContainer)> stuckAtSave(WidgetTester tester, {required FakeResponse me}) async {
-      final (adapter, overrides) = await setupWith(
-        {...basics, 'maritalStatus': 'أعزب/عزباء', 'childrenCount': 0, 'religiosity': 'ملتزم', 'prefAgeMin': 25, 'prefAgeMax': 35},
-        savedStep: 2,
-      );
+      final (adapter, overrides) = await setupWith(allAnswered);
       adapter.on('PUT', '/api/profile', const FakeResponse(200, {'profile': {}}));
       final container = await openSetup(tester, adapter, overrides);
       adapter.on('GET', '/api/mobile/me', me);
@@ -135,20 +132,22 @@ void main() {
       expect(find.text('تم الحفظ، لكن تعذّر المتابعة. يُرجى المحاولة مرة أخرى.'), findsOneWidget);
       await tester.tap(find.byTooltip('السابق'));
       await tester.pumpAndSettle();
-      expect(find.text('الخطوة 2 من 3'), findsOneWidget);
+      expect(find.text('الخطوة 6 من 7'), findsOneWidget);
       await tapNext(tester);
-      expect(find.text('الخطوة 3 من 3'), findsOneWidget);
+      expect(find.text('الخطوة 7 من 7'), findsOneWidget);
       await tapNext(tester);
       expect(adapter.to('PUT', '/api/profile'), hasLength(2));
     });
 
     testWidgets('review I-3: stuck after a save, then an answer changed: the next tap saves the change', (tester) async {
       final (adapter, _) = await stuckAtSave(tester, me: const FakeResponse.network());
-      await tester.enterText(find.byKey(const Key('age-min')), '27');
+      // Step 7: the age range made a «شرط أساسي»
+      await tester.ensureVisible(find.byKey(const Key('db-age')));
+      await tester.tap(find.byKey(const Key('db-age')));
       await tester.pump();
       await tapNext(tester);
       expect(adapter.to('PUT', '/api/profile'), hasLength(2));
-      expect(adapter.to('PUT', '/api/profile').last.data['prefAgeMin'], 27);
+      expect(adapter.to('PUT', '/api/profile').last.data['dealbreakers'], ['age']);
     });
 
     testWidgets('M15: an 80-year-old draft birth date opens the picker (inside its range)', (tester) async {

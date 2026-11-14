@@ -5,11 +5,9 @@ import '../../app/providers.dart';
 import '../../core/analytics/analytics.dart';
 import '../../core/auth/auth_controller.dart';
 import '../../core/localization/digits.dart';
-import '../../core/localization/safe_input_formatter.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/network/json.dart';
 import '../../core/theme/app_theme.dart';
-import '../../shared/person.dart';
 import '../../shared/religion.dart';
 import '../../shared/widgets/common.dart';
 import '../auth/pending_auth.dart';
@@ -19,10 +17,15 @@ import '../country_selection/country.dart';
 import '../country_selection/country_providers.dart';
 import '../home/counts.dart';
 import '../home/gendered_copy.dart';
+import '../auth/me.dart';
 import '../profile/guardian_form.dart';
+import '../profile/preferences_screen.dart';
+import '../profile/profile_edit_plan.dart';
+import '../profile/profile_field_control.dart';
 import '../profile/profile_repository.dart';
 import '../referral/referral_screen.dart' show cleanReferralCode;
 import 'profile_options.dart';
+import 'setup_steps.dart';
 
 /// Age in full years on [now].
 int ageOn(DateTime dob, DateTime now) {
@@ -40,9 +43,11 @@ String? dateOfBirthError(DateTime? dob, {DateTime? now}) {
   return null;
 }
 
-/// The short setup: only what the web wizard requires (birth date, nationality, city, education,
-/// marital status (+children), religiosity, «المذهب» where the country asks it, partner age range). Legacy mode (intro requests off) also
-/// needs the guardian before the profile counts as complete, like the web's step 5.
+/// The sign-up setup: every profile field in the website's 7 steps (6 without «شروط أساسية», where the server has no
+/// shared suggestions), mirroring `short-setup.tsx` and `setup-steps.ts` through [setupSteps]. Each finished step is
+/// saved as a draft; the last one saves everything with `PUT /api/profile`. It opens on the first step with a required
+/// answer missing. Legacy mode (intro requests off) also needs the guardian before the profile counts as complete,
+/// so a last guardian step follows, as before.
 class SetupScreen extends ConsumerStatefulWidget {
   const SetupScreen({super.key});
 
@@ -50,29 +55,54 @@ class SetupScreen extends ConsumerStatefulWidget {
   ConsumerState<SetupScreen> createState() => _SetupScreenState();
 }
 
+/// Text and number answers (each owns a controller)
+final _textKeys = {...profileShortTexts, ...profileLongTexts, ...profileNumberLimits.keys};
+
+/// Choices the server may not send on an older version: today's fixed lists stand in
+const _fallbackOptions = <String, List<String>>{
+  'education': ProfileOptions.education,
+  'maritalStatus': ProfileOptions.maritalStatus,
+  'religiosity': ProfileOptions.religiosity,
+  'smokingStatus': ProfileOptions.smokingStatus,
+};
+
+/// Field labels said in the feminine («… مطلوبة»)
+const _femLabels = {
+  'nationality', 'city', 'religion', 'maritalStatus', 'job', 'beard', 'cookingAbility', 'drivingLicense',
+  'monthlyExpenses',
+};
+
+/// Stored as free text: an emptied answer is sent as "" so the server clears it too
+const _clearableTexts = {'area', 'prefHijab', 'prefBeard', 'prefChildrenAcceptance'};
+
 class _SetupScreenState extends ConsumerState<SetupScreen> {
   int _step = 0;
-  DateTime? _dob;
-  String? _nationality;
-  String? _city;
-  String? _education;
-  String? _marital;
-  final _children = TextEditingController();
-  String? _religiosity;
-  String? _sect;
-  String? _religion;
+
+  /// Own answers as the controls set them (choices, yes / no, the birth date as `YYYY-MM-DD`)
+  final Map<String, Object?> _v = {};
+  final _text = <String, TextEditingController>{for (final k in _textKeys) k: TextEditingController()};
+
+  /// The «أخرى» job text
+  final _jobCustom = TextEditingController();
+
+  /// Step 6 and its «شروط أساسية»
+  PartnerPrefs _prefs = const PartnerPrefs();
   String? _prefReligion;
+  Set<String> _ticked = {};
 
-  /// «الديانة» choices (`options.religion`, only while the server sends them); empty = not asked, not sent
-  List<String> _religionOptions = const [];
-  List<String> _prefReligionOptions = const [];
+  /// What the server held when the setup opened (an emptied answer is cleared there too)
+  Map<String, Object?> _stored = const {};
 
-  /// «المذهب» choices of the member's country (`options.sect`, Lebanon only); empty = not asked
-  List<String> _sectOptions = const [];
-  final _ageMin = TextEditingController();
-  final _ageMax = TextEditingController();
+  // Set on every build (the switches and lists may refresh)
+  List<SetupStep> _steps = setupSteps(dealbreakers: true);
+  CountryLists _lists = CountryLists.empty;
+  bool _female = false;
+
   final _guardian = GuardianFields();
   Map<String, String?> _errors = {};
+
+  /// One anchor per question, to bring the first error into view
+  final _anchors = <String, GlobalKey>{};
 
   /// This step was checked and had errors: from then on the errors follow the answers, so an answered question
   /// loses its error at once instead of at the next «التالي»
@@ -98,7 +128,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
 
   /// Everything the setup sends, to tell whether an answer changed since the save
   String _answers() => [
-        _payload(partial: true).toString(),
+        _payload().toString(),
         _guardian.name.text,
         _guardian.phone.text,
         _guardian.address.text,
@@ -123,122 +153,208 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
 
   @override
   void dispose() {
-    _children.dispose();
-    _ageMin.dispose();
-    _ageMax.dispose();
+    for (final c in _text.values) {
+      c.dispose();
+    }
+    _jobCustom.dispose();
     _guardian.dispose();
     super.dispose();
   }
 
-  /// Fill from a saved draft (a member who started on the website).
-  void _prefill(MyProfile p) {
-    if (_prefilled) return;
-    _prefilled = true;
-    _dob = asDate(p.field('dateOfBirth'));
-    _nationality = asString(p.field('nationality'));
-    _city = asString(p.field('city'));
-    _education = asString(p.field('education'));
-    _marital = asString(p.field('maritalStatus'));
-    _religiosity = asString(p.field('religiosity'));
-    _sect = asString(p.field('sect'));
-    _religion = asString(p.field('religion'));
-    _prefReligion = asString(p.field('prefReligion'));
-    final kids = asInt(p.field('childrenCount'));
-    if (kids != null && kids > 0) _children.text = '$kids';
-    final min = asInt(p.field('prefAgeMin'));
-    final max = asInt(p.field('prefAgeMax'));
-    if (min != null) _ageMin.text = '$min';
-    if (max != null) _ageMax.text = '$max';
+  // ---- the answers ----
+
+  SetupCtx get _ctx => SetupCtx(
+        female: _female,
+        religionAsked: _lists.option('religion').isNotEmpty,
+        sectAsked: _lists.option('sect').isNotEmpty,
+        areas: _lists.areas,
+      );
+
+  bool get _christian => isChristian(_v['religion']);
+
+  /// The job as it would be saved: the «أخرى» text when that chip stands, «أخرى» itself while the text is empty
+  String? get _job {
+    final j = asString(_v['job']);
+    if (!jobIsOther(j, _lists.option('job'))) return j;
+    final custom = _jobCustom.text.trim();
+    return custom.isEmpty ? profileJobOther : custom;
   }
 
-  /// «المذهب» is asked only where the country has it and never of a Christian
-  bool get _asksSect => _sectOptions.isNotEmpty && _religion != religionChristian;
+  /// Step 6 as stored values
+  Map<String, Object?> get _prefValues => {
+        'prefReligion': _prefReligion,
+        'prefAgeMin': _prefs.ageMin,
+        'prefAgeMax': _prefs.ageMax,
+        'prefCity': _prefs.cities,
+        'prefEducation': ProfileOptions.education.where(_prefs.education.contains).toList(),
+        'prefMaritalStatus': _prefs.maritalStatus,
+        'prefHijab': _prefs.hijab,
+        'prefBeard': _prefs.beard,
+        'prefReligiosity': _prefs.religiosity,
+        'prefSect': _lists.option('prefSect').where(_prefs.sect.contains).toList(),
+        'prefSmokingStatus': _prefs.smoking,
+        'prefChildrenAcceptance': _prefs.children,
+      };
+
+  /// Every answer as stored values (numbers parsed, null when empty or not a number)
+  Map<String, Object?> get _values {
+    final out = <String, Object?>{..._v};
+    for (final e in _text.entries) {
+      final t = e.value.text.trim();
+      out[e.key] = profileNumberLimits.containsKey(e.key) ? int.tryParse(toLatinDigits(t)) : t;
+    }
+    out['job'] = _job;
+    out.addAll(_prefValues);
+    return out;
+  }
+
+  /// A question whose choices the server didn't send can't be answered: it isn't asked (older servers)
+  bool _answerable(String key) => switch (key) {
+        'nationality' => _lists.nationalities(female: _female).isNotEmpty || asString(_v['nationality']) != null,
+        'city' => _lists.cities.isNotEmpty,
+        'incomeRange' => _lists.incomeRanges.isNotEmpty,
+        'monthlyExpenses' => _lists.expenseRanges.isNotEmpty,
+        'religion' || 'religiosity' || 'sect' || 'education' || 'maritalStatus' || 'job' || 'skinColor' ||
+        'smokingStatus' || 'cookingAbility' || 'lifestyle' || 'housingType' =>
+          _lists.option(key).isNotEmpty,
+        _ => true,
+      };
+
+  /// The step's questions shown now; the children count once a marital status is chosen (as the website)
+  List<String> _shownKeys(SetupStep s, Map<String, Object?> values) => [
+        for (final k in s.fieldKeys)
+          if (setupShown(k, values, _ctx) && _answerable(k) && (k != 'childrenCount' || values['maritalStatus'] != null))
+            k,
+      ];
+
+  /// [missingOnStep], limited to the questions this server lets the member answer
+  List<String> _missing(SetupStep s, Map<String, Object?> values) {
+    final shown = _shownKeys(s, values).toSet();
+    return [for (final k in missingOnStep(s, values, _ctx)) if (shown.contains(k) || k.startsWith('pref')) k];
+  }
+
+  /// The first step with a required answer missing (the website's `firstIncompleteStep`); the last when none
+  int _firstIncomplete(Map<String, Object?> values) {
+    final i = _steps.indexWhere((s) => _missing(s, values).isNotEmpty);
+    return i == -1 ? _steps.length - 1 : i;
+  }
+
+  String _label(String key) => key == 'tribe' ? _lists.tribeLabel : (profileFieldLabels[key] ?? key);
+
+  String _requiredMessage(String key) => '${_label(key)} ${_femLabels.contains(key) ? 'مطلوبة' : 'مطلوب'}';
+
+  /// A wrong answer (not a missing one): the birth date's age, a number out of range
+  String? _issue(String key, Map<String, Object?> values) {
+    if (key == 'dateOfBirth') return dateOfBirthError(DateTime.tryParse(asString(values['dateOfBirth']) ?? ''));
+    final range = profileNumberLimits[key];
+    if (range == null) return null;
+    final raw = _text[key]!.text.trim();
+    if (raw.isEmpty) return null;
+    final n = int.tryParse(toLatinDigits(raw));
+    if (n == null || n < range.$1 || n > range.$2) return '${_label(key)} يجب أن يكون بين ${range.$1} و ${range.$2}';
+    return null;
+  }
+
+  /// One question's stored keys and values
+  Map<String, Object?> _entries(String key, Map<String, Object?> values) => switch (key) {
+        'city' => {'city': values['city'], if (setupShown('area', values, _ctx)) 'area': values['area']},
+        'hijab' => {'hijab': values['hijab'], 'niqab': values['niqab']},
+        'job' => {'job': values['job'] == profileJobOther ? null : values['job']},
+        _ => {key: values[key]},
+      };
+
+  /// The answers of step [only] (a draft), or of every step plus the «شروط أساسية» (the final save). Empty answers
+  /// are left out (the server keeps what it has), except a list or text the member emptied: sent empty so the server
+  /// clears it too. No religion keys without the server's religion list; nothing Muslim-only for a Christian.
+  Map<String, Object?> _payload({int? only}) {
+    final values = _values;
+    final out = <String, Object?>{};
+    void put(String key, Object? raw) {
+      final v = raw is String ? raw.trim() : raw;
+      if (!isEmptyStored(v)) {
+        out[key] = v;
+      } else if (!isEmptyStored(_stored[key]) && (v is List || _textKeys.contains(key) || _clearableTexts.contains(key))) {
+        out[key] = v is List ? <String>[] : '';
+      }
+    }
+
+    for (final (i, s) in _steps.indexed) {
+      if ((only != null && i != only) || s.id == SetupStepId.musts) continue;
+      for (final key in _shownKeys(s, values)) {
+        _entries(key, values).forEach(put);
+      }
+      if (s.fieldKeys.contains('maritalStatus') && values['maritalStatus'] == ProfileOptions.single) {
+        out['childrenCount'] = 0;
+      }
+    }
+    if (only == null && _steps.any((s) => s.id == SetupStepId.musts)) {
+      out['dealbreakers'] = _prefs.copyWith(dealbreakers: _ticked).activeDealbreakers(female: _female, christian: _christian);
+    }
+    if (!_ctx.religionAsked) {
+      out
+        ..remove('religion')
+        ..remove('prefReligion');
+    }
+    return withoutMuslimOnly(values['religion'], out);
+  }
+
+  /// Fill from what the server holds (a draft from the website or an earlier run) and open on the first step with
+  /// something missing
+  void _prefill(MyProfile p, Me? me) {
+    _prefilled = true;
+    final stored = <String, Object?>{...?p.profile};
+    _stored = stored;
+    for (final s in _steps) {
+      for (final k in s.fieldKeys) {
+        if (k.startsWith('pref') || _textKeys.contains(k)) continue;
+        _v[k] = k == 'dateOfBirth' ? dayOf(stored[k]) : stored[k];
+      }
+    }
+    _v['area'] = stored['area'];
+    _v['niqab'] = stored['niqab'];
+    for (final k in _textKeys) {
+      final v = stored[k];
+      // A single member's stored 0 children isn't shown as typed
+      final hidden = k == 'childrenCount' && stored['maritalStatus'] == ProfileOptions.single;
+      _text[k]!.text = v == null || hidden ? '' : '$v';
+    }
+    final job = asString(_v['job']);
+    if (job != profileJobOther && jobIsOther(job, _lists.option('job'))) _jobCustom.text = job!;
+    final prefs = PartnerPrefs.fromJson(<String, dynamic>{...stored});
+    // Only her beard / his hijab preference is kept (as «تفضيلات الشريك»)
+    _prefs = prefs.copyWith(clearHijab: _female, clearBeard: !_female);
+    _ticked = {...prefs.dealbreakers};
+    _prefReligion = asString(stored['prefReligion']);
+    _v['nationality'] ??= _female ? me?.country.nationalityFemale : me?.country.nationalityMale;
+    if (_lists.option('prefReligion').isNotEmpty) _prefReligion ??= prefReligionSame;
+    _step = _firstIncomplete(_values);
+  }
 
   bool _guardianStep(Counts? counts) => counts != null && !counts.flags.introRequests;
 
   Map<String, String?> _validate(int step) {
     final e = <String, String?>{};
-    switch (step) {
-      case 0:
-        e['dob'] = dateOfBirthError(_dob);
-        if (_nationality == null || _nationality!.isEmpty) e['nationality'] = 'الجنسية مطلوبة';
-        if (_city == null) e['city'] = 'المدينة مطلوبة';
-        if (_education == null) e['education'] = 'المستوى التعليمي مطلوب';
-      case 1:
-        if (_marital == null) e['marital'] = 'الحالة الاجتماعية مطلوبة';
-        if (_marital != null && _marital != ProfileOptions.single) {
-          final c = int.tryParse(toLatinDigits(_children.text.trim()));
-          if (_children.text.trim().isEmpty) {
-            e['children'] = 'عدد الأبناء مطلوب';
-          } else if (c == null || c < 0 || c > 20) {
-            e['children'] = 'عدد الأبناء يجب أن يكون بين 0 و 20';
-          }
+    if (step >= _steps.length) {
+      final country = ref.read(authControllerProvider).me?.country;
+      e.addAll(validateGuardian(_guardian));
+      if (country != null) {
+        final pe = validatePhone(_guardian.phone.text, country);
+        if (pe != null) e['parentPhone'] = pe;
+      }
+    } else {
+      final s = _steps[step];
+      final values = _values;
+      if (s.id == SetupStepId.looking) {
+        e['age'] = prefAgeError(_prefs.ageMin, _prefs.ageMax);
+      } else if (s.id != SetupStepId.musts) {
+        final missing = _missing(s, values).toSet();
+        for (final k in _shownKeys(s, values)) {
+          e[k] = _issue(k, values) ?? (missing.contains(k) ? _requiredMessage(k) : null);
         }
-        if (_religionOptions.isNotEmpty && !_religionOptions.contains(_religion)) e['religion'] = 'الديانة مطلوبة';
-        if (_religiosity == null) e['religiosity'] = 'مستوى التدين مطلوب';
-        if (_asksSect && !_sectOptions.contains(_sect)) e['sect'] = 'المذهب مطلوب';
-      case 2:
-        final min = int.tryParse(toLatinDigits(_ageMin.text.trim()));
-        final max = int.tryParse(toLatinDigits(_ageMax.text.trim()));
-        if (min == null) {
-          e['ageMin'] = 'العمر الأدنى مطلوب';
-        } else if (min < 18 || min > 70) {
-          e['ageMin'] = 'العمر الأدنى يجب أن يكون بين 18 و 70';
-        }
-        if (max == null) {
-          e['ageMax'] = 'العمر الأقصى مطلوب';
-        } else if (max < 18 || max > 70) {
-          e['ageMax'] = 'العمر الأقصى يجب أن يكون بين 18 و 70';
-        }
-        if (min != null && max != null && min > max) e['ageMin'] = 'العمر الأدنى يجب أن يكون أقل من العمر الأقصى';
-      case 3:
-        final country = ref.read(authControllerProvider).me?.country;
-        e.addAll(validateGuardian(_guardian));
-        if (country != null) {
-          final pe = validatePhone(_guardian.phone.text, country);
-          if (pe != null) e['parentPhone'] = pe;
-        }
+      }
     }
     e.removeWhere((_, v) => v == null);
     return e;
-  }
-
-  /// [partial]: only what's filled in (a draft); otherwise everything (all steps validated)
-  Map<String, dynamic> _payload({bool partial = false}) {
-    final single = _marital == ProfileOptions.single;
-    final dob = _dob;
-    int? number(TextEditingController c) => int.tryParse(toLatinDigits(c.text.trim()));
-    if (partial) {
-      return {
-        if (dob != null)
-          'dateOfBirth': '${dob.year.toString().padLeft(4, '0')}-${dob.month.toString().padLeft(2, '0')}-${dob.day.toString().padLeft(2, '0')}',
-        'nationality': _nationality,
-        'city': _city,
-        'education': _education,
-        'maritalStatus': _marital,
-        if (_marital != null) 'childrenCount': single ? 0 : number(_children),
-        'religiosity': _religiosity,
-        if (_religionOptions.isNotEmpty) 'religion': _religion,
-        if (_asksSect) 'sect': _sect,
-        'prefAgeMin': number(_ageMin),
-        'prefAgeMax': number(_ageMax),
-        if (_prefReligionOptions.isNotEmpty) 'prefReligion': _prefReligion,
-      };
-    }
-    return {
-      'dateOfBirth': '${dob!.year.toString().padLeft(4, '0')}-${dob.month.toString().padLeft(2, '0')}-${dob.day.toString().padLeft(2, '0')}',
-      'nationality': _nationality,
-      'city': _city,
-      'education': _education,
-      'maritalStatus': _marital,
-      'childrenCount': single ? 0 : (int.tryParse(toLatinDigits(_children.text.trim())) ?? 0),
-      'religiosity': _religiosity,
-      if (_religionOptions.isNotEmpty) 'religion': _religion,
-      if (_asksSect) 'sect': _sect,
-      'prefAgeMin': int.parse(toLatinDigits(_ageMin.text.trim())),
-      'prefAgeMax': int.parse(toLatinDigits(_ageMax.text.trim())),
-      if (_prefReligionOptions.isNotEmpty) 'prefReligion': _prefReligion,
-    };
   }
 
   Future<void> _next(int total, bool guardianStep) async {
@@ -251,39 +367,38 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
       _checked = errors.isNotEmpty;
       _error = null;
     });
-    if (errors.isNotEmpty) return;
+    if (errors.isNotEmpty) {
+      _showFirstError(errors.keys.first);
+      return;
+    }
     ref.read(analyticsProvider).setupStep(_step + 1);
     if (_step < total - 1) {
       _saveDraft(_step);
-      setState(() => _step++);
-      _rememberStep();
+      setState(() {
+        _step++;
+        _checked = false;
+        _errors = {};
+      });
       return;
     }
     await _submit(guardianStep);
   }
 
-  /// Where this member's setup stopped, on this phone (the website's own `setupStep` counts its own steps)
-  String? get _stepKey {
-    final id = ref.read(authControllerProvider).me?.id;
-    return id == null ? null : 'setup_step_$id';
-  }
-
-  void _rememberStep() {
-    final key = _stepKey;
-    if (key != null) ref.read(sharedPreferencesProvider).setInt(key, _step);
+  /// Brings the first question with an error into view (after the errors are drawn)
+  void _showFirstError(String key) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final target = _anchors[key]?.currentContext;
+      if (target != null && target.mounted) {
+        Scrollable.ensureVisible(target, alignment: 0.2, duration: const Duration(milliseconds: 250));
+      }
+    });
   }
 
   /// The answers of a finished step, saved as a draft like the website does (`PATCH /api/profile/draft`): closing the
   /// app mid-setup loses nothing. Best effort: the final save sends everything again.
   void _saveDraft(int step) {
-    final p = _payload(partial: true);
-    final fields = switch (step) {
-      0 => ['dateOfBirth', 'nationality', 'city', 'education'],
-      1 => ['maritalStatus', 'childrenCount', 'religion', 'religiosity', 'sect'],
-      2 => ['prefAgeMin', 'prefAgeMax', 'prefReligion'],
-      _ => const <String>[],
-    };
-    final body = {for (final f in fields) if (p[f] != null) f: p[f]};
+    if (step >= _steps.length) return;
+    final body = _payload(only: step);
     if (body.isEmpty) return;
     ref.read(apiClientProvider).patch('/api/profile/draft', body: body).catchError((Object e) {
       debugPrint('[setup] draft not saved: $e');
@@ -291,17 +406,11 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
     });
   }
 
-  /// Back where the member stopped (after the fields came back from the draft): the furthest step whose earlier
-  /// steps are all still valid
-  void _resumeStep(int total) {
-    final key = _stepKey;
-    final saved = key == null ? null : ref.read(sharedPreferencesProvider).getInt(key);
-    if (saved == null || saved <= 0) return;
-    var step = 0;
-    while (step < saved && step < total - 1 && _validate(step).isEmpty) {
-      step++;
-    }
-    _step = step;
+  /// Where earlier app versions remembered the step on this phone (no longer read: the setup opens on the first step
+  /// with something missing); removed once the setup is done
+  String? get _stepKey {
+    final id = ref.read(authControllerProvider).me?.id;
+    return id == null ? null : 'setup_step_$id';
   }
 
   Future<void> _submit(bool guardianStep) async {
@@ -321,7 +430,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
           shareConsent: _guardian.consent,
         );
       }
-      await repo.save(_payload());
+      await repo.save(Map<String, dynamic>.from(_payload()));
       final key = _stepKey;
       if (key != null) await container.read(sharedPreferencesProvider).remove(key);
       container.read(analyticsProvider).setupCompleted();
@@ -351,8 +460,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
       if (e.code == 'GUARDIAN_REQUIRED' && !guardianStep) {
         // The guardian became required meanwhile: reload the switches so the guardian step appears after this one
         ref.invalidate(countsProvider);
-        final female = ref.read(authControllerProvider).me?.isFemale ?? false;
-        setState(() => _error = '${e.message}. ${forViewer(female, 'أضفه', 'أضيفيه')} في الخطوة التالية.');
+        setState(() => _error = '${e.message}. ${forViewer(_female, 'أضفه', 'أضيفيه')} في الخطوة التالية.');
       } else {
         setState(() => _error = e.message);
       }
@@ -394,7 +502,6 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
       _checked = false;
       _errors = {};
     });
-    _rememberStep();
   }
 
   Future<void> _pickDob() async {
@@ -402,7 +509,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
     final last = DateTime(now.year - 18, now.month, now.day);
     // The oldest date `dateOfBirthError` accepts (80 today): the day after 81 years ago
     final first = DateTime(now.year - 81, now.month, now.day + 1);
-    var initial = _dob ?? DateTime(now.year - 25, 1, 1);
+    var initial = DateTime.tryParse(asString(_v['dateOfBirth']) ?? '') ?? DateTime(now.year - 25, 1, 1);
     // A draft date out of range (the website allows other dates) must not break the picker
     if (initial.isBefore(first)) initial = first;
     if (initial.isAfter(last)) initial = last;
@@ -414,12 +521,27 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
       initialDatePickerMode: DatePickerMode.year,
       helpText: 'تاريخ الميلاد',
     );
-    if (picked != null) setState(() => _dob = picked);
+    if (picked != null && mounted) {
+      setState(() => _v['dateOfBirth'] =
+          '${picked.year.toString().padLeft(4, '0')}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}');
+    }
   }
+
+  /// The sub-line under each step's title (the website's `stepSub`)
+  String _stepSub(SetupStepId id) => switch (id) {
+        SetupStepId.you => forViewer(_female, 'بياناتك الأساسية كما تظهر لمن يُقترح عليك.', 'بياناتكِ الأساسية كما تظهر لمن يُقترح عليكِ.'),
+        SetupStepId.faith => forViewer(_female, 'تساعدنا على اقتراح من يناسبك.', 'تساعدنا على اقتراح من يناسبكِ.'),
+        SetupStepId.work => forViewer(_female, 'دراستك وعملك.', 'دراستكِ وعملكِ.'),
+        SetupStepId.family => forViewer(_female, 'عائلتك وسكنك.', 'عائلتكِ وسكنكِ.'),
+        SetupStepId.about =>
+          forViewer(_female, 'بكلماتك. كلها اختيارية، ويمكنك إكمالها لاحقاً.', 'بكلماتكِ. كلها اختيارية، ويمكنكِ إكمالها لاحقاً.'),
+        SetupStepId.looking => 'العمر مطلوب، وباقي التفضيلات اختياري.',
+        SetupStepId.musts => forViewer(_female, 'اختر ما لا تقبل غيره. يمكنك تغييره لاحقاً من «تفضيلات الشريك».',
+            'اختاري ما لا تقبلين غيره. يمكنكِ تغييره لاحقاً من «تفضيلات الشريك».'),
+      };
 
   @override
   Widget build(BuildContext context) {
-    if (_checked) _errors = _validate(_step);
     final me = ref.watch(authControllerProvider).me;
     final counts = ref.watch(countsProvider);
     final profile = ref.watch(myProfileProvider);
@@ -451,23 +573,31 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
         ),
       );
     }
-    final lists = details.requireValue.lists;
-    _sectOptions = lists.option('sect');
-    _religionOptions = lists.option('religion');
-    _prefReligionOptions = lists.option('prefReligion');
-    final p = profile.valueOrNull;
+    final server = details.requireValue.lists;
+    _lists = CountryLists(
+      cities: server.cities,
+      areas: server.areas,
+      nationalitiesMale: server.nationalitiesMale,
+      nationalitiesFemale: server.nationalitiesFemale,
+      incomeRanges: server.incomeRanges,
+      expenseRanges: server.expenseRanges,
+      tribeLabel: server.tribeLabel,
+      options: {
+        for (final e in _fallbackOptions.entries) e.key: server.option(e.key).isEmpty ? e.value : server.option(e.key),
+        for (final e in server.options.entries)
+          if (!_fallbackOptions.containsKey(e.key)) e.key: e.value,
+      },
+    );
+    _female = me?.isFemale ?? false;
+    _steps = setupSteps(dealbreakers: counts.valueOrNull?.flags.mutualSuggestions ?? false);
     final guardianStep = _guardianStep(counts.valueOrNull);
-    final total = guardianStep ? 4 : 3;
-    final female = me?.isFemale ?? false;
-    if (p != null && !_prefilled) {
-      _prefill(p);
-      _nationality ??= female ? me?.country.nationalityFemale : me?.country.nationalityMale;
-      _resumeStep(total);
-    }
-    _nationality ??= female ? me?.country.nationalityFemale : me?.country.nationalityMale;
-    // Also when /api/profile failed (no prefill): the question's default is the same-religion answer
-    if (_prefReligionOptions.isNotEmpty) _prefReligion ??= prefReligionSame;
-    final titles = ['معلوماتك الأساسية', 'حالتك الاجتماعية', forViewer(female, 'من تبحث عنه', 'من تبحثين عنه'), 'وليّ الأمر'];
+    final total = _steps.length + (guardianStep ? 1 : 0);
+    final p = profile.valueOrNull;
+    if (p != null && !_prefilled) _prefill(p, me);
+    if (_step > total - 1) _step = total - 1;
+    if (_checked) _errors = _validate(_step);
+    final onGuardian = _step >= _steps.length;
+    final current = onGuardian ? null : _steps[_step];
     final theme = Theme.of(context);
 
     // Android back: the previous step (not out of the app with the answers lost)
@@ -488,238 +618,149 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
           ],
         ),
         body: SafeArea(
-          child: ListView(
+          // Every question of the step is built (the first error can always be brought into view); each step starts
+          // at the top
+          child: SingleChildScrollView(
+            key: ValueKey('setup-step-$_step'),
             padding: const EdgeInsets.fromLTRB(20, 4, 20, 32),
-            children: [
-              Row(
+            // No ✓ on the chips: it widened the picked chip, the row re-wrapped and the next tap landed in a gap; the
+            // pick shows by its colour and navy edge
+            child: ChipTheme(
+              data: ChipTheme.of(context).copyWith(showCheckmark: false),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  for (var i = 0; i < total; i++)
-                    Expanded(
-                      child: Container(
-                        height: 5,
-                        margin: const EdgeInsetsDirectional.only(end: 6),
-                        decoration: BoxDecoration(
-                          color: i <= _step ? AppColors.gold : AppColors.line,
-                          borderRadius: BorderRadius.circular(3),
+                  Row(
+                    children: [
+                      for (var i = 0; i < total; i++)
+                        Expanded(
+                          child: Container(
+                            height: 5,
+                            margin: const EdgeInsetsDirectional.only(end: 6),
+                            decoration: BoxDecoration(
+                              color: i <= _step ? AppColors.gold : AppColors.line,
+                              borderRadius: BorderRadius.circular(3),
+                            ),
+                          ),
                         ),
-                      ),
-                    ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+                  Text('الخطوة ${_step + 1} من $total', style: const TextStyle(color: AppColors.muted)),
+                  Text(current == null ? 'وليّ الأمر' : setupStepTitle(current, female: _female),
+                      style: theme.textTheme.headlineSmall),
+                  const SizedBox(height: 6),
+                  Text(
+                    current == null
+                        ? 'نطلبها لترتيب التعارف العائلي. لا تظهر لأي عضو إلا بموافقتك بعد تعارف مقبول.'
+                        : _stepSub(current.id),
+                    style: theme.textTheme.bodyMedium?.copyWith(color: AppColors.muted),
+                  ),
+                  const SizedBox(height: 20),
+                  const _InviteRetryBanner(),
+                  ..._stepFields(current),
+                  if (_error != null) ...[const SizedBox(height: 14), InfoBanner(text: _error!, tone: BannerTone.danger)],
+                  const SizedBox(height: 24),
+                  LoadingButton(
+                    key: const Key('setup-next'),
+                    label: _step == total - 1 ? 'حفظ والبدء' : 'التالي',
+                    loading: _saving,
+                    onPressed: () => _next(total, guardianStep),
+                  ),
                 ],
               ),
-              const SizedBox(height: 18),
-              Text('الخطوة ${_step + 1} من $total', style: const TextStyle(color: AppColors.muted)),
-              Text(titles[_step], style: theme.textTheme.headlineSmall),
-              const SizedBox(height: 6),
-              Text(
-                _step == 3
-                    ? 'نطلبها لترتيب التعارف العائلي. لا تظهر لأي عضو إلا بموافقتك بعد تعارف مقبول.'
-                    : 'أسئلة قليلة فقط، وباقي ملفك اختياري يمكنك إكماله لاحقاً.',
-                style: theme.textTheme.bodyMedium?.copyWith(color: AppColors.muted),
-              ),
-              const SizedBox(height: 20),
-              const _InviteRetryBanner(),
-              ..._stepFields(_step, female, lists),
-              if (_error != null) ...[const SizedBox(height: 14), InfoBanner(text: _error!, tone: BannerTone.danger)],
-              const SizedBox(height: 24),
-              LoadingButton(
-                key: const Key('setup-next'),
-                label: _step == total - 1 ? 'حفظ والبدء' : 'التالي',
-                loading: _saving,
-                onPressed: () => _next(total, guardianStep),
-              ),
-            ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  List<Widget> _stepFields(int step, bool female, CountryLists lists) {
-    switch (step) {
-      case 0:
+  GlobalKey _anchor(String key) => _anchors.putIfAbsent(key, GlobalKey.new);
+
+  List<Widget> _stepFields(SetupStep? step) {
+    if (step == null) {
+      return [
+        GuardianFieldsView(
+          fields: _guardian,
+          errors: _errors,
+          onFieldChanged: (key) => setState(() => _errors.remove(key)),
+        ),
+      ];
+    }
+    switch (step.id) {
+      case SetupStepId.looking:
+        return PartnerPrefsFields(
+          value: _prefs,
+          onChanged: (v) => setState(() => _prefs = v),
+          cities: _lists.cities,
+          female: _female,
+          christian: _christian,
+          sectOptions: _lists.option('prefSect'),
+          religionOptions: _lists.option('prefReligion'),
+          prefReligion: _prefReligion,
+          onPrefReligion: (v) => setState(() {
+            if (v != null) _prefReligion = v;
+          }),
+          ageError: _errors['age'],
+        ).fields();
+      case SetupStepId.musts:
         return [
-          _label('تاريخ الميلاد'),
-          InkWell(
-            borderRadius: BorderRadius.circular(14),
-            onTap: _pickDob,
-            child: InputDecorator(
-              decoration: InputDecoration(
-                errorText: _errors['dob'],
-                suffixIcon: const Icon(Icons.calendar_month_outlined),
-              ),
-              child: Text(_dob == null ? 'اختيار التاريخ' : formatDate(_dob!),
-                  style: TextStyle(color: _dob == null ? AppColors.muted : AppColors.ink)),
-            ),
+          DealbreakerToggles(
+            value: _prefs,
+            selected: _ticked,
+            onChanged: (v) => setState(() => _ticked = v),
+            female: _female,
+            christian: _christian,
           ),
-          const SizedBox(height: 16),
-          _label('الجنسية'),
-          DropdownButtonFormField<String>(
-            initialValue: lists.nationalities(female: female).contains(_nationality) ? _nationality : null,
-            isExpanded: true,
-            decoration: InputDecoration(errorText: _errors['nationality']),
-            items: [
-              for (final n in lists.nationalities(female: female))
-                DropdownMenuItem(value: n, child: Text(n)),
-            ],
-            onChanged: (v) => setState(() => _nationality = v),
-          ),
-          const SizedBox(height: 16),
-          _label('المدينة'),
-          _chips(lists.cities, _city, (v) => setState(() => _city = v), _errors['city']),
-          const SizedBox(height: 16),
-          _label('المستوى التعليمي'),
-          _chips(ProfileOptions.education, _education, (v) => setState(() => _education = v), _errors['education']),
-        ];
-      case 1:
-        return [
-          _label('الحالة الاجتماعية'),
-          _chips(
-            ProfileOptions.maritalStatus,
-            _marital,
-            (v) => setState(() => _marital = v),
-            _errors['marital'],
-            labelOf: (v) => OptionLabels.self('maritalStatus', v, female: female),
-          ),
-          if (_marital != null && _marital != ProfileOptions.single) ...[
-            const SizedBox(height: 16),
-            _label('عدد الأبناء'),
-            TextField(
-              controller: _children,
-              keyboardType: TextInputType.number,
-              // The iPhone number pad has no «تم» key: a tap outside closes it
-              onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
-              inputFormatters: [LatinDigitsFormatter()],
-              onChanged: (_) => setState(() {}),
-              decoration: InputDecoration(hintText: '0', errorText: _errors['children']),
-            ),
-          ],
-          if (_religionOptions.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            _label('الديانة'),
-            _chips(
-              _religionOptions,
-              _religion,
-              (v) => setState(() => _religion = v),
-              _errors['religion'],
-              labelOf: (v) => OptionLabels.self('religion', v, female: female),
-            ),
-          ],
-          const SizedBox(height: 16),
-          _label('مستوى التدين'),
-          _chips(
-            ProfileOptions.religiosity,
-            _religiosity,
-            (v) => setState(() => _religiosity = v),
-            _errors['religiosity'],
-            labelOf: (v) => OptionLabels.self('religiosity', v, female: female),
-          ),
-          if (_asksSect) ...[
-            const SizedBox(height: 16),
-            _label('المذهب'),
-            _chips(
-              _sectOptions,
-              _sect,
-              (v) => setState(() => _sect = v),
-              _errors['sect'],
-              labelOf: (v) => OptionLabels.self('sect', v, female: female),
-            ),
-          ],
-        ];
-      case 2:
-        return [
-          _label('عمر ${female ? 'الزوج' : 'الزوجة'} المناسب'),
-          Row(
-            // An error under one field must not push the other down
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: TextField(
-                  key: const Key('age-min'),
-                  controller: _ageMin,
-                  keyboardType: TextInputType.number,
-                  // The iPhone number pad has no «تم» key: a tap outside closes it
-                  onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
-                  inputFormatters: [LatinDigitsFormatter()],
-                  onChanged: (_) => setState(() {}),
-                  decoration: InputDecoration(labelText: 'من', errorText: _errors['ageMin'], errorMaxLines: 3),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: TextField(
-                  key: const Key('age-max'),
-                  controller: _ageMax,
-                  keyboardType: TextInputType.number,
-                  // The iPhone number pad has no «تم» key: a tap outside closes it
-                  onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
-                  inputFormatters: [LatinDigitsFormatter()],
-                  onChanged: (_) => setState(() {}),
-                  decoration: InputDecoration(labelText: 'إلى', errorText: _errors['ageMax'], errorMaxLines: 3),
-                ),
-              ),
-            ],
-          ),
-          if (_prefReligionOptions.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            _label('الديانة لدى الشريك'),
-            _chips(_prefReligionOptions, _prefReligion, (v) => setState(() => _prefReligion = v), null),
-            for (final h in prefReligionHints(_religion, _prefReligion, const []))
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Text(h, style: AppText.labelRegular.copyWith(color: AppColors.muted)),
-              ),
-          ],
-          const SizedBox(height: 10),
-          Text('${forViewer(female, 'يمكنك', 'يمكنكِ')} إضافة تفضيلات أخرى لاحقاً من «تفضيلاتي» في حسابك.',
-              style: AppText.labelRegular.copyWith(color: AppColors.muted)),
         ];
       default:
+        final values = _values;
         return [
-          GuardianFieldsView(
-            fields: _guardian,
-            errors: _errors,
-            onFieldChanged: (key) => setState(() => _errors.remove(key)),
-          ),
+          for (final k in _shownKeys(step, values))
+            KeyedSubtree(
+              key: _anchor(k),
+              child: k == 'dateOfBirth'
+                  ? _dobField()
+                  : ProfileFieldControl(
+                      fieldKey: k,
+                      values: _v,
+                      // One answer may set two keys (her «الحجاب»: hijab + niqab); each lands here, the draft is saved
+                      // only when the step is finished
+                      onChanged: (key, value) => setState(() => _v[key] = value),
+                      lists: _lists,
+                      female: _female,
+                      controller: k == 'job' ? _jobCustom : _text[k],
+                      error: _errors[k],
+                      clearable: !setupRequired(k, values, _ctx),
+                    ),
+            ),
         ];
     }
   }
 
-  Widget _label(String t) => Padding(
-        padding: const EdgeInsets.only(bottom: 8),
-        child: Text(t, style: AppText.body.copyWith(fontWeight: FontWeight.w700)),
-      );
-
-  Widget _chips(List<String> options, String? value, ValueChanged<String> onPick, String? error,
-      {String Function(String)? labelOf}) {
+  /// The birth date (its own picker: an old draft date outside the usual range still opens it)
+  Widget _dobField() {
+    final dob = DateTime.tryParse(asString(_v['dateOfBirth']) ?? '');
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            for (final o in options)
-              ChoiceChip(
-                label: Text(labelOf?.call(o) ?? o),
-                // No ✓ here: it widened the picked chip, the row re-wrapped and the next tap landed in a gap; the
-                // pick shows by its colour and navy edge
-                showCheckmark: false,
-                selected: value == o,
-                onSelected: (_) => onPick(o),
-                materialTapTargetSize: MaterialTapTargetSize.padded,
-              ),
-          ],
+        Padding(
+          padding: const EdgeInsets.only(top: 16, bottom: 8),
+          child: Text(profileFieldLabels['dateOfBirth']!, style: AppText.body.copyWith(fontWeight: FontWeight.w700)),
         ),
-        // Eases out when answered instead of pulling the rows below up under the finger
-        AnimatedSize(
-          duration: const Duration(milliseconds: 250),
-          alignment: AlignmentDirectional.topStart,
-          child: error == null
-              ? const SizedBox(width: double.infinity)
-              : Padding(
-                  padding: const EdgeInsets.only(top: 6),
-                  child: Text(error, style: AppText.labelRegular.copyWith(color: AppColors.danger)),
-                ),
+        InkWell(
+          key: const Key('field-dateOfBirth'),
+          borderRadius: BorderRadius.circular(14),
+          onTap: _pickDob,
+          child: InputDecorator(
+            decoration: InputDecoration(
+              errorText: _errors['dateOfBirth'],
+              suffixIcon: const Icon(Icons.calendar_month_outlined),
+            ),
+            child: Text(dob == null ? 'اختيار التاريخ' : formatDate(dob),
+                style: TextStyle(color: dob == null ? AppColors.muted : AppColors.ink)),
+          ),
         ),
       ],
     );

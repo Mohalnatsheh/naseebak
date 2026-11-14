@@ -255,7 +255,9 @@ src/
 ## Privacy and domain rules
 
 - No contact between members except chat after a mutual match and an accepted request: text only, filtered.
-- Photos stay hidden until a mutual like. Member photos use `next/image` with `unoptimized`.
+- Photos: before a match other members see only a server-made, strongly blurred 16 px preview of the main photo (`Photo.blurPreview`; `photoPreview` on pre-match cards, built by `src/lib/photos/preview-payload.ts`). The real photo shows only after a mutual like. Member photos use `next/image` with `unoptimized`.
+  - Switch `photo_blur_preview` (default on, no Admin button, set in `system_settings`; off sends `photoPreview: null`). Owner, 2026-11-14: on for all, no member opt-out, no notice.
+  - Backfill: `npx tsx scripts/backfill-photo-previews.ts` (run after deploy, `.env` loaded) plus the morning task `previewFill` (cursor `photo_preview_cursor`). The deploy needs `--db-push` (one additive column).
 - Parent/guardian data is admin-only, except after an accepted family introduction with consent (`ParentInfo.shareConsentAt`).
 - A closed match never returns guardian contacts.
 - Members are 18+.
@@ -435,6 +437,7 @@ Reach the app at once, no version: list contents and order, limits, prices, API 
 
 Needs a new app version:
 
+- The blurred photo preview in app avatars (2026-11-14, `MemberAvatar.preview`): the next version after 1.4.0. Old apps keep the letter veil.
 - Anything the app decides itself, such as the «مهتم» lock at 0 credits. The «مهتم» paywall (`interest_paywall`, 2026-11-11) is built in the app after 1.2.1 (`RechargeSheet`, `Counts.interestPaywall`), not released yet.
 - New screens, new fields the app sends, analytics events, push channels, deep links.
 - A `purchase` event, popup tap actions.

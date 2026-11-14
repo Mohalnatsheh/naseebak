@@ -60,8 +60,10 @@ class _SuggestionsScreenState extends ConsumerState<SuggestionsScreen> with Sing
       // The balance can change elsewhere (a refund, the website, admin): the cards' «مهتم» lock follows it
       final credits = meta.credits;
       if (credits != null && mounted) ref.read(authControllerProvider.notifier).updateCredits(credits);
-    } catch (_) {
-      // Shown by the screen (ErrorView with a retry)
+    } catch (e) {
+      // With nothing loaded yet the screen shows ErrorView (with a retry); otherwise the tabs and their cards stay
+      // and the failure is said in a snack (audit I1: a blip replaced every tab and broke the match dialog)
+      if (mounted && ref.read(suggestionsMetaProvider).hasValue) showSnack(context, ApiException.messageOf(e));
     }
     if (mounted) setState(() => _reload++);
   }
@@ -164,7 +166,10 @@ class _SuggestionsScreenState extends ConsumerState<SuggestionsScreen> with Sing
           ],
         ),
       ),
+      // skipError: a failed refresh keeps the last answer (the tabs, their pages and places); ErrorView only when
+      // nothing was ever loaded
       body: meta.when(
+        skipError: true,
         loading: () => const CardSkeletonList(),
         error: (e, _) => ErrorView(error: e, onRetry: _topUp),
         data: (m) => TabBarView(
@@ -221,6 +226,13 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
   Object? _error;
   bool _loading = true;
   bool _loadingMore = false;
+
+  /// The last «عرض المزيد» failed: scrolling no longer retries it (a snack each time); the button or a reload does
+  bool _moreFailed = false;
+
+  /// «جديدة» empty because my open cards are full (`pending`): how many of my «مهتم» wait in «بانتظار ردّهم» (the
+  /// website's `totals.waiting`), which picks the message and button. Null: not read, or the read failed.
+  int? _waitingTotal;
   final Set<String> _busy = {};
 
   /// A full profile is on screen (pushed from this list): a second tap meanwhile does nothing
@@ -409,11 +421,22 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
         last = res.page;
         if (!res.page.hasMore) break;
       }
+      int? waiting;
+      if (widget.tab == FeedTab.newTab && items.isEmpty && widget.meta.emptyReason == 'pending') {
+        try {
+          waiting = (await repo.feed(FeedTab.waiting)).page.total;
+        } catch (_) {
+          // Unknown: the message falls back to what counts tell, with no button
+        }
+        if (!mounted || generation != _generation) return;
+      }
       setState(() {
         _items
           ..clear()
           ..addAll(items);
         _page = last;
+        _moreFailed = false;
+        _waitingTotal = waiting;
       });
       _openAsked(loaded: true);
     } catch (e) {
@@ -426,9 +449,9 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
     }
   }
 
-  Future<void> _loadMore() async {
+  Future<void> _loadMore({bool auto = false}) async {
     final page = _page;
-    if (page == null || !page.hasMore || _loadingMore) return;
+    if (page == null || !page.hasMore || _loadingMore || (auto && _moreFailed)) return;
     final generation = _generation;
     setState(() => _loadingMore = true);
     try {
@@ -439,9 +462,12 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
       setState(() {
         _items.addAll(res.items.where((e) => !known.contains(e.id)));
         _page = res.page;
+        _moreFailed = false;
       });
     } catch (e) {
-      if (mounted) showSnack(context, ApiException.messageOf(e));
+      if (!mounted) return;
+      _moreFailed = true;
+      showSnack(context, ApiException.messageOf(e));
     } finally {
       if (mounted) setState(() => _loadingMore = false);
     }
@@ -486,7 +512,7 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
         context,
         interested
             ? (res.message ?? 'تم إرسال اهتمامك. نُعلمك عند التوافق.')
-            : (item.kind == FeedKind.legacyInterest ? 'تم الاعتذار بلطف' : 'تم. لن يظهر هذا الاقتراح مجدداً.'),
+            : _declineToast(item),
       );
     }
   }
@@ -500,6 +526,8 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
     final me = ref.read(authControllerProvider).me?.firstName ?? '';
     String first(String n) => n.trim().isEmpty ? '' : n.trim().characters.first;
     final initials = [first(me), first(item.candidate.firstName)].where((e) => e.isNotEmpty).join(' · ');
+    // Taken now: this list may be rebuilt or gone by the time the button is pressed
+    final router = GoRouter.of(context);
     showDialog<void>(
       context: context,
       barrierLabel: 'إغلاق',
@@ -514,7 +542,7 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
             onPressed: () {
               Navigator.of(ctx).pop();
               // Over the suggestions (back returns here), not instead of them
-              openAppRoute(GoRouter.of(context), copy.route);
+              openAppRoute(router, copy.route);
             },
             child: Text(copy.action),
           ),
@@ -636,7 +664,8 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
     final ok = await confirmDialog(
       context,
       title: 'تأكيد «لا»',
-      body: 'لن ${_p('يظهر', 'تظهر')} ${item.candidate.firstName} في اقتراحاتك مجدداً. لا يُبلَّغ الطرف الآخر بقرارك.',
+      body: 'لن ${_p('يظهر', 'تظهر')} ${item.candidate.firstName} في ${_g('اقتراحاتك', 'اقتراحاتكِ')} مجدداً'
+          '${_otherSideSeesDecline(item) ? '. سيظهر للطرف الآخر أنه لم يحصل توافق.' : _g('، ولن يعرف الطرف الآخر بقرارك.', '، ولن يعرف الطرف الآخر بقراركِ.')}',
       confirmLabel: 'نعم، لا يناسبني',
     );
     if (!ok || !mounted) return;
@@ -650,6 +679,15 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
       if (mounted) setState(() => _busy.remove(item.id));
     }
   }
+
+  /// A «لا» is shown to the other side only when they already said «مهتم» (website `declineToast`)
+  static bool _otherSideSeesDecline(FeedItem item) => item.likedYou || item.kind == FeedKind.legacyInterest;
+
+  /// The snack after a «لا», worded like the website's `declineToast`
+  String _declineToast(FeedItem item) => _otherSideSeesDecline(item)
+      ? 'تم. سيظهر للطرف الآخر أنه لم يحصل توافق.'
+      : _g('تم. لن يظهر لك هذا الاقتراح مجدداً، ولن يعرف الطرف الآخر بقرارك.',
+          'تم. لن يظهر لكِ هذا الاقتراح مجدداً، ولن يعرف الطرف الآخر بقراركِ.');
 
   /// «حظر» / «إبلاغ وحظر» from the card's menu (the server allows both for someone I was suggested)
   Future<void> _safety(FeedItem item, {required bool report}) async {
@@ -717,7 +755,7 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
             )
           : NotificationListener<ScrollNotification>(
               onNotification: (n) {
-                if (n.metrics.pixels > n.metrics.maxScrollExtent - 400) _loadMore();
+                if (n.metrics.pixels > n.metrics.maxScrollExtent - 400) _loadMore(auto: true);
                 return false;
               },
               child: ListView.separated(
@@ -776,8 +814,8 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
           art: LineArtKind.envelope,
           icon: Icons.favorite_border_rounded,
           title: 'لا توجد اهتمامات جديدة حالياً',
-          body: _g('استمر في استكشاف التوافقات، فقد تتعرّف إلى شخص يناسبك. من يبدي اهتمامه بك يظهر هنا.',
-              'استمري في استكشاف التوافقات، فقد تتعرّفين إلى شخص يناسبكِ. من يبدي اهتمامه بكِ يظهر هنا.'),
+          body: _g('استمر في استكشاف الاقتراحات، فقد تتعرّف إلى شخص يناسبك. من يبدي اهتمامه بك يظهر هنا.',
+              'استمري في استكشاف الاقتراحات، فقد تتعرّفين إلى شخص يناسبكِ. من يبدي اهتمامه بكِ يظهر هنا.'),
           actionLabel: showNew?.label,
           onAction: showNew?.go,
         );
@@ -786,7 +824,7 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
           art: LineArtKind.envelope,
           icon: Icons.hourglass_empty_rounded,
           title: _g('لم ترسل أي اهتمام بعد', 'لم ترسلي أي اهتمام بعد'),
-          body: '${_g('ابدأ', 'ابدئي')} باكتشاف التوافقات الجديدة. عندما ${_g('تختار', 'تختارين')} «مهتم» على اقتراح، '
+          body: '${_g('ابدأ', 'ابدئي')} باكتشاف الاقتراحات الجديدة. عندما ${_g('تختار', 'تختارين')} «مهتم» على اقتراح، '
               'يظهر هنا حتى يقرّر الطرف الآخر أو تنتهي مدته.',
           actionLabel: showNew?.label,
           onAction: showNew?.go,
@@ -812,23 +850,24 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
           );
         }
         if (m.emptyReason == 'pending') {
-          // My open cards are full: the ones waiting for my answer sit in «مهتمون بك», else they wait for the
-          // other side («بانتظار الرد»)
-          final forMe = (counts?.likedYou ?? 0) > 0;
+          // Like the website: my «مهتم» waiting in «بانتظار ردّهم» → open cards wait for the other side (with a
+          // button there); otherwise the cards wait for my decision. Count unknown (the read failed): what counts
+          // tell, with no button.
+          final waiting = _waitingTotal;
+          final theirs = waiting != null ? waiting > 0 : (counts?.likedYou ?? 0) == 0;
+          final showWaiting = widget.onShowTab != null && (waiting ?? 0) > 0;
           return MessageView(
             key: const Key('empty-pending'),
             art: LineArtKind.dallah,
             icon: Icons.hourglass_top_rounded,
-            title: forMe ? 'لديك اقتراحات بانتظار قرارك' : 'اقتراحاتك المفتوحة بانتظار الطرف الآخر',
-            body: forMe
-                ? 'عندما ${_g('تقرّر', 'تقرّرين')} في اقتراحاتك الحالية أو تنتهي مدتها، تصلك اقتراحات جديدة وسنرسل لك '
-                    'إشعاراً فور وصولها.'
-                : 'تصلك اقتراحات جديدة عندما يردّ الطرف الآخر على اقتراحاتك المفتوحة أو تنتهي مدتها، وسنرسل لك إشعاراً '
-                    'فور وصولها.',
-            actionLabel: widget.onShowTab == null ? null : (forMe ? 'عرض المهتمين بك' : 'عرض ما ينتظر الرد'),
-            onAction: widget.onShowTab == null
-                ? null
-                : () => widget.onShowTab!(forMe ? FeedTab.interested : FeedTab.waiting),
+            title: theirs ? 'اقتراحاتك المفتوحة بانتظار الطرف الآخر' : 'لديك اقتراحات بانتظار قرارك',
+            body: theirs
+                ? 'تصلك اقتراحات جديدة عندما يردّ الطرف الآخر على اقتراحاتك المفتوحة أو تنتهي مدتها، وسنرسل لك إشعاراً '
+                    'فور وصولها.'
+                : 'عندما ${_g('تقرّر', 'تقرّرين')} في اقتراحاتك الحالية أو تنتهي مدتها، تصلك اقتراحات جديدة وسنرسل لك '
+                    'إشعاراً فور وصولها.',
+            actionLabel: showWaiting ? 'عرض ما ينتظر الرد ($waiting)' : null,
+            onAction: showWaiting ? () => widget.onShowTab!(FeedTab.waiting) : null,
           );
         }
         return MessageView(

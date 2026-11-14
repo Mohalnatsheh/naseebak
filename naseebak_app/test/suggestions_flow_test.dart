@@ -10,6 +10,7 @@ import 'package:naseebak_app/features/discovery/candidate_profile_screen.dart';
 import 'package:naseebak_app/features/discovery/suggestion_card.dart';
 import 'package:naseebak_app/features/discovery/suggestion_models.dart';
 import 'package:naseebak_app/features/discovery/suggestions_screen.dart';
+import 'package:naseebak_app/shared/widgets/common.dart';
 
 import 'helpers/fake_api.dart';
 
@@ -110,12 +111,10 @@ class Harness {
     };
     adapter.handlers['GET /api/suggestions'] =
         (_) => FakeResponse(200, {'mutualView': true, 'emptyReason': emptyReason});
-    adapter.handlers['GET /api/suggestions/feed'] = (r) => FakeResponse(200, {
-          'items': r.queryParameters['tab'] == itemsTab ? items : <Map<String, dynamic>>[],
-          'page': 1,
-          'total': 1,
-          'totalPages': 1,
-        });
+    adapter.handlers['GET /api/suggestions/feed'] = (r) {
+      final list = r.queryParameters['tab'] == itemsTab ? items : <Map<String, dynamic>>[];
+      return FakeResponse(200, {'items': list, 'page': 1, 'total': list.length, 'totalPages': 1});
+    };
     container = ProviderContainer(overrides: [
       ...await testOverrides(adapter, store: MemoryTokenStore('t1')),
       pushAllowedProvider.overrideWith((ref) async => pushAllowed),
@@ -134,6 +133,7 @@ class Harness {
       final router = GoRouter(initialLocation: '/s', routes: [
         GoRoute(path: '/s', builder: (_, _) => SuggestionsScreen(initialTab: tab)),
         GoRoute(path: '/credits', builder: (_, _) => const Scaffold(body: Text('credits-page'))),
+        GoRoute(path: '/matches/:id', builder: (_, s) => Scaffold(body: Text('match-page-${s.pathParameters['id']}'))),
       ]);
       addTearDown(router.dispose);
       await tester.pumpWidget(UncontrolledProviderScope(container: container, child: rtlRouterApp(router)));
@@ -560,17 +560,23 @@ void main() {
   });
 
   group('empty «جديدة»', () {
-    testWidgets('pending: open cards wait for the other side', (tester) async {
-      final h = Harness(items: [], emptyReason: 'pending');
+    // Like the website: the title and button follow how many of my «مهتم» wait («بانتظار ردّهم» total)
+    testWidgets('pending with my «مهتم» waiting: open cards wait for the other side, with the count', (tester) async {
+      final h = Harness(items: [card('w1'), card('w2')], itemsTab: 'waiting', emptyReason: 'pending', likedYou: 2);
       await h.pump(tester);
       expect(find.text('اقتراحاتك المفتوحة بانتظار الطرف الآخر'), findsOneWidget);
-      expect(find.text('عرض ما ينتظر الرد'), findsOneWidget);
+      expect(find.text('عرض ما ينتظر الرد (2)'), findsOneWidget);
+      await tester.tap(find.text('عرض ما ينتظر الرد (2)'));
+      await pumpFor(tester);
+      expect(tester.widget<TabBar>(find.byType(TabBar)).controller!.index, FeedTab.waiting.index);
     });
 
-    testWidgets('pending with interest waiting for me', (tester) async {
-      final h = Harness(items: [], emptyReason: 'pending', likedYou: 2);
+    testWidgets('pending with nothing of mine waiting: cards wait for my decision, no button', (tester) async {
+      final h = Harness(items: [], emptyReason: 'pending');
       await h.pump(tester);
       expect(find.text('لديك اقتراحات بانتظار قرارك'), findsOneWidget);
+      expect(find.textContaining('عرض ما ينتظر الرد'), findsNothing);
+      expect(find.text('عرض المهتمين بك'), findsNothing);
     });
 
     testWidgets('credit on interest never promises «كل أسبوع»', (tester) async {
@@ -654,7 +660,7 @@ void main() {
       await tester.tap(find.text('نعم، لا يناسبني'));
       await pumpFor(tester, 30);
       expect(h.adapter.to('POST', '/api/suggestions/s1/decide').single.data, {'interested': false});
-      expect(find.text('تم. لن يظهر هذا الاقتراح مجدداً.'), findsOneWidget);
+      expect(find.text('تم. لن يظهر لكِ هذا الاقتراح مجدداً، ولن يعرف الطرف الآخر بقراركِ.'), findsOneWidget);
       expect(find.byKey(const Key('interested-s1')), findsNothing);
     });
 
@@ -827,7 +833,7 @@ void main() {
       await tester.tap(find.text('نعم، لا يناسبني'));
       await pumpFor(tester, 30);
       expect(h.adapter.to('POST', '/api/suggestions/i1/decide').single.data, {'interested': false});
-      expect(find.text('تم. لن يظهر هذا الاقتراح مجدداً.'), findsOneWidget);
+      expect(find.text('تم. سيظهر للطرف الآخر أنه لم يحصل توافق.'), findsOneWidget);
     });
 
     testWidgets('a card no longer in the tab: the tab shows, no profile, the request is dropped', (tester) async {
@@ -857,5 +863,108 @@ void main() {
       expect(r.pendingFor(FeedTab.newTab), isNull);
     });
   });
-}
 
+  group('audit 2026-11-14 (discovery)', () {
+    testWidgets('I1: a failed top-up keeps the tabs and cards, and says so in a snack', (tester) async {
+      final h = Harness();
+      await h.pump(tester);
+      expect(find.byKey(const Key('decline-s1')), findsOneWidget);
+      h.adapter.on('GET', '/api/suggestions', const FakeResponse.network());
+      final refreshed = tester.state<RefreshIndicatorState>(find.byType(RefreshIndicator).first).show();
+      await pumpFor(tester, 30);
+      await refreshed;
+      expect(find.byType(ErrorView), findsNothing);
+      expect(find.byKey(const Key('decline-s1')), findsOneWidget);
+      expect(find.byType(SnackBar), findsOneWidget);
+    });
+
+    testWidgets('I1: the match dialog still opens the match when the top-up after it fails', (tester) async {
+      final h = Harness(withRouter: true);
+      h.adapter.handlers['POST /api/suggestions/s1/decide'] = (_) {
+        h.items.clear();
+        h.adapter.on('GET', '/api/suggestions', const FakeResponse.network());
+        return const FakeResponse(200, {'match': true, 'matchId': 'm1', 'intro': 'FAMILY', 'myPreference': 'FAMILY'});
+      };
+      await h.pump(tester);
+      await tester.tap(find.byKey(const Key('interested-s1')));
+      await pumpFor(tester);
+      await tester.tap(find.byKey(const Key('pref-family')));
+      await tester.tap(find.byKey(const Key('send-interest')));
+      await pumpFor(tester, 40);
+      expect(find.byType(ErrorView), findsNothing);
+      await tester.tap(find.byKey(const Key('match-dialog-open')));
+      await pumpFor(tester, 20);
+      expect(tester.takeException(), isNull);
+      expect(find.text('match-page-m1'), findsOneWidget);
+    });
+
+    testWidgets('I2: «لا» on a card that liked me says the other side will see it was no match', (tester) async {
+      final h = Harness(items: [card('s1', likedYou: true)], itemsTab: 'interested', likedYou: 1);
+      h.adapter.handlers['POST /api/suggestions/s1/decide'] = (_) {
+        h.items.clear();
+        return const FakeResponse(200, {'match': false});
+      };
+      await h.pump(tester, tab: FeedTab.interested);
+      await tester.tap(find.byKey(const Key('decline-s1')));
+      await pumpFor(tester);
+      expect(find.textContaining('سيظهر للطرف الآخر أنه لم يحصل توافق.'), findsOneWidget);
+      expect(find.textContaining('لن يعرف الطرف الآخر'), findsNothing);
+      await tester.tap(find.text('نعم، لا يناسبني'));
+      await pumpFor(tester, 30);
+      expect(find.text('تم. سيظهر للطرف الآخر أنه لم يحصل توافق.'), findsOneWidget);
+    });
+
+    testWidgets('I2: «لا» on a new card says the other side won\'t know (website wording)', (tester) async {
+      final h = Harness();
+      h.adapter.handlers['POST /api/suggestions/s1/decide'] = (_) {
+        h.items.clear();
+        return const FakeResponse(200, {'match': false});
+      };
+      await h.pump(tester);
+      await tester.tap(find.byKey(const Key('decline-s1')));
+      await pumpFor(tester);
+      expect(find.textContaining('ولن يعرف الطرف الآخر بقراركِ.'), findsOneWidget);
+      await tester.tap(find.text('نعم، لا يناسبني'));
+      await pumpFor(tester, 30);
+      expect(find.text('تم. لن يظهر لكِ هذا الاقتراح مجدداً، ولن يعرف الطرف الآخر بقراركِ.'), findsOneWidget);
+    });
+
+    testWidgets('M1: a failed «عرض المزيد» is not retried on every scroll, only on the button', (tester) async {
+      final h = Harness();
+      await h.pump(tester);
+      h.adapter.handlers['GET /api/suggestions/feed'] = (r) {
+        final page = int.parse('${r.queryParameters['page'] ?? 1}');
+        if (page == 2) return const FakeResponse.network();
+        final list = r.queryParameters['tab'] == 'new'
+            ? [for (var i = 1; i <= 10; i++) card('n$i')]
+            : <Map<String, dynamic>>[];
+        return FakeResponse(200, {'items': list, 'page': 1, 'total': 12, 'totalPages': 2});
+      };
+      final refreshed = tester.state<RefreshIndicatorState>(find.byType(RefreshIndicator).first).show();
+      await pumpFor(tester, 30);
+      await refreshed;
+      int page2() =>
+          h.adapter.to('GET', '/api/suggestions/feed').where((r) => '${r.queryParameters['page']}' == '2').length;
+      for (var i = 0; i < 12; i++) {
+        await tester.drag(find.byType(ListView).first, const Offset(0, -900));
+        await pumpFor(tester, 5);
+      }
+      expect(page2(), 1);
+      // The button (a snack may sit over it): it retries
+      tester.widget<TextButton>(find.widgetWithText(TextButton, 'عرض المزيد')).onPressed!();
+      await pumpFor(tester, 10);
+      expect(page2(), 2);
+    });
+
+    testWidgets('M2: empty «مهتمون بك» and «بانتظار ردّهم» speak of «الاقتراحات», not «التوافقات»', (tester) async {
+      final h = Harness(items: []);
+      await h.pump(tester, tab: FeedTab.interested);
+      expect(find.textContaining('استكشاف الاقتراحات'), findsOneWidget);
+      await h.show(tester, FeedTab.waiting);
+      await tester.tap(find.byKey(const Key('feed-tab-waiting')));
+      await pumpFor(tester);
+      expect(find.textContaining('باكتشاف الاقتراحات الجديدة'), findsOneWidget);
+      expect(find.textContaining('التوافقات'), findsNothing);
+    });
+  });
+}

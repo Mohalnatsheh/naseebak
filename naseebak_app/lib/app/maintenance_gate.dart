@@ -86,16 +86,10 @@ class _MaintenanceGateState extends ConsumerState<MaintenanceGate> with WidgetsB
   @override
   Widget build(BuildContext context) {
     final m = ref.watch(maintenanceProvider);
-    // The app stays mounted under the page (hidden, tickers off): when maintenance ends, every open screen, typed
-    // answer and scroll position is still there
-    return Stack(
-      textDirection: TextDirection.rtl,
-      fit: StackFit.expand,
-      children: [
-        Offstage(offstage: m.enabled, child: TickerMode(enabled: !m.enabled, child: widget.child)),
-        if (m.enabled) _page(m),
-      ],
-    );
+    // Nothing of the app is built under the page: hidden screens would keep polling, marking chats read and taking
+    // focus and back (review I-1)
+    if (!m.enabled) return widget.child;
+    return _page(m);
   }
 
   Widget _page(MaintenanceState m) {

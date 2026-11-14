@@ -486,31 +486,43 @@ void main() {
       expect(adapter.to('GET', '/api/mobile/config'), hasLength(2));
     });
 
-    testWidgets('M10: maintenance on and off keeps what was typed underneath', (tester) async {
+    testWidgets('I-1: under maintenance the app is not built at all (no hidden screens, timers or focus)', (tester) async {
       final adapter = FakeAdapter()..on('GET', '/api/mobile/config', FakeResponse(200, cfg()));
       final c = await pumpGates(tester, adapter);
-      await tester.enterText(find.byKey(const Key('typed')), 'سارة');
+      expect(find.byKey(const Key('typed')), findsOneWidget);
       adapter.on('GET', '/api/mobile/config', FakeResponse(200, cfg(maintenance: true)));
       c.read(maintenanceProvider.notifier).check();
       for (var i = 0; i < 5; i++) {
         await tester.pump(const Duration(milliseconds: 20));
       }
       expect(find.byKey(const Key('maintenance')), findsOneWidget);
-      expect(find.byKey(const Key('typed')), findsNothing);
+      expect(find.byKey(const Key('typed'), skipOffstage: false), findsNothing);
+      expect(find.byType(TextField, skipOffstage: false), findsNothing);
       adapter.on('GET', '/api/mobile/config', FakeResponse(200, cfg()));
       c.read(maintenanceProvider.notifier).check();
       for (var i = 0; i < 5; i++) {
         await tester.pump(const Duration(milliseconds: 20));
       }
-      expect(find.text('سارة'), findsOneWidget);
+      expect(find.byKey(const Key('maintenance')), findsNothing);
+      expect(find.byKey(const Key('typed')), findsOneWidget);
+    });
+
+    testWidgets('I-1: under a required update the app is not built at all', (tester) async {
+      final adapter = FakeAdapter()
+        ..on('GET', '/api/mobile/config', FakeResponse(200, cfg(iosMin: '1.1.0', iosStore: 'https://apps.apple.com/app/id1')));
+      await pumpGates(tester, adapter);
+      expect(find.byKey(const Key('update-required')), findsOneWidget);
+      expect(find.byKey(const Key('typed'), skipOffstage: false), findsNothing);
+      expect(find.byType(MaintenanceGate, skipOffstage: false), findsNothing);
     });
 
     testWidgets('M11: iPhone minimum with no store link: still required, clear words, no dead button', (tester) async {
       final adapter = FakeAdapter()..on('GET', '/api/mobile/config', FakeResponse(200, cfg(iosMin: '1.1.0')));
       await pumpGates(tester, adapter);
       expect(find.byKey(const Key('update-required')), findsOneWidget);
-      expect(find.byKey(const Key('typed')), findsNothing);
+      expect(find.byKey(const Key('typed'), skipOffstage: false), findsNothing);
       expect(find.byKey(const Key('update-now')), findsNothing);
+      expect(find.text('إعادة التحقق'), findsOneWidget);
       expect(find.textContaining('App Store'), findsOneWidget);
       // A live button: checks again (the store link may have been set since)
       adapter.on('GET', '/api/mobile/config',

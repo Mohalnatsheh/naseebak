@@ -68,7 +68,7 @@ class MobileConfigLoader {
 
 final mobileConfigLoaderProvider = Provider<MobileConfigLoader>(MobileConfigLoader.new);
 
-/// This platform's store link from `GET /api/mobile/config` ('' when unset or unreachable): «قيّم التطبيق»
+/// This platform's store link from `GET /api/mobile/config` ('' when unset or unreachable): «تقييم التطبيق»
 final storeUrlProvider = FutureProvider<String>((ref) async {
   try {
     final config = await ref.read(mobileConfigLoaderProvider).load();
@@ -154,25 +154,21 @@ class _UpdateGateState extends ConsumerState<UpdateGate> with WidgetsBindingObse
   Widget build(BuildContext context) {
     final status = ref.watch(updateCheckProvider);
     // Above the Navigator: give the gate its own direction and material
-    // An optional update is a card over the tabs only (`OptionalUpdateCard` in the tab shell): floating here, above
-    // every screen, it covered the chat, the sign-in and the setup pages. A required one covers the app, which stays
-    // mounted (hidden, tickers off) so nothing typed is lost if the requirement is lifted.
-    final blocked = status.level == UpdateLevel.required;
     return Directionality(
       textDirection: TextDirection.rtl,
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          Offstage(offstage: blocked, child: TickerMode(enabled: !blocked, child: widget.child)),
-          if (blocked)
-            _RequiredUpdate(
-              status: status,
-              platform: ref.watch(appPlatformProvider),
-              onUpdate: () => openStoreLink(status.storeUrl),
-              onCheckAgain: () => ref.read(updateCheckProvider.notifier).check(),
-            ),
-        ],
-      ),
+      child: switch (status.level) {
+        // A required update replaces the app: nothing of it is built underneath (hidden screens would keep polling,
+        // topping up suggestions and taking focus and back, review I-1)
+        UpdateLevel.required => _RequiredUpdate(
+            status: status,
+            platform: ref.watch(appPlatformProvider),
+            onUpdate: () => openStoreLink(status.storeUrl),
+            onCheckAgain: () => ref.read(updateCheckProvider.notifier).check(),
+          ),
+        // An optional update is a card over the tabs only (`OptionalUpdateCard` in the tab shell): floating here,
+        // above every screen, it covered the chat, the sign-in and the setup pages
+        UpdateLevel.optional || UpdateLevel.none => widget.child,
+      },
     );
   }
 }
@@ -246,7 +242,7 @@ class _RequiredUpdateState extends State<_RequiredUpdate> {
                     ),
                     onPressed: _checking ? null : _checkAgain,
                     icon: const Icon(Icons.refresh_rounded),
-                    label: Text(_checking ? 'جارٍ التحقق…' : 'تحقّق مرة أخرى'),
+                    label: Text(_checking ? 'جارٍ التحقق…' : 'إعادة التحقق'),
                   ),
                 ),
               ] else

@@ -135,15 +135,17 @@ class WaComposerPill extends StatelessWidget {
               minLines: 1,
               maxLines: 6,
               maxLength: chatMessageMaxLength,
-              // Counts down only near the server's limit (a hidden counter cut long messages with no word)
-              buildCounter: (_, {required currentLength, required isFocused, maxLength}) => currentLength < 900
-                  ? null
-                  : Text(
-                      '$currentLength/$maxLength',
-                      key: const Key('chat-length'),
-                      style: AppText.caption.copyWith(
-                          color: currentLength >= (maxLength ?? 0) ? AppColors.danger : AppColors.muted),
-                    ),
+              // Counts down only near the server's limit (a hidden counter cut long messages with no word). Counted
+              // like sending and the server: UTF-16 units of the trimmed text, so an emoji counts 2 (review minor 5)
+              buildCounter: (_, {required currentLength, required isFocused, maxLength}) {
+                final n = controller.text.trim().length;
+                if (n < 900) return null;
+                return Text(
+                  '$n/$maxLength',
+                  key: const Key('chat-length'),
+                  style: AppText.caption.copyWith(color: n > (maxLength ?? 0) ? AppColors.danger : AppColors.muted),
+                );
+              },
               textInputAction: TextInputAction.newline,
               onChanged: onChanged,
               // A tap anywhere else (the messages, the header) closes the keyboard

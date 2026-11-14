@@ -414,6 +414,20 @@ void main() {
       expect(find.text('950/1000'), findsOneWidget);
     });
 
+    testWidgets('the countdown counts like sending does (UTF-16, trimmed): emoji count double (review minor 5)',
+        (tester) async {
+      final adapter = FakeAdapter()..on('GET', '/api/chats/c1', FakeResponse(200, page([1])));
+      await openRoom(tester, adapter, MemoryChatCache());
+      await tester.pumpAndSettle();
+      final input = find.byKey(const Key('chat-input'));
+      await tester.enterText(input, '😊' * 475);
+      await tester.pump();
+      expect(find.text('950/1000'), findsOneWidget);
+      await tester.enterText(input, '${'😊' * 600}   ');
+      await tester.pump();
+      expect(find.text('1200/1000'), findsOneWidget);
+    });
+
     testWidgets('longer than the server takes (emoji count double there): not sent, a plain line says so',
         (tester) async {
       final adapter = FakeAdapter()..on('GET', '/api/chats/c1', FakeResponse(200, page([1])));

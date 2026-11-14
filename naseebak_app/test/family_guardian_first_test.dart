@@ -56,4 +56,51 @@ void main() {
     expect(sent, hasLength(1));
     expect((sent.single.data as Map)['consent'], isTrue);
   });
+
+  // Audit 2026-11-14 M7: the guardian form and the consent run before the request's busy state, so a double tap
+  // pushed two forms
+  testWidgets('a double tap on «طلب تعارف عائلي» opens one guardian form', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(800, 2000));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final intro = introJson();
+    final adapter = FakeAdapter()
+      ..on('GET', '/api/mobile/me', FakeResponse(200, {'user': {...meJson(), 'gender': 'MALE'}}))
+      ..on('GET', '/api/me/counts', FakeResponse(200, {'flags': intro['flags']}))
+      ..on('POST', '/api/matches/m1/intro', const FakeResponse(201, {'ok': true}));
+    adapter.handlers['GET /api/matches'] = (_) => FakeResponse(200, {'matches': [matchJson()], 'page': 1, 'total': 1, 'totalPages': 1});
+    adapter.handlers['GET /api/matches/m1/intro'] = (_) => FakeResponse(200, {
+          ...intro,
+          'myGuardian': {'exists': false, 'consented': false, 'askShare': false},
+        });
+    final container = ProviderContainer(overrides: await testOverrides(adapter, store: MemoryTokenStore('t1')));
+    addTearDown(container.dispose);
+    await tester.runAsync(() => settled(container));
+    var forms = 0;
+    final router = GoRouter(initialLocation: '/m', routes: [
+      GoRoute(path: '/m', builder: (_, _) => const MatchDetailScreen(matchId: 'm1')),
+      GoRoute(
+        path: '/profile/guardian',
+        builder: (context, _) {
+          forms++;
+          return Scaffold(
+            body: TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('رجوع')),
+          );
+        },
+      ),
+    ]);
+    await tester.pumpWidget(UncontrolledProviderScope(container: container, child: rtlRouterApp(router)));
+    await pumpFor(tester);
+    await tester.tap(find.textContaining('طلب تعارف عائلي'));
+    await tester.tap(find.textContaining('طلب تعارف عائلي'));
+    await pumpFor(tester);
+    expect(find.text('رجوع', skipOffstage: false), findsOneWidget);
+    expect(forms, 1);
+    // Back out of the form: the button works again
+    await tester.tap(find.text('رجوع'));
+    await pumpFor(tester);
+    await tester.tap(find.textContaining('طلب تعارف عائلي'));
+    await pumpFor(tester);
+    expect(find.text('رجوع'), findsOneWidget);
+    expect(adapter.to('POST', '/api/matches/m1/intro'), isEmpty);
+  });
 }

@@ -418,6 +418,21 @@ class _IntroPanelState extends ConsumerState<IntroPanel> {
     return (go: true, consented: saved == GuardianSaved.consented);
   }
 
+  /// A family step: the guardian form and the consent question first, then [go] (which runs `_run`). The button is
+  /// busy ([key]) from the first tap, so a double tap opens one form or one question, not two (audit M7); it frees
+  /// again when the member backs out.
+  Future<void> _familyStep(String key, Future<bool> Function() ready, Future<void> Function() go) async {
+    if (_busy != null) return;
+    setState(() => _busy = key);
+    var ok = false;
+    try {
+      ok = await ready();
+    } finally {
+      if (mounted) setState(() => _busy = null);
+    }
+    if (ok && mounted) await go();
+  }
+
   Future<bool> _consent(String title) => confirmDialog(
         context,
         title: title,
@@ -558,13 +573,14 @@ class _IntroPanelState extends ConsumerState<IntroPanel> {
             children.add(_ReplyRow(
               busy: _busy,
               keyPrefix: 'f',
-              onAccept: () async {
-                final guardian = await _guardianFirst(s);
-                if (!guardian.go) return;
+              onAccept: () {
                 final needConsent = !s.guardianConsented;
-                if (needConsent && !guardian.consented && !await _consent('قبول التعارف العائلي')) return;
-                await _run('f-yes', () => repo.respond(s.familyRequestId!, accept: true, consent: needConsent ? true : null).then((_) => _answered('FAMILY', true)),
-                    success: 'تم قبول التعارف العائلي');
+                _familyStep('f-yes', () async {
+                  final guardian = await _guardianFirst(s);
+                  if (!guardian.go) return false;
+                  return !needConsent || guardian.consented || await _consent('قبول التعارف العائلي');
+                }, () => _run('f-yes', () => repo.respond(s.familyRequestId!, accept: true, consent: needConsent ? true : null).then((_) => _answered('FAMILY', true)),
+                    success: 'تم قبول التعارف العائلي'));
               },
               onDecline: () => _run('f-no', () => repo.respond(s.familyRequestId!, accept: false).then((_) => _answered('FAMILY', false)),
                   success: 'تم الرد'),
@@ -592,13 +608,12 @@ class _IntroPanelState extends ConsumerState<IntroPanel> {
                 label: s.familyFree || s.flags.creditOnInterest ? 'طلب تعارف عائلي (مجاني)' : 'طلب تعارف عائلي (رصيد واحد)',
                 icon: Icons.family_restroom_rounded,
                 loading: _busy == 'family',
-                onPressed: () async {
+                onPressed: () => _familyStep('family', () async {
                   final guardian = await _guardianFirst(s);
-                  if (!guardian.go) return;
-                  if (!guardian.consented && !await _consent('طلب تعارف عائلي')) return;
-                  await _run('family', () => repo.sendIntro(widget.matchId, 'FAMILY', consent: true).then((_) => _requested('FAMILY')),
-                      success: 'تم إرسال طلب التعارف العائلي');
-                },
+                  if (!guardian.go) return false;
+                  return guardian.consented || await _consent('طلب تعارف عائلي');
+                }, () => _run('family', () => repo.sendIntro(widget.matchId, 'FAMILY', consent: true).then((_) => _requested('FAMILY')),
+                    success: 'تم إرسال طلب التعارف العائلي')),
               ));
               if (s.familyOpenUntil != null) {
                 gap();
@@ -673,12 +688,11 @@ class _IntroPanelState extends ConsumerState<IntroPanel> {
                 TextButton(
                   onPressed: _busy != null
                       ? null
-                      : () async {
-                          final guardian = await _guardianFirst(s);
-                          if (!guardian.go) return;
-                          if (!guardian.consented && !await _consent('مشاركة بيانات وليّ الأمر')) return;
-                          await _run('share', () async => repo.shareGuardian(widget.matchId), success: 'تمت المشاركة');
-                        },
+                      : () => _familyStep('share', () async {
+                            final guardian = await _guardianFirst(s);
+                            if (!guardian.go) return false;
+                            return guardian.consented || await _consent('مشاركة بيانات وليّ الأمر');
+                          }, () => _run('share', () async => repo.shareGuardian(widget.matchId), success: 'تمت المشاركة')),
                   child: const Text('مشاركة الآن'),
                 ),
                 TextButton(

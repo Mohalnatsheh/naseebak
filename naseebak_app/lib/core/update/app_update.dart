@@ -55,10 +55,23 @@ final appVersionProvider = FutureProvider<String>((ref) async => (await PackageI
 /// "android" | "ios" (overridden in tests)
 final appPlatformProvider = Provider<String>((ref) => Platform.isIOS ? 'ios' : 'android');
 
+/// `GET /api/mobile/config` for the update and maintenance gates: calls made while one is on the way share it, so a
+/// start or a resume reads it once (each gate used to read it on its own)
+class MobileConfigLoader {
+  MobileConfigLoader(this._ref);
+  final Ref _ref;
+  Future<Json>? _running;
+
+  Future<Json> load() =>
+      _running ??= _ref.read(apiClientProvider).get('/api/mobile/config', auth: false).whenComplete(() => _running = null);
+}
+
+final mobileConfigLoaderProvider = Provider<MobileConfigLoader>(MobileConfigLoader.new);
+
 /// This platform's store link from `GET /api/mobile/config` ('' when unset or unreachable): «قيّم التطبيق»
 final storeUrlProvider = FutureProvider<String>((ref) async {
   try {
-    final config = await ref.read(apiClientProvider).get('/api/mobile/config', auth: false);
+    final config = await ref.read(mobileConfigLoaderProvider).load();
     return asStringOr(asMap(config[ref.read(appPlatformProvider)])['storeUrl']);
   } catch (_) {
     return '';
@@ -77,9 +90,13 @@ class UpdateCheck extends Notifier<UpdateStatus> {
   }
 
   Future<void> check() async {
+    // Asked before the version is read: the maintenance gate's check, made in the same moment, shares the request
+    final configF = ref.read(mobileConfigLoaderProvider).load();
+    // Never an unhandled error when the version read fails first
+    configF.ignore();
     try {
       final current = await ref.read(appVersionProvider.future);
-      final config = await ref.read(apiClientProvider).get('/api/mobile/config', auth: false);
+      final config = await configF;
       final status = UpdateStatus.from(config, ref.read(appPlatformProvider), current);
       // «لاحقاً» on an optional update hides it until a newer one is announced
       final dismissed = ref.read(sharedPreferencesProvider).getString(_dismissedKey);
@@ -137,33 +154,64 @@ class _UpdateGateState extends ConsumerState<UpdateGate> with WidgetsBindingObse
   Widget build(BuildContext context) {
     final status = ref.watch(updateCheckProvider);
     // Above the Navigator: give the gate its own direction and material
+    // An optional update is a card over the tabs only (`OptionalUpdateCard` in the tab shell): floating here, above
+    // every screen, it covered the chat, the sign-in and the setup pages. A required one covers the app, which stays
+    // mounted (hidden, tickers off) so nothing typed is lost if the requirement is lifted.
+    final blocked = status.level == UpdateLevel.required;
     return Directionality(
       textDirection: TextDirection.rtl,
-      child: switch (status.level) {
-        UpdateLevel.required => _RequiredUpdate(status: status, onUpdate: () => openStoreLink(status.storeUrl)),
-        // An optional update is a card over the tabs only (`OptionalUpdateCard` in the tab shell): floating here,
-        // above every screen, it covered the chat, the sign-in and the setup pages
-        UpdateLevel.optional || UpdateLevel.none => widget.child,
-      },
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Offstage(offstage: blocked, child: TickerMode(enabled: !blocked, child: widget.child)),
+          if (blocked)
+            _RequiredUpdate(
+              status: status,
+              platform: ref.watch(appPlatformProvider),
+              onUpdate: () => openStoreLink(status.storeUrl),
+              onCheckAgain: () => ref.read(updateCheckProvider.notifier).check(),
+            ),
+        ],
+      ),
     );
   }
 }
 
-class _RequiredUpdate extends StatelessWidget {
-  const _RequiredUpdate({required this.status, required this.onUpdate});
+class _RequiredUpdate extends StatefulWidget {
+  const _RequiredUpdate({required this.status, required this.platform, required this.onUpdate, required this.onCheckAgain});
   final UpdateStatus status;
+  final String platform;
   final VoidCallback onUpdate;
+  final Future<void> Function() onCheckAgain;
+
+  @override
+  State<_RequiredUpdate> createState() => _RequiredUpdateState();
+}
+
+class _RequiredUpdateState extends State<_RequiredUpdate> {
+  bool _checking = false;
+
+  Future<void> _checkAgain() async {
+    setState(() => _checking = true);
+    await widget.onCheckAgain();
+    if (mounted) setState(() => _checking = false);
+  }
 
   @override
   Widget build(BuildContext context) {
+    final status = widget.status;
+    // No store link set yet (Admin → Settings → Mobile app): the update stays required, the page says where to get it
+    final noLink = status.storeUrl.isEmpty;
+    final store = widget.platform == 'ios' ? 'App Store' : 'Google Play';
     return Material(
       key: const Key('update-required'),
       color: AppColors.navyDeep,
       child: SafeArea(
-        child: Padding(
+        // Scrolls with large system text on a small phone
+        child: Center(
+          child: SingleChildScrollView(
           padding: const EdgeInsets.all(28),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const Icon(Icons.system_update_rounded, size: 72, color: AppColors.gold),
               const SizedBox(height: 24),
@@ -179,26 +227,46 @@ class _RequiredUpdate extends StatelessWidget {
                 style: AppText.body.copyWith(color: Colors.white70, height: 1.6),
               ),
               const SizedBox(height: 32),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  key: const Key('update-now'),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.gold,
-                    foregroundColor: Colors.white,
-                    minimumSize: const Size.fromHeight(54),
-                  ),
-                  onPressed: status.storeUrl.isEmpty ? null : onUpdate,
-                  icon: const Icon(Icons.download_rounded),
-                  label: Text('تحديث الآن', style: AppText.body.copyWith(fontWeight: FontWeight.w700)),
+              if (noLink) ...[
+                Text(
+                  'يمكنك تحديث «نصيبك» من متجر $store على جهازك، ثم فتح التطبيق من جديد.',
+                  key: const Key('update-store-hint'),
+                  textAlign: TextAlign.center,
+                  style: AppText.body.copyWith(color: Colors.white, fontWeight: FontWeight.w700, height: 1.6),
                 ),
-              ),
-              if (status.storeUrl.isEmpty) ...[
-                const SizedBox(height: 12),
-                const Text('يمكنك تحديث «نصيبك» من متجر التطبيقات.',
-                    textAlign: TextAlign.center, style: TextStyle(color: Colors.white70)),
-              ],
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    key: const Key('update-check-again'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      side: const BorderSide(color: Colors.white54),
+                      minimumSize: const Size.fromHeight(52),
+                    ),
+                    onPressed: _checking ? null : _checkAgain,
+                    icon: const Icon(Icons.refresh_rounded),
+                    label: Text(_checking ? 'جارٍ التحقق…' : 'تحقّق مرة أخرى'),
+                  ),
+                ),
+              ] else
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    key: const Key('update-now'),
+                    // Navy on gold: white on gold was about 2.8:1
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.gold,
+                      foregroundColor: AppColors.navyDeep,
+                      minimumSize: const Size.fromHeight(54),
+                    ),
+                    onPressed: widget.onUpdate,
+                    icon: const Icon(Icons.download_rounded),
+                    label: Text('تحديث الآن', style: AppText.body.copyWith(fontWeight: FontWeight.w700)),
+                  ),
+                ),
             ],
+          ),
           ),
         ),
       ),

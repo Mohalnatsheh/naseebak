@@ -4,7 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:naseebak_app/app/maintenance_gate.dart';
 import 'package:naseebak_app/app/providers.dart';
+import 'package:naseebak_app/core/theme/app_theme.dart';
+import 'package:naseebak_app/core/update/app_update.dart';
 import 'package:naseebak_app/core/auth/auth_controller.dart';
 import 'package:naseebak_app/core/storage/token_store.dart';
 import 'package:naseebak_app/features/welcome/splash_screen.dart';
@@ -443,6 +446,92 @@ void main() {
       release.complete();
       await tester.pump(const Duration(milliseconds: 50));
       expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('gates', () {
+    Map<String, dynamic> cfg({String iosMin = '', String iosStore = '', bool maintenance = false}) => {
+          'android': {'minVersion': '', 'latestVersion': '', 'storeUrl': ''},
+          'ios': {'minVersion': iosMin, 'latestVersion': '', 'storeUrl': iosStore},
+          'maintenance': {'enabled': maintenance, 'message': ''},
+        };
+
+    Future<ProviderContainer> pumpGates(WidgetTester tester, FakeAdapter adapter) async {
+      final c = ProviderContainer(overrides: [
+        ...await testOverrides(adapter),
+        appVersionProvider.overrideWith((ref) async => '1.0.0'),
+        appPlatformProvider.overrideWithValue('ios'),
+      ]);
+      addTearDown(c.dispose);
+      await tester.pumpWidget(UncontrolledProviderScope(
+        container: c,
+        child: rtlApp(const UpdateGate(
+          child: MaintenanceGate(child: Scaffold(body: TextField(key: Key('typed')))),
+        )),
+      ));
+      for (var i = 0; i < 5; i++) {
+        await tester.pump(const Duration(milliseconds: 20));
+      }
+      return c;
+    }
+
+    testWidgets('M12: one config request on start and one per resume, shared by both gates', (tester) async {
+      final adapter = FakeAdapter()..on('GET', '/api/mobile/config', FakeResponse(200, cfg()));
+      await pumpGates(tester, adapter);
+      expect(adapter.to('GET', '/api/mobile/config'), hasLength(1));
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      for (var i = 0; i < 5; i++) {
+        await tester.pump(const Duration(milliseconds: 20));
+      }
+      expect(adapter.to('GET', '/api/mobile/config'), hasLength(2));
+    });
+
+    testWidgets('M10: maintenance on and off keeps what was typed underneath', (tester) async {
+      final adapter = FakeAdapter()..on('GET', '/api/mobile/config', FakeResponse(200, cfg()));
+      final c = await pumpGates(tester, adapter);
+      await tester.enterText(find.byKey(const Key('typed')), 'سارة');
+      adapter.on('GET', '/api/mobile/config', FakeResponse(200, cfg(maintenance: true)));
+      c.read(maintenanceProvider.notifier).check();
+      for (var i = 0; i < 5; i++) {
+        await tester.pump(const Duration(milliseconds: 20));
+      }
+      expect(find.byKey(const Key('maintenance')), findsOneWidget);
+      expect(find.byKey(const Key('typed')), findsNothing);
+      adapter.on('GET', '/api/mobile/config', FakeResponse(200, cfg()));
+      c.read(maintenanceProvider.notifier).check();
+      for (var i = 0; i < 5; i++) {
+        await tester.pump(const Duration(milliseconds: 20));
+      }
+      expect(find.text('سارة'), findsOneWidget);
+    });
+
+    testWidgets('M11: iPhone minimum with no store link: still required, clear words, no dead button', (tester) async {
+      final adapter = FakeAdapter()..on('GET', '/api/mobile/config', FakeResponse(200, cfg(iosMin: '1.1.0')));
+      await pumpGates(tester, adapter);
+      expect(find.byKey(const Key('update-required')), findsOneWidget);
+      expect(find.byKey(const Key('typed')), findsNothing);
+      expect(find.byKey(const Key('update-now')), findsNothing);
+      expect(find.textContaining('App Store'), findsOneWidget);
+      // A live button: checks again (the store link may have been set since)
+      adapter.on('GET', '/api/mobile/config',
+          FakeResponse(200, cfg(iosMin: '1.1.0', iosStore: 'https://apps.apple.com/app/id1')));
+      await tester.tap(find.byKey(const Key('update-check-again')));
+      for (var i = 0; i < 5; i++) {
+        await tester.pump(const Duration(milliseconds: 20));
+      }
+      expect(find.byKey(const Key('update-now')), findsOneWidget);
+    });
+
+    testWidgets('M11: the required page scrolls (large text) and «تحديث الآن» is navy on gold', (tester) async {
+      final adapter = FakeAdapter()
+        ..on('GET', '/api/mobile/config', FakeResponse(200, cfg(iosMin: '1.1.0', iosStore: 'https://apps.apple.com/app/id1')));
+      await pumpGates(tester, adapter);
+      expect(
+        find.descendant(of: find.byKey(const Key('update-required')), matching: find.byType(SingleChildScrollView)),
+        findsOneWidget,
+      );
+      final button = tester.widget<FilledButton>(find.byKey(const Key('update-now')));
+      expect(button.style!.foregroundColor!.resolve({}), AppColors.navyDeep);
     });
   });
 }

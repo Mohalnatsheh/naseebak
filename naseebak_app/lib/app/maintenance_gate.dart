@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/network/json.dart';
 import '../core/theme/app_theme.dart';
-import 'providers.dart';
+import '../core/update/app_update.dart' show mobileConfigLoaderProvider;
 
 /// Maintenance mode (Admin → Settings → Maintenance Mode), from `maintenance` of public `GET /api/mobile/config`.
 class MaintenanceState {
@@ -37,7 +37,8 @@ class MaintenanceCheck extends Notifier<MaintenanceState> {
 
   Future<void> _check() async {
     try {
-      final config = await ref.read(apiClientProvider).get('/api/mobile/config', auth: false);
+      // Shared with the update gate's check made at the same moment (start, resume)
+      final config = await ref.read(mobileConfigLoaderProvider).load();
       if (config.containsKey('maintenance')) state = MaintenanceState.fromConfig(config);
     } catch (_) {
       // Keep the last known state
@@ -85,7 +86,19 @@ class _MaintenanceGateState extends ConsumerState<MaintenanceGate> with WidgetsB
   @override
   Widget build(BuildContext context) {
     final m = ref.watch(maintenanceProvider);
-    if (!m.enabled) return widget.child;
+    // The app stays mounted under the page (hidden, tickers off): when maintenance ends, every open screen, typed
+    // answer and scroll position is still there
+    return Stack(
+      textDirection: TextDirection.rtl,
+      fit: StackFit.expand,
+      children: [
+        Offstage(offstage: m.enabled, child: TickerMode(enabled: !m.enabled, child: widget.child)),
+        if (m.enabled) _page(m),
+      ],
+    );
+  }
+
+  Widget _page(MaintenanceState m) {
     // Above the Navigator: give the page its own direction and material
     return Directionality(
       textDirection: TextDirection.rtl,

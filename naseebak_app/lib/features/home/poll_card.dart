@@ -8,6 +8,7 @@ import '../../core/network/api_exception.dart';
 import '../../core/network/json.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/common.dart';
+import 'counts.dart';
 
 /// `PublicPoll` of src/lib/engagement/poll-types.ts.
 class Poll {
@@ -87,6 +88,8 @@ class _PollCardState extends ConsumerState<PollCard> {
       if (updated.rewardCredits > 0) {
         showSnack(context, 'شكراً لمشاركتك! أُضيف ${updated.rewardCredits} إلى رصيدك.');
         ref.read(authControllerProvider.notifier).refreshMe();
+        // Home's balance pill and «رصيدك» tile read the counts (sweep M1)
+        ref.invalidate(countsProvider);
       }
     } on ApiException catch (e) {
       if (mounted) showSnack(context, e.message);
@@ -97,6 +100,10 @@ class _PollCardState extends ConsumerState<PollCard> {
 
   @override
   Widget build(BuildContext context) {
+    // A fresh read from the server (pull to refresh, next week's question) replaces my vote's answer (sweep M2)
+    ref.listen(currentPollProvider, (_, next) {
+      if (_override != null && next is AsyncData<Poll?> && !next.isLoading) setState(() => _override = null);
+    });
     final async = ref.watch(currentPollProvider);
     final poll = _override ?? async.valueOrNull;
     if (async.isLoading && poll == null) return const SkeletonBox(height: 140);

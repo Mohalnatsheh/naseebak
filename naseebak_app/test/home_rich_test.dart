@@ -499,6 +499,51 @@ void main() {
       expect(adapter.requests.where((r) => r.path.endsWith('/api/polls/current')), isEmpty);
     });
 
+    testWidgets('a vote with a reward re-reads the balance on home (sweep M1)', (tester) async {
+      final adapter = await pumpHome(tester, poll: activePoll, counts: {'credits': 4});
+      adapter.on('POST', '/api/polls/vote', FakeResponse(200, {
+        'poll': {...activePoll, 'myVote': 'a', 'rewardCredits': 1, 'results': {'percents': {'a': 60, 'b': 40}}},
+      }));
+      adapter.on('GET', '/api/me/counts', const FakeResponse(200, {
+        'flags': {'mutualSuggestions': true},
+        'credits': 5,
+      }));
+      await tapAndSettle(tester, inKey('home-poll', find.text('الصدق')));
+      for (var i = 0; i < 10; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+      await tester.pumpAndSettle();
+      expect(inKey('home-tile-credits', find.text('5')), findsOneWidget);
+    });
+
+    testWidgets('after voting, a newer question from the server replaces the old results (sweep M2)', (tester) async {
+      final adapter = await pumpHome(tester, poll: activePoll);
+      adapter.on('POST', '/api/polls/vote', FakeResponse(200, {
+        'poll': {...activePoll, 'myVote': 'a', 'results': {'percents': {'a': 60, 'b': 40}}},
+      }));
+      await tapAndSettle(tester, inKey('home-poll', find.text('الصدق')));
+      // Next week's question
+      adapter.on('GET', '/api/polls/current', const FakeResponse(200, {
+        'poll': {
+          'id': 'p2',
+          'question': 'ما أهم ما في البيت؟',
+          'options': [
+            {'id': 'x', 'label': 'الهدوء'},
+            {'id': 'y', 'label': 'الدفء'},
+          ],
+          'status': 'ACTIVE',
+          'myVote': null,
+        },
+      }));
+      ProviderScope.containerOf(tester.element(find.byType(HomeScreen))).invalidate(currentPollProvider);
+      for (var i = 0; i < 10; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+      await tester.pumpAndSettle();
+      expect(inKey('home-poll', find.text('ما أهم ما في البيت؟')), findsOneWidget);
+      expect(inKey('home-poll', find.text('ما أهم صفة في شريك الحياة؟')), findsNothing);
+    });
+
     testWidgets('a failed load: a retry row, never an empty state', (tester) async {
       await pumpHome(tester, pollResponse: const FakeResponse(500, {'error': 'خطأ'}));
       expect(find.byKey(const Key('home-poll-error')), findsOneWidget);

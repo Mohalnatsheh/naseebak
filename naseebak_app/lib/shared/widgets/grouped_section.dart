@@ -59,7 +59,12 @@ class GroupedSection extends StatelessWidget {
         children: [
           for (var i = 0; i < rows.length; i++) ...[
             if (i > 0)
-              Divider(height: 1, thickness: 0.5, indent: rows[i].icon == null ? AppSpace.lg : 60, color: AppColors.line),
+              Divider(
+                height: 1,
+                thickness: 0.5,
+                indent: rows[i].icon == null ? AppSpace.lg : 60,
+                color: AppColors.line,
+              ),
             _Row(row: rows[i]),
           ],
         ],
@@ -79,50 +84,69 @@ class _Row extends StatelessWidget {
       constraints: const BoxConstraints(minHeight: 52),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: AppSpace.lg, vertical: AppSpace.sm),
-        child: Row(
-          children: [
-            if (row.icon != null) ...[
-              Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(color: row.color ?? AppColors.navy, borderRadius: BorderRadius.circular(AppRadius.sm)),
-                child: Icon(row.icon, size: 20, color: Colors.white),
-              ),
-              const SizedBox(width: AppSpace.md),
-            ],
-            Expanded(
-              child: row.tags.isEmpty && row.subtitle == null
-                  ? title
-                  : Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (row.tags.isEmpty)
-                          title
-                        else
-                          Wrap(
-                            spacing: AppSpace.sm,
-                            runSpacing: AppSpace.xs,
-                            crossAxisAlignment: WrapCrossAlignment.center,
-                            children: [title, ...row.tags],
-                          ),
-                        ?row.subtitle,
-                      ],
+        child: LayoutBuilder(
+          builder: (context, box) {
+            final valueMax = box.maxWidth.isFinite ? box.maxWidth * 0.45 : double.infinity;
+            return Row(
+              children: [
+                if (row.icon != null) ...[
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: row.color ?? AppColors.navy,
+                      borderRadius: BorderRadius.circular(AppRadius.sm),
                     ),
-            ),
-            if (row.trailing != null) ...[
-              const SizedBox(width: AppSpace.sm),
-              row.trailing!,
-            ] else ...[
-              if (row.value != null) ...[
-                const SizedBox(width: AppSpace.sm),
-                Text(row.value!, style: AppText.body.copyWith(color: AppColors.muted)),
+                    child: Icon(row.icon, size: 20, color: Colors.white),
+                  ),
+                  const SizedBox(width: AppSpace.md),
+                ],
+                Expanded(
+                  child: row.tags.isEmpty && row.subtitle == null
+                      ? title
+                      : Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (row.tags.isEmpty)
+                              title
+                            else
+                              Wrap(
+                                spacing: AppSpace.sm,
+                                runSpacing: AppSpace.xs,
+                                crossAxisAlignment: WrapCrossAlignment.center,
+                                children: [title, ...row.tags],
+                              ),
+                            ?row.subtitle,
+                          ],
+                        ),
+                ),
+                if (row.trailing != null) ...[
+                  const SizedBox(width: AppSpace.sm),
+                  row.trailing!,
+                ] else ...[
+                  if (row.value != null) ...[
+                    const SizedBox(width: AppSpace.sm),
+                    // At most about half the row, on one line: a long value («مخفية حتى التوافق») at large text never
+                    // squeezes the title to nothing (sweep I2); the title keeps the rest
+                    ConstrainedBox(
+                      constraints: BoxConstraints(maxWidth: valueMax),
+                      child: Text(
+                        row.value!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.end,
+                        style: AppText.body.copyWith(color: AppColors.muted),
+                      ),
+                    ),
+                  ],
+                  if (row.onTap != null) ...[
+                    const SizedBox(width: AppSpace.xs),
+                    const Icon(Icons.chevron_right_rounded, color: AppColors.muted),
+                  ],
+                ],
               ],
-              if (row.onTap != null) ...[
-                const SizedBox(width: AppSpace.xs),
-                const Icon(Icons.chevron_right_rounded, color: AppColors.muted),
-              ],
-            ],
-          ],
+            );
+          },
         ),
       ),
     );

@@ -64,6 +64,7 @@ void main() {
           ],
         ),
         GoRoute(path: '/chats/:id', builder: (_, s) => page('chat ${s.pathParameters['id']}')),
+        GoRoute(path: '/matches/:id', builder: (_, s) => page('match ${s.pathParameters['id']}')),
       ]);
       addTearDown(router.dispose);
     });
@@ -90,6 +91,36 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('matches'), findsOneWidget);
       expect(router.canPop(), isFalse);
+    });
+
+    testWidgets('a push for the chat under its match page goes back to that chat, no second copy (audit M9)',
+        (tester) async {
+      await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+      router.push('/chats/c1');
+      await tester.pumpAndSettle();
+      router.push('/matches/m1');
+      await tester.pumpAndSettle();
+      expect(find.text('match m1'), findsOneWidget);
+
+      openAppRoute(router, '/chats/c1');
+      await tester.pumpAndSettle();
+      expect(find.text('chat c1'), findsOneWidget);
+      expect(router.state.uri.toString(), '/chats/c1');
+      // One chat on the stack: back is home
+      router.pop();
+      await tester.pumpAndSettle();
+      expect(find.text('home'), findsOneWidget);
+      expect(router.canPop(), isFalse);
+
+      // Another chat is still pushed over what is open
+      router.push('/chats/c1');
+      await tester.pumpAndSettle();
+      openAppRoute(router, '/chats/c2');
+      await tester.pumpAndSettle();
+      expect(find.text('chat c2'), findsOneWidget);
+      router.pop();
+      await tester.pumpAndSettle();
+      expect(find.text('chat c1'), findsOneWidget);
     });
   });
 }

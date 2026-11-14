@@ -68,7 +68,37 @@ void openAppRoute(GoRouter router, String route) {
   final tab = target.queryParameters['tab'];
   if (target.path == '/suggestions' && tab != null) feedTabRequest.ask(FeedTabX.parse(tab));
   if (router.state.uri.toString() == route) return;
-  appTabRoots.contains(Uri.parse(route).path) ? router.go(route) : router.push(route);
+  if (appTabRoots.contains(Uri.parse(route).path)) {
+    router.go(route);
+    return;
+  }
+  // Already open under the top (a chat under its match page): back to it, not a second copy of it (audit M9)
+  final above = pushedAbove(router.routerDelegate.currentConfiguration, route);
+  if (above != null) {
+    for (var i = 0; i < above; i++) {
+      router.pop();
+    }
+    return;
+  }
+  router.push(route);
+}
+
+/// How many screens were pushed over [route] when it is open below the top of [stack], else null (not open, or on
+/// top). Only the root stack: the detail screens (`/chats/:id`, `/matches/:id`) sit on the root navigator.
+int? pushedAbove(RouteMatchList stack, String route) {
+  final matches = stack.matches;
+  final pushed = matches.whereType<ImperativeRouteMatch>().length;
+  for (var i = matches.length - 1; i >= 0; i--) {
+    final m = matches[i];
+    if (m is! ImperativeRouteMatch) break;
+    if (m.matches.uri.toString() == route) {
+      final count = matches.length - 1 - i;
+      return count > 0 ? count : null;
+    }
+  }
+  // The screen the stack was opened on with `go` (a link at launch), with screens pushed over it
+  if (pushed > 0 && stack.uri.toString() == route) return pushed;
+  return null;
 }
 
 /// Same mapping for a website path and an optional notification type (in-app list and push taps).

@@ -36,11 +36,21 @@ export function isPhoneFor(raw: string, country: CountryCode): boolean {
   return isValidPhone(raw, country);
 }
 
+/** Whether more digits could still make `raw` a mobile of `country` (it is the start of one) */
+function couldBecome(raw: string, country: CountryCode): boolean {
+  for (let more = 1; more <= 9; more++) {
+    if (isValidPhone(raw + "0".repeat(more), country)) return true;
+  }
+  return false;
+}
+
 /**
  * The dial code to show for what was typed: a complete number of another country switches the
  * toggle to it (7… is never Saudi, 5… never Jordanian); anything else keeps the current choice.
+ * A number still being typed for the current country never switches midway: «079692229» is a
+ * whole Lebanese number but the start of a Jordanian one, so Jordan stays until it can't be one.
  */
 export function dialCountryFor(raw: string, current: CountryCode): CountryCode {
-  if (isValidPhone(raw, current)) return current;
+  if (isValidPhone(raw, current) || couldBecome(raw, current)) return current;
   return COUNTRY_CODES.find((c) => c !== current && isValidPhone(raw, c)) ?? current;
 }

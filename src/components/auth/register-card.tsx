@@ -78,6 +78,13 @@ export function RegisterCard({
   }, []);
 
   const clear = (f: Field) => setErrors((e) => (e[f] ? { ...e, [f]: undefined } : e));
+  /** A typed name: non-Arabic letters are dropped as they are typed, and saying why (else the key seems dead) */
+  const typedName = (f: "firstName" | "lastName", label: string, raw: string, set: (v: string) => void) => {
+    const kept = arabicOnly(raw);
+    set(kept);
+    if (kept !== raw) setErrors((e) => ({ ...e, [f]: `${label} يجب أن يكون بالعربية فقط، بلا أرقام أو رموز` }));
+    else clear(f);
+  };
   const invalid = (f: Field) =>
     errors[f] ? { "aria-invalid": true as const, "aria-describedby": `register-${f}-error` } : {};
 
@@ -139,10 +146,7 @@ export function RegisterCard({
             maxLength={NAME_MAX_LENGTH}
             autoComplete="given-name"
             dir="rtl"
-            onChange={(e) => {
-              setFirstName(arabicOnly(e.target.value));
-              clear("firstName");
-            }}
+            onChange={(e) => typedName("firstName", "الاسم الأول", e.target.value, setFirstName)}
             className={inputClass}
           />
         </div>
@@ -157,10 +161,7 @@ export function RegisterCard({
             maxLength={NAME_MAX_LENGTH}
             autoComplete="family-name"
             dir="rtl"
-            onChange={(e) => {
-              setLastName(arabicOnly(e.target.value));
-              clear("lastName");
-            }}
+            onChange={(e) => typedName("lastName", "اسم العائلة", e.target.value, setLastName)}
             className={inputClass}
           />
         </div>

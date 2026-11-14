@@ -270,6 +270,17 @@ describe("AuthFlow register card", () => {
     expect(f.bodiesFor("/api/referral/apply")).toEqual([{ code: "AB12CD34" }]);
   });
 
+  it("English letters typed in a name are dropped and the field says why; an Arabic letter clears it", async () => {
+    await reachRegisterCard();
+    const first = screen.getByLabelText("الاسم الأول") as HTMLInputElement;
+    fireEvent.change(first, { target: { value: "Ali" } });
+    expect(first.value).toBe("");
+    expect(first.getAttribute("aria-invalid")).toBe("true");
+    expect(document.getElementById("register-firstName-error")?.textContent).toBe("الاسم الأول يجب أن يكون بالعربية فقط، بلا أرقام أو رموز");
+    fireEvent.change(first, { target: { value: "س" } });
+    expect(first.value).toBe("س");
+    expect(document.getElementById("register-firstName-error")).toBeNull();
+  });
   it("terms unchecked shows the error under the checkbox and does not post", async () => {
     const f = await reachRegisterCard();
     fireEvent.change(screen.getByLabelText("الاسم الأول"), { target: { value: "سامي" } });

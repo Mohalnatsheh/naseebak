@@ -46,6 +46,17 @@ describe("dial-code toggle (login / register)", () => {
     expect(dialCountryFor("0791234567", "JO")).toBe("JO");
     expect(dialCountryFor("05", "JO")).toBe("JO");
   });
+  it("never switches midway through a number of the current country (a whole Lebanese number is the start of a Jordanian one)", () => {
+    // Typing 0791234567 on Jordan: every step stays Jordan, also «079123456» (a valid Lebanese 79 123 456)
+    const typed = "0791234567";
+    for (let i = 1; i <= typed.length; i++) expect(dialCountryFor(typed.slice(0, i), "JO")).toBe("JO");
+    // A Lebanese number that can't start a Jordanian one still switches
+    expect(dialCountryFor("03123456", "JO")).toBe("LB");
+    expect(dialCountryFor("71123456", "JO")).toBe("LB");
+    // On Lebanon, the 10th digit of a Jordanian number switches to Jordan
+    expect(dialCountryFor("079123456", "LB")).toBe("LB");
+    expect(dialCountryFor("0791234567", "LB")).toBe("JO");
+  });
 });
 
 describe("landing quick start phone", () => {

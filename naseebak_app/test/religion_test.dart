@@ -107,13 +107,20 @@ void main() {
       expect(body['prefReligion'], 'لا مانع');
     });
 
-    testWidgets('/api/profile failing: «نفس ديانتي» is still the default answer on step 3', (tester) async {
+    testWidgets('/api/profile failing: a retry first (never an empty form), then «نفس ديانتي» is the default on step 3',
+        (tester) async {
       tester.view.physicalSize = const Size(1080, 2400);
       tester.view.devicePixelRatio = 3;
       addTearDown(tester.view.reset);
       final (adapter, overrides) = await religionSetupWith(null);
+      final good = adapter.handlers['GET /api/profile']!;
       adapter.on('GET', '/api/profile', const FakeResponse(500, {'error': 'x'}));
       await tester.pumpWidget(ProviderScope(overrides: overrides, child: rtlApp(const SetupScreen())));
+      await tester.pumpAndSettle();
+      // Audit I2: the setup never saves over answers it couldn't load
+      expect(find.byKey(const Key('setup-next')), findsNothing);
+      adapter.handlers['GET /api/profile'] = good;
+      await tester.tap(find.text('إعادة المحاولة'));
       await tester.pumpAndSettle();
       Future<void> next() async {
         await tester.scrollUntilVisible(find.byKey(const Key('setup-next')), 300);

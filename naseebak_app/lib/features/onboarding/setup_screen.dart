@@ -81,6 +81,13 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
   bool _saving = false;
   bool _prefilled = false;
 
+  /// The profile was saved but `/api/mobile/me` couldn't be read after it (weak connection): the next tap only reads
+  /// `me` again (the router leaves the setup once it says complete), it never saves a second time
+  bool _savedAwaitingMe = false;
+
+  /// Shown when the save went through but the app couldn't move on
+  static const savedButStuckMessage = 'تم الحفظ، لكن تعذّر المتابعة. يُرجى المحاولة مرة أخرى.';
+
   @override
   void initState() {
     super.initState();
@@ -212,6 +219,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
   }
 
   Future<void> _next(int total, bool guardianStep) async {
+    if (_savedAwaitingMe) return _readMeAgain();
     final errors = _validate(_step);
     setState(() {
       _errors = errors;
@@ -298,6 +306,13 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
       container.invalidate(myProfileProvider);
       // The router leaves the setup once `/api/mobile/me` says the profile is complete
       await container.read(authControllerProvider.notifier).refreshMe();
+      // Saved, but `me` couldn't be read (the spinner just stopped before): say so, and only re-read it next time
+      if (mounted && container.read(authControllerProvider).me?.profileComplete != true) {
+        setState(() {
+          _savedAwaitingMe = true;
+          _error = savedButStuckMessage;
+        });
+      }
     } on ApiException catch (e) {
       if (!mounted) return;
       if (e.code == 'GUARDIAN_REQUIRED' && !guardianStep) {
@@ -313,6 +328,22 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
     }
   }
 
+  Future<void> _readMeAgain() async {
+    if (_saving) return;
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    final container = ProviderScope.containerOf(context, listen: false);
+    await container.read(authControllerProvider.notifier).refreshMe();
+    if (!mounted) return;
+    final done = container.read(authControllerProvider).me?.profileComplete == true;
+    setState(() {
+      _saving = false;
+      if (!done) _error = savedButStuckMessage;
+    });
+  }
+
   void _back() {
     if (_step == 0) return;
     setState(() {
@@ -326,10 +357,16 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
   Future<void> _pickDob() async {
     final now = DateTime.now();
     final last = DateTime(now.year - 18, now.month, now.day);
+    // The oldest date `dateOfBirthError` accepts (80 today): the day after 81 years ago
+    final first = DateTime(now.year - 81, now.month, now.day + 1);
+    var initial = _dob ?? DateTime(now.year - 25, 1, 1);
+    // A draft date out of range (the website allows other dates) must not break the picker
+    if (initial.isBefore(first)) initial = first;
+    if (initial.isAfter(last)) initial = last;
     final picked = await showDatePicker(
       context: context,
-      initialDate: _dob ?? DateTime(now.year - 25, 1, 1),
-      firstDate: DateTime(now.year - 80, 1, 1),
+      initialDate: initial,
+      firstDate: first,
       lastDate: last,
       initialDatePickerMode: DatePickerMode.year,
       helpText: 'تاريخ الميلاد',
@@ -345,13 +382,24 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
     final profile = ref.watch(myProfileProvider);
     // Cities and nationalities of the member's country come from the API (`lists`)
     final details = ref.watch(countryDetailsProvider(me?.country.code ?? 'JO'));
-    if (counts.isLoading || profile.isLoading || details.isLoading) {
+    // The skeleton only on the first load: a refresh (back in the app, a push) keeps the form, its focus and scroll
+    if ((counts.isLoading && !counts.hasValue) ||
+        (profile.isLoading && !profile.hasValue) ||
+        (details.isLoading && !details.hasValue)) {
       return const Scaffold(body: SkeletonList(count: 5, itemHeight: 56));
     }
-    if (counts.hasError) {
+    if (counts.hasError && !counts.hasValue) {
       return Scaffold(body: ErrorView(error: counts.error!, onRetry: () => ref.invalidate(countsProvider)));
     }
-    if (details.hasError || (details.valueOrNull?.lists.isEmpty ?? true)) {
+    // The saved answers (a draft from the website or an earlier run) failed to load: never an empty form that would
+    // overwrite them on save
+    if (!_prefilled && profile.hasError && !profile.hasValue) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('إكمال ملفك'), actions: const [LogoutButton(compact: true, confirm: true)]),
+        body: ErrorView(error: profile.error!, onRetry: () => ref.invalidate(myProfileProvider)),
+      );
+    }
+    if ((details.hasError && !details.hasValue) || (details.valueOrNull?.lists.isEmpty ?? true)) {
       return Scaffold(
         appBar: AppBar(title: const Text('إكمال ملفك')),
         body: ErrorView(
@@ -392,7 +440,8 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
               ? IconButton(tooltip: 'السابق', icon: const Icon(Icons.arrow_back_rounded), onPressed: _back)
               : null,
           actions: [
-            const LogoutButton(compact: true),
+            // Where a back button usually sits: one mis-tap must not end the session
+            const LogoutButton(compact: true, confirm: true),
           ],
         ),
         body: SafeArea(
@@ -646,7 +695,8 @@ class _InviteRetryBanner extends ConsumerWidget {
       container.read(inviteWarningProvider.notifier).set(null);
       if (context.mounted) showSnack(context, 'تم تطبيق رمز الدعوة');
     } catch (e) {
-      ref.read(inviteWarningProvider.notifier).set(ApiException.messageOf(e));
+      // The banner may be gone by now (setup finished): never `ref` after an await
+      container.read(inviteWarningProvider.notifier).set(ApiException.messageOf(e));
     }
   }
 

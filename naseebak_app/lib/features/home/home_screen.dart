@@ -100,6 +100,8 @@ class HomeScreen extends ConsumerWidget {
     ref.invalidate(unreadNotificationsProvider);
     ref.invalidate(currentPollProvider);
     ref.invalidate(myProfileProvider);
+    // A chat ended, expired or extended changes no unread count: the list is re-read here (sweep M3)
+    ref.invalidate(chatListProvider);
     await ref.read(authControllerProvider.notifier).refreshMe();
   }
 

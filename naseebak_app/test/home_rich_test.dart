@@ -401,6 +401,20 @@ void main() {
     });
   });
 
+  testWidgets('pull to refresh re-reads «المحادثات» too (an ended or extended chat shows its new line, sweep M3)',
+      (tester) async {
+    final adapter = await pumpBusy(tester);
+    final before = adapter.to('GET', '/api/chats').length;
+    expect(before, greaterThan(0));
+    // Not awaited: the refresh ends only as the test pumps
+    tester.state<RefreshIndicatorState>(find.byType(RefreshIndicator)).show();
+    for (var i = 0; i < 20; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    await tester.pumpAndSettle();
+    expect(adapter.to('GET', '/api/chats').length, greaterThan(before));
+  });
+
   group('«حسابي»', () {
     testWidgets('payments on: balance with «اشحني» to /credits, Pro tile to /pro, profile tile below 100%', (
       tester,

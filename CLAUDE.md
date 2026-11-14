@@ -370,7 +370,7 @@ Detail: [docs/reference/suggestions-and-credits.md](docs/reference/suggestions-a
 
 ## Deployment
 
-**Production: `98bb300b` (2026-11-14, slot b, `--db-push`: `Photo.blurPreview`): blurred photo preview before a match (`photo_blur_preview`, default on; backfill `scripts/backfill-photo-previews.ts` run after the deploy), admin popup on the dashboard home only, plus everything on main since `78ee948e`.**
+**Production: `88347103` (2026-11-14, slot a, no schema change): the suggestions page's «تفضيلات الشريك» window edits values and «شرط أساسي» together (as the app); on top of `98bb300b` (`--db-push` `Photo.blurPreview`, blurred photo preview before a match, backfill done: 887 photos), admin popup on the dashboard home only. `auth_profile_redesign` ON in production since 2026-11-14 16:35 Amman (new sign-in, 7-step setup, one-list profile edit).**
 
 Update that one line after each deploy. Don't list past versions. The live revision is in `/var/www/naseebak/REVISION`.
 

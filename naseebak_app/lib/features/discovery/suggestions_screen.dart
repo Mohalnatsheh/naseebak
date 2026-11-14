@@ -73,6 +73,8 @@ class _SuggestionsScreenState extends ConsumerState<SuggestionsScreen> with Sing
     await context.push('/profile/preferences');
     if (!mounted) return;
     ref.invalidate(partnerPrefsProvider);
+    // Changed preferences: the tip is read again
+    ref.invalidate(filterTipProvider);
     await _topUp();
   }
 
@@ -836,11 +838,14 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
         final m = widget.meta;
         final creditOnInterest = counts?.flags.creditOnInterest ?? false;
         if (m.emptyReason == 'no_candidates') {
+          final tip = ref.watch(filterTipProvider).valueOrNull;
           return MessageView(
             icon: Icons.search_off_rounded,
             title: 'لا يوجد حالياً من يطابق شروطك',
             body: 'لم نجد حالياً أحداً تنطبق عليه شروطك الأساسية وتفضيلاتك. مراجعتها قد توسّع فرصك، ونبحث لك من جديد '
                 'تلقائياً كلما انضم أشخاص جدد.',
+            // Which filter to ease (the website's tip), above «تعديل تفضيلاتي»
+            note: tip == null ? null : InfoBanner(key: const Key('filter-tip'), text: tip, tone: BannerTone.warning),
             actionLabel: 'تعديل تفضيلاتي',
             onAction: widget.onEditPreferences ?? () => context.push('/profile/preferences'),
           );

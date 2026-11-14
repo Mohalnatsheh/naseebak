@@ -90,10 +90,14 @@ class MessageView extends StatelessWidget {
     this.onAction,
     this.iconColor,
     this.art,
+    this.note,
   });
 
   /// A line-art drawing (empty states, P2-2) in place of the icon
   final LineArtKind? art;
+
+  /// Shown between the body and the action (e.g. the filter tip above «تعديل تفضيلاتي»)
+  final Widget? note;
 
   final IconData icon;
   final String title;
@@ -133,6 +137,7 @@ class MessageView extends StatelessWidget {
                 style: theme.textTheme.bodyMedium?.copyWith(color: AppColors.muted),
               ),
             ],
+            if (note != null) ...[const SizedBox(height: 16), note!],
             if (actionLabel != null && onAction != null) ...[
               const SizedBox(height: 20),
               SizedBox(

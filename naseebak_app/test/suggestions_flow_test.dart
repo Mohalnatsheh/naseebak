@@ -581,6 +581,37 @@ void main() {
       expect(find.text('عرض المهتمين بك'), findsNothing);
     });
 
+    testWidgets('no one fits: the filter tip sits above «تعديل تفضيلاتي»', (tester) async {
+      const tip = 'لو خففت شرط «العمر» يظهر لك 43 شخصاً مناسباً.';
+      final h = Harness(items: [], emptyReason: 'no_candidates');
+      h.adapter.on('GET', '/api/suggestions/filter-tip', const FakeResponse(200, {'text': tip}));
+      await h.pump(tester);
+      expect(find.text('لا يوجد حالياً من يطابق شروطك'), findsOneWidget);
+      expect(find.text(tip), findsOneWidget);
+      expect(tester.getCenter(find.text(tip)).dy, lessThan(tester.getCenter(find.text('تعديل تفضيلاتي')).dy));
+    });
+
+    testWidgets('no one fits: no tip (null, a failed read or an older server) shows the page without it',
+        (tester) async {
+      for (final res in [
+        const FakeResponse(200, {'text': null}),
+        const FakeResponse(500, {'error': 'خطأ'}),
+      ]) {
+        final h = Harness(items: [], emptyReason: 'no_candidates');
+        h.adapter.on('GET', '/api/suggestions/filter-tip', res);
+        await h.pump(tester);
+        expect(find.text('لا يوجد حالياً من يطابق شروطك'), findsOneWidget);
+        expect(find.text('تعديل تفضيلاتي'), findsOneWidget);
+        expect(find.byKey(const Key('filter-tip')), findsNothing);
+      }
+    });
+
+    testWidgets('the tip is read only when no one fits', (tester) async {
+      final h = Harness(items: [], emptyReason: 'pending');
+      await h.pump(tester);
+      expect(h.adapter.to('GET', '/api/suggestions/filter-tip'), isEmpty);
+    });
+
     testWidgets('credit on interest never promises «كل أسبوع»', (tester) async {
       final h = Harness(items: []);
       await h.pump(tester);

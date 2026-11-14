@@ -14,6 +14,14 @@ class SuggestionsRepository {
   /// `GET /api/suggestions` page 1: tops up new suggestions, returns why the list may be empty.
   Future<SuggestionsMeta> topUp() async => SuggestionsMeta.fromJson(await _api.get('/api/suggestions'));
 
+  /// «جديدة» with no one left: which of my own filters to ease, in words (`GET /api/suggestions/filter-tip`, the
+  /// website's tip). Null: nothing worth changing.
+  Future<String?> filterTip() async {
+    final j = await _api.get('/api/suggestions/filter-tip');
+    final text = asString(j['text'])?.trim();
+    return text == null || text.isEmpty ? null : text;
+  }
+
   Future<FeedPage> feed(FeedTab tab, {int page = 1}) async {
     final j = await _api.get('/api/suggestions/feed', query: {'tab': tab.apiName, 'page': page});
     return FeedPage(items: asMapList(j['items']).map(FeedItem.fromJson).toList(), page: PageInfo.fromJson(j));
@@ -57,6 +65,16 @@ class SuggestionsRepository {
 final suggestionsRepositoryProvider = Provider<SuggestionsRepository>(
   (ref) => SuggestionsRepository(ref.watch(apiClientProvider)),
 );
+
+/// The filter tip for an empty «جديدة» (no one fits). A failed read is no tip: the page shows without it.
+final filterTipProvider = FutureProvider.autoDispose<String?>((ref) async {
+  ref.watch(currentMemberIdProvider);
+  try {
+    return await ref.watch(suggestionsRepositoryProvider).filterTip();
+  } catch (_) {
+    return null;
+  }
+});
 
 /// Runs the top-up once per visit of the suggestions screen (invalidate to run it again).
 final suggestionsMetaProvider = FutureProvider<SuggestionsMeta>((ref) {

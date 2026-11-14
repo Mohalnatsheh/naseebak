@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import type { MemberAlert } from "@/lib/alerts";
@@ -12,21 +12,29 @@ async function fetchAlert(): Promise<MemberAlert | null> {
   return data?.alert ?? null;
 }
 
+/** Only the dashboard home shows the popup: never over setup, sign-in landing pages, chats or other pages (owner) */
+export function isAlertHome(pathname: string | null): boolean {
+  return (pathname ?? "").replace(/\/+$/, "") === "/dashboard";
+}
+
 /**
- * The admin's popup alert (src/lib/alerts.ts) on the website dashboard: the oldest one waiting, once. Closing it or
- * tapping its button records that, so it never shows again (in the app either); then the next one, if any.
+ * The admin's popup alert (src/lib/alerts.ts) on the website dashboard home: the oldest one waiting, once. Closing it
+ * or tapping its button records that, so it never shows again (in the app either); then the next one, if any.
+ * Asked for (and shown) only on the home page; elsewhere it waits until the member is on home.
  */
 export function AlertPopup() {
   const router = useRouter();
+  const onHome = isAlertHome(usePathname());
   const [alert, setAlert] = useState<MemberAlert | null>(null);
 
   useEffect(() => {
+    if (!onHome) return;
     let gone = false;
     fetchAlert().then((a) => !gone && setAlert(a));
     return () => {
       gone = true;
     };
-  }, []);
+  }, [onHome]);
 
   async function close(openLink: boolean) {
     const current = alert;
@@ -47,7 +55,7 @@ export function AlertPopup() {
   }
 
   return (
-    <Dialog open={!!alert} onOpenChange={(open) => !open && close(false)}>
+    <Dialog open={onHome && !!alert} onOpenChange={(open) => !open && close(false)}>
       <DialogContent dir="rtl" className="max-w-sm text-center">
         {alert?.imageUrl && (
           // eslint-disable-next-line @next/next/no-img-element

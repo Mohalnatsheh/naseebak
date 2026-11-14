@@ -9,6 +9,7 @@ import 'package:naseebak_app/app/providers.dart';
 import 'package:naseebak_app/core/theme/app_theme.dart';
 import 'package:naseebak_app/core/update/app_update.dart';
 import 'package:naseebak_app/core/auth/auth_controller.dart';
+import 'package:naseebak_app/core/push/push_service.dart';
 import 'package:naseebak_app/core/storage/token_store.dart';
 import 'package:naseebak_app/features/welcome/splash_screen.dart';
 import 'package:naseebak_app/features/welcome/welcome_state.dart';
@@ -210,6 +211,22 @@ void main() {
       addTearDown(c.dispose);
       expect((await settled(c)).status, AuthStatus.restoreFailed);
       adapter.hold('POST', '/api/mobile/auth/logout', Completer<void>().future);
+      AuthController.offlineLogoutWait = const Duration(milliseconds: 50);
+      addTearDown(() => AuthController.offlineLogoutWait = const Duration(seconds: 5));
+      await c.read(authControllerProvider.notifier).logout().timeout(const Duration(seconds: 2));
+      expect(c.read(authControllerProvider).status, AuthStatus.signedOut);
+      expect(await store.read(), isNull);
+    });
+
+    test('review minor 2: after a failed restore the push sign-out has the same short limit', () async {
+      final adapter = FakeAdapter()..on('GET', '/api/mobile/me', const FakeResponse.network());
+      final store = MemoryTokenStore('t1');
+      final c = ProviderContainer(overrides: [
+        ...await testOverrides(adapter, store: store),
+        pushServiceProvider.overrideWith((ref) => _HangingPush(ref)),
+      ]);
+      addTearDown(c.dispose);
+      expect((await settled(c)).status, AuthStatus.restoreFailed);
       AuthController.offlineLogoutWait = const Duration(milliseconds: 50);
       addTearDown(() => AuthController.offlineLogoutWait = const Duration(seconds: 5));
       await c.read(authControllerProvider.notifier).logout().timeout(const Duration(seconds: 2));
@@ -615,4 +632,12 @@ void main() {
       expect(button.style!.foregroundColor!.resolve({}), AppColors.navyDeep);
     });
   });
+}
+
+/// A push sign-out that never finishes (Firebase offline)
+class _HangingPush extends PushService {
+  _HangingPush(super.ref);
+
+  @override
+  Future<void> unregister() => Completer<void>().future;
 }

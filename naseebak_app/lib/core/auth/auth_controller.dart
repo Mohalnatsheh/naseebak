@@ -171,8 +171,16 @@ class AuthController extends Notifier<AuthState> {
   Future<void> _logout() async {
     // Offline at launch: the server is likely unreachable, so its sign-out is tried briefly only
     final offline = state.status == AuthStatus.restoreFailed;
-    // Before the token is revoked: the server must still know who removes the push token
-    await ref.read(pushServiceProvider).unregister();
+    // Before the token is revoked: the server must still know who removes the push token. Offline, held to the same
+    // short limit (Firebase's own unregister can hang without a network, review minor 2)
+    final push = ref.read(pushServiceProvider);
+    try {
+      final unregister = push.unregister();
+      await (offline ? unregister.timeout(offlineLogoutWait) : unregister);
+    } catch (_) {
+      // Signed out on this device all the same; stop listening now rather than when the late unregister ends
+      push.reset();
+    }
     try {
       final call = ref.read(authRepositoryProvider).logout();
       await (offline ? call.timeout(offlineLogoutWait) : call);

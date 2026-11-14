@@ -10,6 +10,9 @@ import { useFirstReveal } from "@/lib/photo-reveal";
  * - Photo hidden (or none): the first letter on a navy gradient with a faint star veil; `locked` adds a small gold
  *   lock under the letter (photos show only after a mutual match).
  * - Photo shown: the photo (pass `photoUrl` only once it may be shown).
+ * - Locked with `photoPreview` (spec 2026-11-14, blurred photo preview): the server's tiny pre-blurred copy of their main
+ *   photo covers the circle under a further CSS blur, with the lock and no letter. Only a `data:image/` string is drawn;
+ *   anything else (or none) keeps the letter veil.
  * - `matched`: a gold ring around it. `pro`: a small gold dot on the corner. `dimmed`: over (ended chat, closed match).
  * Decorative by default (the name is next to it); pass `alt` when the photo is the only place the name appears.
  */
@@ -17,6 +20,7 @@ export function MemberAvatar({
   name,
   size = 48,
   photoUrl,
+  photoPreview,
   locked = false,
   matched = false,
   pro = false,
@@ -30,6 +34,8 @@ export function MemberAvatar({
   /** Diameter in px (the whole avatar, ring included) */
   size?: number;
   photoUrl?: string | null;
+  /** Before a match: the server's 16 px pre-blurred copy (`data:image/webp;base64,…`); used only with `locked` */
+  photoPreview?: string | null;
   locked?: boolean;
   matched?: boolean;
   pro?: boolean;
@@ -48,13 +54,15 @@ export function MemberAvatar({
   const revealNow = useFirstReveal(photoUrl, reveal);
   const initial = name.trim().charAt(0) || "؟";
   const arc = typeof timeLeft === "number" ? Math.min(1, Math.max(0, timeLeft)) : null;
-  if (arc !== null) return <ArcAvatar {...{ name, size, photoUrl, locked, pro, dimmed, onNavy, className }} reveal={revealNow} fraction={arc} />;
+  if (arc !== null) return <ArcAvatar {...{ name, size, photoUrl, photoPreview, locked, pro, dimmed, onNavy, className }} reveal={revealNow} fraction={arc} />;
   const inner = matched ? size - 6 : size;
   const showLock = locked && !photoUrl && size >= 36;
+  const preview = locked && !photoUrl && typeof photoPreview === "string" && photoPreview.startsWith("data:image/") ? photoPreview : null;
+  const lockSize = Math.round(inner * 0.2);
   return (
     <span
       data-slot="member-avatar"
-      data-state={photoUrl ? "photo" : locked ? "locked" : "initial"}
+      data-state={photoUrl ? "photo" : preview ? "preview" : locked ? "locked" : "initial"}
       data-matched={matched || undefined}
       data-pro={pro || undefined}
       className={cn("relative inline-flex shrink-0 items-center justify-center rounded-full", matched && "ring-2 ring-accent ring-offset-2 ring-offset-card", className)}
@@ -71,6 +79,27 @@ export function MemberAvatar({
           onContextMenu={(e) => e.preventDefault()}
           className={cn("h-full w-full rounded-full object-cover", revealNow && "photo-reveal")}
         />
+      ) : preview ? (
+        <span aria-hidden className="relative flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-muted">
+          {/* eslint-disable-next-line @next/next/no-img-element -- data: preview of a few hundred bytes; next/image cannot optimise data: URLs */}
+          <img
+            src={preview}
+            alt=""
+            draggable={false}
+            onContextMenu={(e) => e.preventDefault()}
+            className="absolute inset-0 h-full w-full scale-125 object-cover"
+            style={{ filter: `blur(${Math.max(3, Math.round(inner * 0.08))}px)` }}
+          />
+          {showLock && (
+            <span
+              data-slot="avatar-lock"
+              className="relative flex items-center justify-center rounded-full bg-primary/70 text-accent"
+              style={{ width: lockSize + 10, height: lockSize + 10 }}
+            >
+              <Lock style={{ width: lockSize, height: lockSize }} />
+            </span>
+          )}
+        </span>
       ) : (
         <span
           aria-hidden
@@ -88,7 +117,7 @@ export function MemberAvatar({
           {showLock && <Lock className="absolute bottom-[12%] text-accent" style={{ width: inner * 0.2, height: inner * 0.2 }} />}
         </span>
       )}
-      {showLock && <span className="sr-only">الصور تظهر بعد الاهتمام المتبادل</span>}
+      {showLock && <span className="sr-only">{preview ? "الصور تظهر بوضوح بعد الاهتمام المتبادل" : "الصور تظهر بعد الاهتمام المتبادل"}</span>}
       {pro && (
         <span
           aria-hidden
@@ -112,6 +141,7 @@ function ArcAvatar({
   name: string;
   size: number;
   photoUrl?: string | null;
+  photoPreview?: string | null;
   locked: boolean;
   pro: boolean;
   dimmed: boolean;

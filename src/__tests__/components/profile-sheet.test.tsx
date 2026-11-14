@@ -34,7 +34,7 @@ describe("ProfileSheet", () => {
     render(<ProfileSheet item={item} onClose={() => {}} footer={<div>FOOT</div>} />);
     const dialog = screen.getByRole("dialog");
     expect(within(dialog).getByText(/سارة/)).toBeTruthy();
-    expect(within(dialog).getByText("الصور تظهر بعد التوافق المتبادل فقط")).toBeTruthy();
+    expect(within(dialog).getByText("الصور تظهر بوضوح بعد التوافق المتبادل فقط")).toBeTruthy();
     expect(within(dialog).getByText("تتفقان على الاستقرار")).toBeTruthy();
     expect(within(dialog).getByText("أحب القراءة والهدوء")).toBeTruthy();
     expect(within(dialog).getByText("عنها")).toBeTruthy();

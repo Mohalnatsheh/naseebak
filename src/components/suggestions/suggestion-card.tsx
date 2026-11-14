@@ -44,7 +44,7 @@ export function SuggestionCard({
         className="cursor-pointer space-y-3 p-4 transition-colors hover:bg-muted/30"
       >
         <div className="flex items-center gap-3">
-          <MemberAvatar name={c.firstName} size={56} locked />
+          <MemberAvatar name={c.firstName} size={56} locked photoPreview={c.photoPreview} />
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <h3 className="font-display text-title text-foreground">{title}</h3>

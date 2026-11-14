@@ -44,7 +44,7 @@ export function ProfileSheet({
   return (
     <DetailSheet open onClose={onClose} title={title} menu={menu} footer={footer}>
       <div className="flex flex-col items-center gap-2 text-center">
-        <MemberAvatar name={c.firstName} size={96} locked />
+        <MemberAvatar name={c.firstName} size={96} locked photoPreview={c.photoPreview} />
         <div className="flex flex-wrap items-center justify-center gap-2">
           <SheetTitle className="font-display text-title">{title}</SheetTitle>
           {item.isPro && <ProBadge />}
@@ -55,7 +55,7 @@ export function ProfileSheet({
           {score > 0 && <span className="text-accent-ink">توافق {score}%</span>}
         </p>
         {status && <div className="flex flex-wrap items-center justify-center gap-1.5">{status}</div>}
-        <p className="text-caption text-muted-foreground">الصور تظهر بعد التوافق المتبادل فقط</p>
+        <p className="text-caption text-muted-foreground">الصور تظهر بوضوح بعد التوافق المتبادل فقط</p>
       </div>
 
       <div className="mt-5 space-y-4">

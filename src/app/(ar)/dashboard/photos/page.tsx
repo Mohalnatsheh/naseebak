@@ -212,7 +212,7 @@ export default function PhotosPage() {
       {/* Privacy: one quiet line, not a second banner (the slot above holds the one banner; QA DS-05) */}
       <p className="flex items-start gap-2 text-label font-normal text-muted-ink">
         <Lock className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden />
-        <span>صورك الشخصية لن تظهر لأي مستخدم إلا بعد التوافق المتبادل بينكما. لا يمكن لأي شخص آخر على المنصة الاطلاع عليها</span>
+        <span>لا تظهر صورك بوضوح إلا بعد توافق متبادل. قبل التوافق تظهر لمن تُقترح عليهم نسخة ضبابية جداً من صورتك الرئيسية.</span>
       </p>
 
       {/* Photo Grid */}

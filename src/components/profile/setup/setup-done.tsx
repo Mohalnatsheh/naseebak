@@ -18,7 +18,7 @@ const OPTIONAL_PREFS = ["prefCity", "prefEducation", "prefMaritalStatus", "prefH
 const LATER: { label: string; note?: string; href: string; missing: (p: Values) => boolean }[] = [
   { label: "نبذة عنك", href: "/dashboard/profile/edit?field=aboutMe", missing: (p) => isEmptyStored(p.aboutMe) },
   { label: "الطول", href: "/dashboard/profile/edit?field=height", missing: (p) => isEmptyStored(p.height) },
-  { label: "صوري", note: "مخفية حتى التوافق المتبادل", href: "/dashboard/photos", missing: () => true },
+  { label: "صوري", note: "ضبابية حتى التوافق المتبادل", href: "/dashboard/photos", missing: () => true },
   // The website has no separate preferences page: the edit list opens on the preferences
   { label: "تفضيلات الشريك", href: "/dashboard/profile/edit?field=prefAgeMin", missing: (p) => OPTIONAL_PREFS.every((k) => isEmptyStored(p[k])) },
 ];

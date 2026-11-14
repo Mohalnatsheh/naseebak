@@ -58,6 +58,8 @@ interface Suggestion {
   candidate: {
     id: string;
     firstName: string;
+    /** The server's tiny pre-blurred copy of their main photo, for the locked avatar (or null) */
+    photoPreview?: string | null;
     isVerified?: boolean;
     age: number | null;
     city: string | null;
@@ -103,6 +105,7 @@ interface Interest {
   candidate: {
     id: string;
     firstName: string;
+    photoPreview?: string | null;
     isVerified?: boolean;
     age: number | null;
     city: string | null;
@@ -146,6 +149,8 @@ interface SentRequest {
   sentAt: string;
   candidate: {
     firstName: string;
+    /** null on a matched row (the server sends none) */
+    photoPreview?: string | null;
     isVerified?: boolean;
     age: number | null;
     city: string | null;
@@ -755,6 +760,7 @@ toast.success("تهانينا! لديك توافق متبادل!", {
                       job={c.job && describeOption("job", c.job, partnerGender)}
                       score={score}
                       photoLocked
+                      photoPreview={c.photoPreview}
                       avatarMark={
                         s.isManual ? (
                           <span className="h-5 w-5 rounded-full bg-gradient-to-br from-accent to-accent/70 flex items-center justify-center shadow-sm">
@@ -906,6 +912,7 @@ toast.success("تهانينا! لديك توافق متبادل!", {
                       city={req.candidate.city}
                       job={req.candidate.job && describeOption("job", req.candidate.job, partnerGender)}
                       photoLocked={req.status !== "matched"}
+                      photoPreview={req.candidate.photoPreview}
                       tone={req.status === "matched" ? "success" : req.status === "seen" ? "info" : "pending"}
                       badges={
                         <Badge className={`${config.className} border text-caption px-2.5 py-0.5 flex items-center gap-1 flex-shrink-0`}>
@@ -1007,6 +1014,7 @@ toast.success("تهانينا! لديك توافق متبادل!", {
                       job={c.job && describeOption("job", c.job, partnerGender)}
                       score={score}
                       photoLocked
+                      photoPreview={c.photoPreview}
                       tags={[
                         { icon: Moon, label: religionFact(c.religion, viewerReligion, partnerGender) },
                         { icon: User, label: c.maritalStatus && describeOption("maritalStatus", c.maritalStatus, partnerGender) },

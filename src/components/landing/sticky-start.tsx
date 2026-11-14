@@ -40,7 +40,7 @@ export function StickyStart() {
       aria-hidden={!show}
     >
       <div className="flex items-center gap-3">
-        <p className="min-w-0 flex-1 text-sm font-semibold leading-snug text-foreground">التسجيل مجاني، والصور مخفية حتى التوافق</p>
+        <p className="min-w-0 flex-1 text-sm font-semibold leading-snug text-foreground">التسجيل مجاني، والصور ضبابية حتى التوافق</p>
         <Link
           href="/register"
           onClick={() => trackEvent("landing_start", { place: "sticky" })}

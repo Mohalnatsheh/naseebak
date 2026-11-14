@@ -181,7 +181,7 @@ void main() {
             builder: (_, _) => Scaffold(
               body: NextStepCard(
                 counts: const Counts(
-                  flags: CycleFlags(mutualSuggestions: true),
+                  flags: CycleFlags(mutualSuggestions: true, chat: true),
                   newSuggestions: 3,
                   unreadChats: 0,
                 ),
@@ -226,4 +226,22 @@ void main() {
       expect(at, '/suggestions?tab=new');
     },
   );
+
+  // Audit 2026-11-14 M4: `unreadChats` counts unread messages, not chats; no chat stat where chat isn't used
+  testWidgets('the chat stat counts unread messages, and is hidden while chat is off with no chats', (tester) async {
+    Future<void> show(Counts counts) => tester.pumpWidget(MaterialApp(
+          home: Scaffold(body: NextStepCard(counts: counts, female: false)),
+        ));
+    await show(const Counts(flags: CycleFlags(mutualSuggestions: true, chat: true), unreadChats: 3));
+    expect(
+      find.descendant(of: find.byKey(const Key('next-step-stat-chats')), matching: find.text('رسائل غير مقروءة')),
+      findsOneWidget,
+    );
+    expect(find.text('محادثات'), findsNothing);
+    await show(const Counts(flags: CycleFlags(mutualSuggestions: true)));
+    expect(find.byKey(const Key('next-step-stat-chats')), findsNothing);
+    // Chat switched off later: chats I already have still count
+    await show(const Counts(flags: CycleFlags(mutualSuggestions: true), hasChats: true, unreadChats: 1));
+    expect(find.byKey(const Key('next-step-stat-chats')), findsOneWidget);
+  });
 }

@@ -171,11 +171,14 @@ class NextStepCard extends StatelessWidget {
                 value: counts.likedYou ?? 0,
                 label: forViewer(female, 'مهتمون بك', 'مهتمون بكِ'),
               ),
-              _Stat(
-                key: const Key('next-step-stat-chats'),
-                value: counts.unreadChats,
-                label: 'محادثات',
-              ),
+              // `unreadChats` is the number of unread messages (server: message.count), not of chats; no stat where
+              // chat isn't used (switched off and none of mine)
+              if (counts.flags.chat || counts.hasChats)
+                _Stat(
+                  key: const Key('next-step-stat-chats'),
+                  value: counts.unreadChats,
+                  label: 'رسائل غير مقروءة',
+                ),
             ],
           ),
         ],

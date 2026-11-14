@@ -73,7 +73,11 @@ class _AlertGateState extends ConsumerState<AlertGate> with WidgetsBindingObserv
     final (alert, link) = openLink;
     if (link && alert.hasButton) {
       final url = alert.buttonUrl!;
-      if (url.startsWith('/')) {
+      // A site page the app has no screen for (`/faq`, `/blog/…`): the website, not a dead tap on home (sweep M4)
+      final page = websitePageForLink(url);
+      if (page != null) {
+        await openExternal(context, page);
+      } else if (url.startsWith('/')) {
         openAppRoute(GoRouter.of(context), appRouteForLink(url: url));
       } else {
         await openExternal(context, url);

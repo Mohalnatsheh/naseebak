@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/providers.dart';
+import '../../core/config/env.dart';
 import '../../core/localization/digits.dart';
 import '../../core/network/api_client.dart';
 import '../../core/network/api_exception.dart';
@@ -122,13 +123,24 @@ String appRouteForLink({String? url, String? type}) {
       if (path.startsWith('/dashboard/payments')) {
         return uri.queryParameters['section'] == 'pro' ? '/pro' : '/credits';
       }
-      if (path.startsWith('/dashboard/profile/edit')) return '/profile/edit';
+      if (path.startsWith('/dashboard/profile/edit')) {
+        // The old wizard's `?step=N` / the edit list's `?field=KEY` (website `fieldForOldStep`): 3 = partner
+        // preferences, 5 = the guardian
+        final step = uri.queryParameters['step'];
+        final field = uri.queryParameters['field'] ?? '';
+        if (step == '3' || field.startsWith('pref') || field == 'dealbreakers') return '/profile/preferences';
+        if (step == '5' || field == 'guardian') return '/profile/guardian';
+        return '/profile/edit';
+      }
       if (path.startsWith('/dashboard/profile')) return '/profile';
       if (path.startsWith('/dashboard/support')) return '/support';
       if (path.startsWith('/dashboard/notifications')) return '/notifications';
       if (path.startsWith('/dashboard/referral')) return '/referral';
       if (path.startsWith('/dashboard/photos')) return '/profile/photos';
       if (path.startsWith('/dashboard/personality-quiz')) return '/profile/quiz';
+      if (path.startsWith('/dashboard/account/settings')) return '/settings';
+      if (path.startsWith('/dashboard/account')) return '/account';
+      if (path.startsWith('/dashboard/blocks')) return '/settings/blocks';
     }
   }
   return switch (type) {
@@ -139,6 +151,21 @@ String appRouteForLink({String? url, String? type}) {
     'SUPPORT' => '/support',
     _ => '/home',
   };
+}
+
+/// A site path the app has no screen for (`/faq`, `/blog/…`, `/sa/…`): the website page to open in the browser.
+/// Null for the app's own paths (`/dashboard…`, `/register`, `/`) and anything that isn't a plain site path.
+String? websitePageForLink(String? url) {
+  if (url == null || !url.startsWith('/') || url.startsWith('//')) return null;
+  final uri = Uri.tryParse(url);
+  if (uri == null) return null;
+  final path = uri.path;
+  if (path == '/' || path == '/dashboard' || path.startsWith('/dashboard/') || path == '/register' ||
+      path.startsWith('/register/')) {
+    return null;
+  }
+  final base = Env.apiBaseUrl.startsWith('https://') ? Env.apiBaseUrl : Env.productionUrl;
+  return '$base$url';
 }
 
 class NotificationsRepository {
@@ -264,6 +291,11 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
       // the bell badge stayed stale (audit M8)
       final container = ProviderScope.containerOf(context, listen: false);
       _repo.markRead(n.id).then((_) => container.invalidate(unreadNotificationsProvider)).catchError((_) {});
+    }
+    final page = websitePageForLink(n.url);
+    if (page != null) {
+      openExternal(context, page);
+      return;
     }
     openAppRoute(GoRouter.of(context), appRouteFor(n));
   }

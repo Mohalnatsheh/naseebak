@@ -43,6 +43,14 @@ void main() {
       '/dashboard/profile/edit': '/profile/edit',
       '/dashboard/referral': '/referral',
       '/dashboard/notifications': '/notifications',
+      // Admin popups and hand-written notices (sweep M4, parity 4)
+      '/dashboard/account': '/account',
+      '/dashboard/account/settings': '/settings',
+      '/dashboard/blocks': '/settings/blocks',
+      '/dashboard/profile/edit?step=3': '/profile/preferences',
+      '/dashboard/profile/edit?field=prefAgeMin': '/profile/preferences',
+      '/dashboard/profile/edit?step=5': '/profile/guardian',
+      '/dashboard/profile/edit?step=1': '/profile/edit',
     };
     for (final e in cases.entries) {
       test(e.key, () => expect(appRouteForLink(url: e.key), e.value));
@@ -53,6 +61,16 @@ void main() {
       expect(appRouteForLink(type: 'PAYMENT'), '/credits');
       expect(appRouteForLink(url: '/dashboard', type: 'SYSTEM'), '/home');
       expect(appRouteForLink(url: '/blog/x'), '/home');
+    });
+
+    test('a website page the app has no screen for opens on the website (https); app paths stay in the app', () {
+      expect(websitePageForLink('/faq'), 'https://naseebak.com/faq');
+      expect(websitePageForLink('/blog/x?y=1'), 'https://naseebak.com/blog/x?y=1');
+      expect(websitePageForLink('/sa/faq'), 'https://naseebak.com/sa/faq');
+      for (final app in ['/dashboard', '/dashboard/blocks', '/register', '/', '', 'https://example.com/x', '//evil.com/x']) {
+        expect(websitePageForLink(app), isNull, reason: app);
+      }
+      expect(websitePageForLink(null), isNull);
     });
   });
 

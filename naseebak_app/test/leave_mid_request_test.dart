@@ -6,10 +6,13 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:naseebak_app/core/auth/auth_controller.dart';
 import 'package:naseebak_app/core/storage/token_store.dart';
 import 'package:naseebak_app/features/auth/auth_repository.dart';
 import 'package:naseebak_app/features/auth/otp_screen.dart';
 import 'package:naseebak_app/features/auth/pending_auth.dart';
+import 'package:naseebak_app/features/home/counts.dart';
+import 'package:naseebak_app/features/profile/guardian_form.dart';
 import 'package:naseebak_app/features/profile/preferences_screen.dart';
 import 'package:naseebak_app/features/profile/profile_repository.dart';
 import 'package:naseebak_app/features/settings/settings_screen.dart';
@@ -102,5 +105,68 @@ void main() {
     gate.complete();
     await settle(tester);
     expect(tester.takeException(), isNull);
+  });
+
+  // Audit 2026-11-14 I4: the guardian form is opened in the middle of family steps, so back while it loads or saves
+  // is likely
+  const guardian = {
+    'parentInfo': {
+      'parentName': 'محمد',
+      'parentPhone': '962791234567',
+      'relationship': 'father',
+      'address': 'عمّان',
+      'shareConsentAt': null,
+    },
+  };
+
+  Future<(ProviderContainer, ValueNotifier<bool>)> mountGuardian(WidgetTester tester, FakeAdapter adapter) async {
+    adapter.on('GET', '/api/mobile/me', FakeResponse(200, {'user': meJson()}));
+    final mounted = await mount(tester, adapter, const GuardianScreen());
+    final container = mounted.$1;
+    container.read(authControllerProvider);
+    for (var i = 0; i < 50 && !container.read(authControllerProvider).isSignedIn; i++) {
+      await tester.pump(const Duration(milliseconds: 10));
+    }
+    return mounted;
+  }
+
+  testWidgets('guardian form closed before it loads', (tester) async {
+    final gate = Completer<void>();
+    final adapter = FakeAdapter()
+      ..on('GET', '/api/profile/parent-info', const FakeResponse(200, guardian))
+      ..hold('GET', '/api/profile/parent-info', gate.future);
+    final (_, open) = await mountGuardian(tester, adapter);
+    open.value = false;
+    await tester.pump();
+    gate.complete();
+    await settle(tester);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('guardian form closed while saving: no crash, and «ملفي» and counts still refresh', (tester) async {
+    final gate = Completer<void>();
+    final adapter = FakeAdapter()
+      ..on('GET', '/api/profile/parent-info', const FakeResponse(200, guardian))
+      ..on('PUT', '/api/profile/parent-info', const FakeResponse(200, {'ok': true}))
+      ..on('GET', '/api/me/counts', const FakeResponse(200, {'flags': {}}))
+      ..hold('PUT', '/api/profile/parent-info', gate.future);
+    final (container, open) = await mountGuardian(tester, adapter);
+    await settle(tester);
+    // Watched elsewhere (home): the save must still refresh it
+    final sub = container.listen(countsProvider, (_, _) {});
+    addTearDown(sub.close);
+    await settle(tester);
+    final countsBefore = adapter.to('GET', '/api/me/counts').length;
+    await tester.ensureVisible(find.text('حفظ'));
+    await tester.tap(find.text('حفظ'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 20));
+    expect(adapter.to('PUT', '/api/profile/parent-info'), hasLength(1));
+    open.value = false;
+    await tester.pump();
+    gate.complete();
+    await settle(tester);
+    expect(tester.takeException(), isNull);
+    expect(adapter.to('GET', '/api/me/counts').length, greaterThan(countsBefore));
   });
 }

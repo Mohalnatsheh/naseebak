@@ -176,11 +176,14 @@ class _GuardianScreenState extends ConsumerState<GuardianScreen> {
       _loading = true;
       _loadError = null;
     });
+    // Read before the request: the form may be closed (back) while it loads
+    final dial = ref.read(authControllerProvider).me?.country.dialDigits ?? '962';
     try {
       final g = await ref.read(profileRepositoryProvider).guardian();
-      final dial = ref.read(authControllerProvider).me?.country.dialDigits ?? '962';
+      if (!mounted) return;
       if (g != null) _fields.fill(g, dial);
     } catch (e) {
+      if (!mounted) return;
       _loadError = e;
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -199,16 +202,19 @@ class _GuardianScreenState extends ConsumerState<GuardianScreen> {
     });
     if (errors.values.any((e) => e != null)) return;
     setState(() => _saving = true);
+    // Taken before the request: a save that lands after the form was closed (back mid-family-step) still refreshes
+    // the counts and «ملفي», and never touches this widget's `ref`
+    final container = ProviderScope.containerOf(context, listen: false);
     try {
-      await ref.read(profileRepositoryProvider).saveGuardian(
+      await container.read(profileRepositoryProvider).saveGuardian(
             name: _fields.name.text,
             phone: _fields.phoneToSend(country),
             relationship: _fields.relationship!,
             address: _fields.address.text,
             shareConsent: _fields.consent,
           );
-      ref.invalidate(countsProvider);
-      ref.invalidate(myProfileProvider);
+      container.invalidate(countsProvider);
+      container.invalidate(myProfileProvider);
       if (mounted) {
         showSnack(context, 'تم حفظ بيانات وليّ الأمر');
         // Opened from a family step: it goes on with what was saved (and whether sharing was agreed here)

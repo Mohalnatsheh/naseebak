@@ -7,7 +7,9 @@ import 'package:naseebak_app/core/auth/auth_controller.dart';
 import 'package:naseebak_app/core/routing/router.dart';
 import 'package:naseebak_app/core/routing/website_links.dart';
 import 'package:naseebak_app/core/storage/token_store.dart';
+import 'package:naseebak_app/features/auth/auth_repository.dart' show OtpContext;
 import 'package:naseebak_app/features/auth/paused_screen.dart';
+import 'package:naseebak_app/features/auth/pending_auth.dart';
 import 'package:naseebak_app/features/chat/chat_cache.dart';
 import 'package:naseebak_app/features/pro/pro_repository.dart';
 import 'package:naseebak_app/features/pro/pro_screen.dart';
@@ -174,10 +176,31 @@ void main() {
     await tester.pump(const Duration(seconds: 3));
   });
 
-  testWidgets('a referral link that arrives while the app is starting keeps its invitation code', (tester) async {
+  testWidgets('a referral link that arrives while the app is starting keeps its invitation code (signed out)',
+      (tester) async {
+    EarlyLinks.instance.start();
+    await tester.binding.handlePushRoute('https://naseebak.com/register?invitationCode=AB12CD34');
+    final container = ProviderContainer(overrides: [
+      ...await testOverrides(FakeAdapter(), prefs: {'intro_seen': true, 'selected_country': 'JO'}),
+      chatCacheProvider.overrideWithValue(MemoryChatCache()),
+    ]);
+    addTearDown(container.dispose);
+    // The router is made while the saved session is still being read: the code waits for the answer
+    container.read(routerProvider);
+    for (var i = 0; i < 50 && container.read(authControllerProvider).status == AuthStatus.unknown; i++) {
+      await tester.pump(const Duration(milliseconds: 10));
+    }
+    await tester.pump();
+    expect(container.read(sharedPreferencesProvider).getString(pendingInvitationKey), 'AB12CD34');
+    expect(container.read(authModeProvider), OtpContext.register);
+  });
+
+  testWidgets('audit M18: a referral link opened while signed in keeps nothing for the next sign-in', (tester) async {
     EarlyLinks.instance.start();
     await tester.binding.handlePushRoute('https://naseebak.com/register?invitationCode=AB12CD34');
     final (container, _) = await _app(tester);
-    expect(container.read(sharedPreferencesProvider).getString(pendingInvitationKey), 'AB12CD34');
+    await _link(tester, 'https://naseebak.com/register?invitationCode=ZZ12CD34');
+    expect(container.read(sharedPreferencesProvider).getString(pendingInvitationKey), isNull);
+    expect(container.read(authModeProvider), OtpContext.login);
   });
 }

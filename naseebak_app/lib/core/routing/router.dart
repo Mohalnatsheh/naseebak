@@ -177,15 +177,36 @@ final routerProvider = Provider<GoRouter>((ref) {
   });
   WidgetsBinding.instance.addObserver(links);
   ref.onDispose(() => WidgetsBinding.instance.removeObserver(links));
+  // A friend's invitation: kept for sign-up, which opens on «حساب جديد». Only for someone signed out: a member who
+  // taps a link (often their own, to test sharing) keeps nothing that would turn their next sign-in into a sign-up.
+  // While the saved session is still being read, it waits for the answer.
+  String? waitingInvitation;
+  void takeInvitation(String code) {
+    final auth = ref.read(authControllerProvider);
+    if (auth.status == AuthStatus.unknown) {
+      waitingInvitation = code;
+      return;
+    }
+    if (auth.status != AuthStatus.signedOut) return;
+    ref.read(sharedPreferencesProvider).setString(pendingInvitationKey, code);
+    // Not during the redirect itself
+    Future.microtask(() => ref.read(authModeProvider.notifier).set(OtpContext.register));
+  }
+
+  ref.listen(authControllerProvider.select((a) => a.status), (_, status) {
+    final code = waitingInvitation;
+    if (code == null || status == AuthStatus.unknown) return;
+    waitingInvitation = null;
+    takeInvitation(code);
+  });
+
   // A link that came while the app was still starting
   final early = EarlyLinks.instance.take();
   final earlyLink = early == null ? null : WebsiteLink.parse(early);
   if (earlyLink != null) {
     final code = earlyLink.invitationCode;
     if (code != null) {
-      // A friend's invitation: kept for sign-up, which opens on «حساب جديد» (as the redirect does)
-      ref.read(sharedPreferencesProvider).setString(pendingInvitationKey, code);
-      Future.microtask(() => ref.read(authModeProvider.notifier).set(OtpContext.register));
+      takeInvitation(code);
     } else if (earlyLink.route != null) {
       pendingLink = earlyLink.route;
     }
@@ -202,11 +223,7 @@ final routerProvider = Provider<GoRouter>((ref) {
     redirect: (context, state) {
       final link = WebsiteLink.parse(state.uri);
       if (link != null) {
-        if (link.invitationCode != null) {
-          ref.read(sharedPreferencesProvider).setString(pendingInvitationKey, link.invitationCode!);
-          // A friend's invitation: the phone screen opens on «حساب جديد» (not during the redirect itself)
-          Future.microtask(() => ref.read(authModeProvider.notifier).set(OtpContext.register));
-        }
+        if (link.invitationCode != null) takeInvitation(link.invitationCode!);
         final route = link.route;
         if (route == null) return guard('/auth/phone') ?? '/auth/phone';
         pendingLink = route;

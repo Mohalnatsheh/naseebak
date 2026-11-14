@@ -152,5 +152,8 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('شارك رمزك مع من يبحث عن الزواج بجدية'), findsNothing);
+    // The intro names the same amount as the line under it (2 credits), never «رصيد إضافي»
+    expect(find.textContaining('تحصلين على رصيدين إضافيين'), findsOneWidget);
+    expect(find.textContaining('رصيد إضافي'), findsNothing);
   });
 }

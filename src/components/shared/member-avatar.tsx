@@ -5,13 +5,16 @@ import { Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useFirstReveal } from "@/lib/photo-reveal";
 
+/** The only preview the avatar draws: the server's WebP copy (never svg, png or a URL) */
+const PREVIEW_PREFIX = "data:image/webp;base64,";
+
 /**
  * One avatar for every member everywhere (design review P2-5 / DS-24; the app's `MemberAvatar`): always a circle.
  * - Photo hidden (or none): the first letter on a navy gradient with a faint star veil; `locked` adds a small gold
  *   lock under the letter (photos show only after a mutual match).
  * - Photo shown: the photo (pass `photoUrl` only once it may be shown).
  * - Locked with `photoPreview` (spec 2026-11-14, blurred photo preview): the server's tiny pre-blurred copy of their main
- *   photo covers the circle under a further CSS blur, with the lock and no letter. Only a `data:image/` string is drawn;
+ *   photo covers the circle under a further CSS blur, with the lock and no letter. Only a `data:image/webp;base64,` string is drawn;
  *   anything else (or none) keeps the letter veil.
  * - `matched`: a gold ring around it. `pro`: a small gold dot on the corner. `dimmed`: over (ended chat, closed match).
  * Decorative by default (the name is next to it); pass `alt` when the photo is the only place the name appears.
@@ -57,7 +60,7 @@ export function MemberAvatar({
   if (arc !== null) return <ArcAvatar {...{ name, size, photoUrl, photoPreview, locked, pro, dimmed, onNavy, className }} reveal={revealNow} fraction={arc} />;
   const inner = matched ? size - 6 : size;
   const showLock = locked && !photoUrl && size >= 36;
-  const preview = locked && !photoUrl && typeof photoPreview === "string" && photoPreview.startsWith("data:image/") ? photoPreview : null;
+  const preview = locked && !photoUrl && typeof photoPreview === "string" && photoPreview.startsWith(PREVIEW_PREFIX) ? photoPreview : null;
   const lockSize = Math.round(inner * 0.2);
   return (
     <span
@@ -117,7 +120,7 @@ export function MemberAvatar({
           {showLock && <Lock className="absolute bottom-[12%] text-accent" style={{ width: inner * 0.2, height: inner * 0.2 }} />}
         </span>
       )}
-      {showLock && <span className="sr-only">{preview ? "الصور تظهر بوضوح بعد الاهتمام المتبادل" : "الصور تظهر بعد الاهتمام المتبادل"}</span>}
+      {showLock && <span className="sr-only">{preview ? "الصور تظهر بوضوح بعد التوافق المتبادل" : "الصور تظهر بعد الاهتمام المتبادل"}</span>}
       {pro && (
         <span
           aria-hidden

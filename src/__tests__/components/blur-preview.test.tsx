@@ -52,7 +52,7 @@ describe("MemberAvatar with a blurred preview", () => {
     expect(img.style.filter).toMatch(/blur\(\d+(\.\d+)?px\)/);
     expect(container.querySelector("[data-slot=avatar-lock]")).not.toBeNull();
     expect(el.querySelector("[aria-hidden]")!.textContent).toBe("");
-    expect(screen.getByText("الصور تظهر بوضوح بعد الاهتمام المتبادل")).toBeInTheDocument();
+    expect(screen.getByText("الصور تظهر بوضوح بعد التوافق المتبادل")).toBeInTheDocument();
   });
 
   it("locked without a preview: the initial veil as before, no image", () => {
@@ -73,9 +73,18 @@ describe("MemberAvatar with a blurred preview", () => {
     expect(screen.getByRole("img", { name: "صورة خالد" })).toHaveAttribute("src", "https://cdn.naseebak.com/a.jpg");
   });
 
-  it("only data:image/ previews are drawn (anything else falls back to the initial)", () => {
-    const { container } = render(<MemberAvatar name="ليلى" locked photoPreview="https://cdn.naseebak.com/x.jpg" />);
-    expect(container.querySelector("img")).toBeNull();
+  it("only data:image/webp;base64, previews are drawn (svg/png data or a URL fall back to the initial)", () => {
+    for (const bad of [
+      "https://cdn.naseebak.com/x.jpg",
+      "data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=",
+      "data:image/png;base64,iVBORw0KGgo=",
+      "data:image/webp,raw",
+    ]) {
+      const { container, unmount } = render(<MemberAvatar name="ليلى" locked photoPreview={bad} />);
+      expect(container.querySelector("img"), bad).toBeNull();
+      expect(container.querySelector("[data-slot=member-avatar]")!.getAttribute("data-state")).toBe("locked");
+      unmount();
+    }
   });
 });
 
@@ -133,15 +142,29 @@ describe("photo wording: blurred, not hidden", () => {
     }
     expect(read("src/components/landing/content.ts")).toContain("الصور ضبابية حتى التوافق");
     expect(read("src/components/profile/setup/setup-done.tsx")).toContain("ضبابية حتى التوافق المتبادل");
+    const about = read("src/app/(ar)/about/page.tsx");
+    expect(about).not.toContain("ضبابية للجميع");
+    expect(about).not.toContain("ضبابية للكل");
+    expect(about.match(/صورك لا تظهر بوضوح لأحد حتى يحصل توافق متبادل/g)?.length).toBe(2);
+  });
+
+  it("landing: no plain «بدون صور» / «بلا صور» left (only «… واضحة»), and «فقط» sits after the blurred copy", () => {
+    const landing = read("src/components/landing/content.ts");
+    expect(landing).not.toMatch(/(بدون|بلا) صورة?(?!ة| واضحة)/);
+    expect(landing).not.toContain("واسمك الأول فقط، ونسخة");
+    expect(landing).not.toContain("واسمك الأول بس، ونسخة");
   });
 
   it("privacy policy, FAQ and the photos page say a strongly blurred preview shows before a match", () => {
     const privacy = read("src/app/(ar)/privacy/page.tsx");
-    expect(privacy.match(/نسخة ضبابية جداً من صورتك الرئيسية/g)?.length).toBe(3);
+    expect(privacy.match(/لمن يُقترح عليهم ملفك إلا نسخة ضبابية جداً من صورتك الرئيسية/g)?.length).toBe(3);
     expect(privacy).not.toContain("لا تظهر صورك إلا للطرف");
     const faq = read("src/app/(ar)/faq/faq-data.ts");
-    expect(faq.match(/نسخة ضبابية جداً من صورتك الرئيسية/g)?.length).toBe(2);
-    expect(faq).toContain("نسخة ضبابية كتير من صورتك الرئيسية");
-    expect(read("src/app/(ar)/dashboard/photos/page.tsx")).toContain("نسخة ضبابية جداً من صورتك الرئيسية");
+    expect(faq.match(/من يُقترح عليهم ملفك إلا نسخة ضبابية جداً من صورتك الرئيسية/g)?.length).toBe(2);
+    expect(faq).toContain("يلّي بينقترح عليهن ملفك");
+    const photos = read("src/app/(ar)/dashboard/photos/page.tsx");
+    expect(photos).toContain("لمن يُقترح عليهم ملفك نسخة ضبابية جداً من صورتك الرئيسية");
+    // Neutral wording: never «تُقترح عليهم» (reads as a masculine «you»)
+    for (const t of [privacy, faq, photos]) expect(t).not.toContain("تُقترح عليهم");
   });
 });

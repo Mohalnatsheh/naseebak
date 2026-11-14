@@ -546,13 +546,13 @@ class DealbreakerToggles extends StatelessWidget {
   String _title(String key) => switch (key) {
         'age' => 'العمر المفضل',
         'city' => 'المدن المفضلة',
-        'education' => 'المستوى التعليمي',
+        'education' => 'المستوى التعليمي المفضل',
         'maritalStatus' => 'الحالة الاجتماعية',
         'religiosity' => 'مستوى التدين',
         'sect' => 'المذهب',
         'smokingStatus' => 'التدخين',
-        'hijab' => 'الحجاب',
-        'beard' => 'اللحية',
+        'hijab' => 'تفضيل الحجاب',
+        'beard' => 'تفضيل اللحية',
         'children' => 'أبناء من زواج سابق',
         _ => key,
       };
@@ -560,13 +560,19 @@ class DealbreakerToggles extends StatelessWidget {
   String _list(String field, List<String> values) =>
       values.map((v) => OptionLabels.describe(field, v, female: _partnerFemale)).join('، ');
 
+  /// A level means "this level or higher": the lowest one picked, «فأعلى» unless it is the top (the website's
+  /// `dealbreakerSummary`); an unknown stored value lists them as they are
+  String _education() {
+    const order = ProfileOptions.education;
+    if (value.education.any((v) => !order.contains(v))) return value.education.join('، ');
+    final min = order.firstWhere(value.education.contains);
+    return min == order.last ? min : '$min فأعلى';
+  }
+
   String _summary(String key) => switch (key) {
-        'age' => [
-            if (value.ageMin != null) 'من ${value.ageMin}',
-            if (value.ageMax != null) 'إلى ${value.ageMax}',
-          ].join(' '),
+        'age' => '${value.ageMin ?? '—'} – ${value.ageMax ?? '—'} سنة',
         'city' => value.cities.join('، '),
-        'education' => value.education.join('، '),
+        'education' => _education(),
         'maritalStatus' => _list('maritalStatus', value.maritalStatus),
         'religiosity' => _list('religiosity', value.religiosity),
         'sect' => _list('sect', value.sect),
@@ -576,8 +582,8 @@ class DealbreakerToggles extends StatelessWidget {
             ProfileOptions.niqab => 'منتقبة',
             _ => 'غير محجبة',
           },
-        'beard' => value.beard == 'نعم' ? 'ملتحٍ' : 'غير ملتحٍ',
-        'children' => 'بلا أبناء من زواج سابق',
+        'beard' => value.beard == 'نعم' ? 'ملتحٍ' : 'بدون لحية',
+        'children' => 'بدون أبناء',
         _ => '',
       };
 
@@ -597,7 +603,7 @@ class DealbreakerToggles extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          forViewer(female, 'لن نقترح عليك من لا يحققه', 'لن نقترح عليكِ من لا يحققه'),
+          forViewer(female, 'لن نقترح عليك من لا يحققه.', 'لن نقترح عليكِ من لا يحققه.'),
           style: AppText.labelRegular.copyWith(color: AppColors.muted),
         ),
         for (final k in keys)

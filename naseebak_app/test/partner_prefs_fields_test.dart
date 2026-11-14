@@ -162,7 +162,7 @@ void main() {
         ),
       );
       expect(find.text('لم تحدّد تفضيلات بعد، يمكنك المتابعة.'), findsNothing);
-      expect(find.text('لن نقترح عليك من لا يحققه'), findsOneWidget);
+      expect(find.text('لن نقترح عليك من لا يحققه.'), findsOneWidget);
       expect(find.byKey(const Key('db-city')), findsOneWidget);
       expect(find.byKey(const Key('db-education')), findsNothing);
       await tester.tap(find.byKey(const Key('db-city')));
@@ -184,7 +184,7 @@ void main() {
           ),
         ),
       );
-      expect(find.text('لن نقترح عليكِ من لا يحققه'), findsOneWidget);
+      expect(find.text('لن نقترح عليكِ من لا يحققه.'), findsOneWidget);
       await tester.tap(find.byKey(const Key('db-city')));
       await tester.pump();
       expect(got, {'religiosity'});
@@ -219,6 +219,33 @@ void main() {
         ),
       );
       expect(find.byKey(const Key('db-beard')), findsNothing);
+    });
+
+    Future<void> rows(WidgetTester tester, PartnerPrefs p, {bool female = false}) => tester.pumpWidget(
+          host(DealbreakerToggles(value: p, selected: const {}, onChanged: (_) {}, female: female, christian: false)),
+        );
+
+    testWidgets('education reads as the website: the lowest level «فأعلى», the top level alone', (tester) async {
+      phone(tester);
+      await rows(tester, const PartnerPrefs(education: ['ماجستير', 'بكالوريوس', 'دكتوراه']));
+      expect(find.text('المستوى التعليمي المفضل'), findsOneWidget);
+      expect(find.text('بكالوريوس فأعلى'), findsOneWidget);
+      await rows(tester, const PartnerPrefs(education: ['دكتوراه']));
+      expect(find.text('دكتوراه'), findsOneWidget);
+      expect(find.text('دكتوراه فأعلى'), findsNothing);
+    });
+
+    testWidgets('the website\'s titles and summaries', (tester) async {
+      phone(tester);
+      await rows(tester, const PartnerPrefs(ageMin: 24, ageMax: 34, hijab: 'نعم', children: 'لا'));
+      expect(find.text('24 – 34 سنة'), findsOneWidget);
+      expect(find.text('تفضيل الحجاب'), findsOneWidget);
+      expect(find.text('محجبة'), findsOneWidget);
+      expect(find.text('بدون أبناء'), findsOneWidget);
+      await rows(tester, const PartnerPrefs(ageMin: 24, beard: 'لا'), female: true);
+      expect(find.text('24 – — سنة'), findsOneWidget);
+      expect(find.text('تفضيل اللحية'), findsOneWidget);
+      expect(find.text('بدون لحية'), findsOneWidget);
     });
 
     testWidgets('a Muslim man with a hijab preference sees its toggle', (tester) async {

@@ -455,7 +455,7 @@ class _BannerSlot extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     switch (homeBannerFor(counts)) {
       case HomeBanner.noCreditsWithInterest:
-        final payments = ref.watch(appPaymentsProvider);
+        final payments = ref.watch(rechargeShownProvider);
         return Padding(
           padding: const EdgeInsets.only(bottom: 12),
           child: BannerLine(

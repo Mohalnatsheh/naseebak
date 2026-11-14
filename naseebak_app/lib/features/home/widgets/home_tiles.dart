@@ -26,6 +26,8 @@ class HomeTiles extends ConsumerWidget {
     // Test and review accounts (app payments off) never see a purchase surface, whatever the server's flags say
     final payments = ref.watch(appPaymentsProvider);
     final credits = counts.credits ?? ref.watch(authControllerProvider.select((s) => s.me?.credits));
+    // «اشحن» also needs a country that sells (none in Lebanon yet)
+    final recharge = ref.watch(rechargeShownProvider);
     // The old «المزيد» Pro row's gate (`proShowPage && !isPro && appPayments`: someone who can buy), plus a Pro member
     // with app payments, who sees «فعّالة» instead of an offer. A test or review account (payments off) sees no Pro
     // tile even when Pro: every Pro surface needs `appPaymentsProvider` (naseebak_app/CLAUDE.md).
@@ -42,7 +44,7 @@ class HomeTiles extends ConsumerWidget {
           label: g('رصيدك', 'رصيدكِ'),
           value: '$credits',
           tabular: true,
-          action: payments ? g('اشحن', 'اشحني') : null,
+          action: recharge ? g('اشحن', 'اشحني') : null,
           wide: wide,
           onTap: () => context.push('/credits'),
         ),

@@ -379,7 +379,7 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
           tab: widget.tab,
           candidateFemale: female,
           tribeLabel: me?.country.tribeWord ?? 'العائلة',
-          answerNote: _answerNote(item, state, candidateFemale: female, appPayments: appPayments),
+          answerNote: _answerNote(item, state, candidateFemale: female, appPayments: ref.read(rechargeShownProvider)),
           interestEnabled: state.interestEnabled,
           interestLabel: item.interestLabel,
           declineLabel: item.declineLabel,
@@ -572,7 +572,7 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
         showSnack(
           context,
           e.message,
-          action: ref.read(appPaymentsProvider)
+          action: ref.read(rechargeShownProvider)
               ? SnackBarAction(label: 'شحن', onPressed: () => context.push('/credits'))
               : null,
         );
@@ -632,7 +632,7 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
             free: _freeReply(counts, item),
             likedYou: item.likedYou,
             credits: me?.credits,
-            canRecharge: ref.read(appPaymentsProvider),
+            canRecharge: ref.read(rechargeShownProvider),
             closeOnNoCredits: _paywall(counts),
             guardianConsented: counts?.guardianConsented ?? false,
             viewerFemale: me?.isFemale ?? false,
@@ -715,7 +715,7 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
 
   /// 0 credits: everything stays visible and «لا» is free; only «مهتم» waits for a recharge
   Widget _zeroBalance(BuildContext context) {
-    final canRecharge = ref.watch(appPaymentsProvider);
+    final canRecharge = ref.watch(rechargeShownProvider);
     return BannerLine(
       key: const Key('zero-balance'),
       warning: true,

@@ -256,6 +256,15 @@ final authControllerProvider = NotifierProvider<AuthController, AuthState>(AuthC
 /// Whether this member may buy credits in the app (hides packages and every «شحن» when off)
 final appPaymentsProvider = Provider<bool>((ref) => ref.watch(authControllerProvider.select((s) => s.me?.appPayments ?? true)));
 
+/// Whether a «اشحن» (recharge) link is worth showing: app payments on and the member's country sells credits
+/// (`country.purchasesEnabled` = the server's `purchasesAvailable`; Lebanon has no approved prices yet). The balance
+/// and the credits screen stay either way.
+final rechargeShownProvider = Provider<bool>(
+  (ref) =>
+      ref.watch(appPaymentsProvider) &&
+      ref.watch(authControllerProvider.select((s) => s.me?.country.purchasesEnabled ?? true)),
+);
+
 /// The country picked on this device (null before the first pick).
 class SelectedCountryCode extends Notifier<String?> {
   @override

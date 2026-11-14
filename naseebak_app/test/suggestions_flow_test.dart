@@ -64,10 +64,14 @@ class Harness {
     this.pushAllowed,
     this.interestPaywall = false,
     this.withRouter = false,
+    this.selling = true,
   }) : items = items ?? [card('s1')];
 
   /// `interestPaywall` of the counts (switch interest_paywall, a member who can buy)
   final bool interestPaywall;
+
+  /// The member's country sells credits (`country.purchasesEnabled`; Lebanon doesn't today)
+  final bool selling;
 
   /// Inside a router with a `/credits` page (tests that follow the recharge)
   final bool withRouter;
@@ -96,7 +100,14 @@ class Harness {
   Future<void> pump(WidgetTester tester, {FeedTab tab = FeedTab.newTab}) async {
     adapter
       ..on('GET', '/api/mobile/me',
-          FakeResponse(200, {'user': {...meJson(credits: credits), 'gender': gender, 'appPayments': appPayments}}))
+          FakeResponse(200, {
+            'user': {
+              ...meJson(credits: credits),
+              'gender': gender,
+              'appPayments': appPayments,
+              'country': {...joJson, 'purchasesEnabled': selling},
+            },
+          }))
       ..on('GET', '/api/me/counts',
           FakeResponse(200, counts(
               creditOnInterest: creditOnInterest,
@@ -411,6 +422,14 @@ void main() {
 
     testWidgets('payments hidden in the app: no recharge link', (tester) async {
       final h = Harness(credits: 0, appPayments: false);
+      await h.pump(tester);
+      expect(find.byKey(const Key('zero-balance')), findsOneWidget);
+      expect(find.byKey(const Key('recharge')), findsNothing);
+      expect(find.textContaining('اشحن'), findsNothing);
+    });
+
+    testWidgets('a country that doesn\'t sell: no recharge link', (tester) async {
+      final h = Harness(credits: 0, selling: false);
       await h.pump(tester);
       expect(find.byKey(const Key('zero-balance')), findsOneWidget);
       expect(find.byKey(const Key('recharge')), findsNothing);

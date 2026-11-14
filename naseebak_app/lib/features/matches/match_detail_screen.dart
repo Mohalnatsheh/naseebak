@@ -397,7 +397,7 @@ class _IntroPanelState extends ConsumerState<IntroPanel> {
       if (e.code == 'GUARDIAN_REQUIRED') {
         showSnack(context, e.message,
             action: SnackBarAction(label: 'إضافة', onPressed: () => context.push('/profile/guardian')));
-      } else if (e.kind == ApiErrorKind.noCredits && ref.read(appPaymentsProvider)) {
+      } else if (e.kind == ApiErrorKind.noCredits && ref.read(rechargeShownProvider)) {
         showSnack(context, e.message, action: SnackBarAction(label: 'شحن', onPressed: () => context.push('/credits')));
       } else {
         showSnack(context, e.message);

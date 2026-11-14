@@ -113,6 +113,7 @@ void main() {
     bool pollsOn = true,
     bool tall = true,
     double width = 400,
+    bool selling = true,
   }) async {
     if (tall) {
       tester.view.physicalSize = Size(width, 4000);
@@ -125,6 +126,7 @@ void main() {
       'country': {
         ...joJson,
         'features': {'polls': pollsOn},
+        'purchasesEnabled': selling,
       },
     };
     final adapter = FakeAdapter()
@@ -411,6 +413,13 @@ void main() {
       expect(find.text('اشحني'), findsNothing);
       expect(find.text('اشحن'), findsNothing);
       expect(find.byKey(const Key('home-tile-pro')), findsNothing);
+    });
+
+    testWidgets('a country that doesn\'t sell (Lebanon today): the balance, no «اشحن»', (tester) async {
+      await pumpHome(tester, selling: false, counts: {'credits': 4});
+      expect(inKey('home-tile-credits', find.text('4')), findsOneWidget);
+      expect(find.text('اشحني'), findsNothing);
+      expect(find.text('اشحن'), findsNothing);
     });
 
     testWidgets('a complete profile: no profile tile', (tester) async {

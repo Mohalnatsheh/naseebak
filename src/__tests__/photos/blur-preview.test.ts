@@ -15,7 +15,7 @@ const bunny = vi.hoisted(() => ({
 vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/bunny", () => bunny);
 
-import { makeBlurPreview, primaryPhotoPreview, refreshMemberPreviews, BLUR_PREVIEW_MAX_BYTES } from "@/lib/photos/blur-preview";
+import { makeBlurPreview, primaryPhotoPreview, readPhotoBytes, refreshMemberPreviews, BLUR_PREVIEW_MAX_BYTES } from "@/lib/photos/blur-preview";
 
 /** A real 800×600 JPEG with detail (noise), like a phone photo */
 async function jpeg800x600(): Promise<Buffer> {
@@ -126,5 +126,28 @@ describe("refreshMemberPreviews", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     await expect(refreshMemberPreviews("u1", db as never)).resolves.toBeUndefined();
     warn.mockRestore();
+  });
+});
+
+describe("readPhotoBytes reads only our own photo storage", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it.each([
+    "http://169.254.169.254/latest/meta-data/",
+    "https://evil.example/x.jpg",
+    "http://localhost:3020/api/dev/uploads/x.jpg",
+    "file:///etc/passwd",
+  ])("%s → null, nothing fetched", async (url) => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("x"));
+    expect(await readPhotoBytes(url)).toBeNull();
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(bunny.readFromBunny).not.toHaveBeenCalled();
+    fetchSpy.mockRestore();
+  });
+
+  it("a storage URL is read through the storage API", async () => {
+    bunny.readFromBunny.mockResolvedValue(Buffer.from("img"));
+    expect(await readPhotoBytes("cdn://photos/u1/a.jpg")).toEqual(Buffer.from("img"));
+    expect(bunny.readFromBunny).toHaveBeenCalledWith("photos/u1/a.jpg");
   });
 });

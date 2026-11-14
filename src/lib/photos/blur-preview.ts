@@ -18,9 +18,6 @@ const BLUR_WORK_SIDE = 256;
 const BLUR_SIGMA = 20;
 /** Pixels sharp may decode: a 48 MP phone photo fits, a decompression bomb doesn't */
 const MAX_INPUT_PIXELS = 100_000_000;
-/** A photo fetched by its URL (an older row outside Bunny): time and size caps */
-const FETCH_TIMEOUT_MS = 10_000;
-const FETCH_MAX_BYTES = 15 * 1024 * 1024;
 const DATA_URI_PREFIX = "data:image/webp;base64,";
 
 /** The 16 px blurred WebP data URI of a photo, or null (undecodable, or over 1 KB) */
@@ -59,19 +56,15 @@ export function primaryPhotoPreview(
   return source.blurPreview ?? null;
 }
 
-async function fetchCapped(url: string): Promise<Buffer | null> {
-  const res = await fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
-  if (!res.ok) return null;
-  const buf = Buffer.from(await res.arrayBuffer());
-  return buf.length <= FETCH_MAX_BYTES ? buf : null;
-}
-
-/** The stored bytes of a photo: from Bunny (or `.dev-uploads/` locally), a legacy inline data URL, or its URL */
+/**
+ * The stored bytes of a photo, from our own storage only: a Bunny path (or `.dev-uploads/` locally) read through the
+ * storage API, or a legacy inline data URL. Any other URL is null and never fetched (no request to a host a row
+ * names).
+ */
 export async function readPhotoBytes(url: string): Promise<Buffer | null> {
   const path = getBunnyPathFromUrl(url);
   if (path) return readFromBunny(path);
   if (url.startsWith("data:")) return base64ToBuffer(url)?.buffer ?? null;
-  if (/^https:\/\//.test(url)) return fetchCapped(url);
   return null;
 }
 

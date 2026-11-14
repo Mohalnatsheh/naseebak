@@ -42,6 +42,9 @@ class PendingAuth {
   bool alreadyVerified(String code) => this.code != null && this.code == code;
 }
 
+/// The verified code can't be used any more (used up by a sign-in whose answer was lost, or too old): a new one is needed
+const codeExpiredMessage = 'انتهت صلاحية الرمز، يمكنك طلب رمز جديد.';
+
 class PendingAuthNotifier extends Notifier<PendingAuth?> {
   @override
   PendingAuth? build() => null;

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../app/providers.dart';
 import '../../core/analytics/analytics.dart';
+import '../../core/auth/auth_controller.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/routing/website_links.dart' show pendingInvitationKey;
 import '../../core/theme/app_theme.dart';
@@ -92,6 +93,8 @@ class _PhoneFormState extends ConsumerState<PhoneForm> {
     });
     if (err != null || _sending) return;
     final phone = localPhone(_controller.text, country);
+    // «انتهت الجلسة» has done its job once the member signs in again
+    ref.read(sessionNoticeProvider.notifier).set(null);
     setState(() => _sending = true);
     try {
       final exists = await ref.read(authRepositoryProvider).sendOtp(phone: phone, context: mode, country: country.code);
@@ -108,9 +111,10 @@ class _PhoneFormState extends ConsumerState<PhoneForm> {
           );
       if (mounted) context.push('/auth/otp');
     } on ApiException catch (e) {
-      setState(() => _serverError = e.message);
+      // Left the screen meanwhile: nothing to show (setState after dispose crashed release builds)
+      if (mounted) setState(() => _serverError = e.message);
     } catch (_) {
-      setState(() => _serverError = ApiException.genericMessage);
+      if (mounted) setState(() => _serverError = ApiException.genericMessage);
     } finally {
       if (mounted) setState(() => _sending = false);
     }
@@ -131,6 +135,8 @@ class _PhoneFormState extends ConsumerState<PhoneForm> {
     final mode = ref.watch(authModeProvider);
     final register = mode == OtpContext.register;
     final invitation = ref.read(sharedPreferencesProvider).getString(pendingInvitationKey);
+    // Signed out by the server (token expired or revoked): why the member is here
+    final sessionNotice = ref.watch(sessionNoticeProvider);
     final focused = _focus.hasFocus;
     final borderColor = _fieldError != null
         ? AppColors.danger
@@ -157,6 +163,10 @@ class _PhoneFormState extends ConsumerState<PhoneForm> {
                 child: _ModeSwitch(register: register, onChanged: _switchMode),
               ),
               const SizedBox(height: 22),
+              if (sessionNotice != null) ...[
+                InfoBanner(key: const Key('session-ended'), text: sessionNotice, tone: BannerTone.warning),
+                const SizedBox(height: 16),
+              ],
               if (register && !country.registrationOpen) ...[
                 const InfoBanner(text: 'التسجيل مغلق مؤقتاً في هذه الدولة.', tone: BannerTone.warning),
                 const SizedBox(height: 16),
@@ -220,7 +230,7 @@ class _PhoneFormState extends ConsumerState<PhoneForm> {
                           keyboardType: TextInputType.phone,
                           textInputAction: TextInputAction.done,
                           autofillHints: const [AutofillHints.telephoneNumberNational],
-                          inputFormatters: [SafeInputFormatter(allowed: RegExp(r'[0-9٠-٩۰-۹+ ]'), maxLength: 16)],
+                          inputFormatters: [SafeInputFormatter(allowed: RegExp(r'[0-9٠-٩۰-۹+ ]'), maxLength: 20)],
                           style: AppText.headline.copyWith(letterSpacing: 1.5, fontWeight: FontWeight.w600),
                           onSubmitted: (_) => _submit(),
                           decoration: InputDecoration(
@@ -263,7 +273,8 @@ class _PhoneFormState extends ConsumerState<PhoneForm> {
                 key: const ValueKey('phone-in-4'),
                 delay: const Duration(milliseconds: 380),
                 child: Row(children: [
-                  const Icon(Icons.sms_outlined, size: 16, color: AppColors.muted),
+                  Icon(widget.country.otpByWhatsapp ? Icons.chat_outlined : Icons.sms_outlined,
+                      size: 16, color: AppColors.muted),
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text('سنرسل رمز تحقق من 6 أرقام ${widget.country.otpByWhatsapp ? 'عبر واتساب' : 'برسالة نصية'}.',
@@ -315,7 +326,8 @@ class _ModeSwitch extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 52,
+      // 44 px tap targets inside the 5 px padding
+      height: 54,
       padding: const EdgeInsets.all(5),
       decoration: BoxDecoration(color: AppColors.navy.withValues(alpha: 0.07), borderRadius: BorderRadius.circular(16)),
       child: Stack(children: [

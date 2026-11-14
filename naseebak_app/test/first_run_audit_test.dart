@@ -9,7 +9,13 @@ import 'package:naseebak_app/core/auth/auth_controller.dart';
 import 'package:naseebak_app/core/storage/token_store.dart';
 import 'package:naseebak_app/features/welcome/splash_screen.dart';
 import 'package:naseebak_app/features/welcome/welcome_state.dart';
+import 'package:naseebak_app/features/auth/auth_repository.dart';
 import 'package:naseebak_app/features/auth/logout_button.dart';
+import 'package:naseebak_app/features/auth/otp_screen.dart';
+import 'package:naseebak_app/features/auth/pending_auth.dart';
+import 'package:naseebak_app/features/auth/phone_screen.dart';
+import 'package:naseebak_app/features/auth/register_screen.dart';
+import 'package:naseebak_app/features/country_selection/country.dart';
 import 'package:naseebak_app/features/auth/paused_screen.dart';
 import 'package:naseebak_app/features/auth/suspended_screen.dart';
 import 'package:naseebak_app/features/settings/settings_list_screen.dart';
@@ -278,6 +284,165 @@ void main() {
       await tester.tap(find.text('حذف الحساب'));
       await tester.pumpAndSettle();
       expect(find.text('يساعدنا رأيك في تحسين المنصة'), findsOneWidget);
+    });
+  });
+
+  group('sign-in', () {
+    Future<ProviderContainer> openOtp(WidgetTester tester, FakeAdapter adapter,
+        {PendingAuth? pending, OtpScreen screen = const OtpScreen()}) async {
+      final c = ProviderContainer(overrides: await testOverrides(adapter));
+      addTearDown(c.dispose);
+      c.read(pendingAuthProvider.notifier).set(pending ??
+          const PendingAuth(phone: '0796922292', countryCode: 'JO', mode: OtpContext.login, userExists: true));
+      await tester.pumpWidget(UncontrolledProviderScope(container: c, child: rtlApp(screen)));
+      await tester.pump();
+      return c;
+    }
+
+    testWidgets('M1: the countdown follows the clock after time away (iPhone pauses timers)', (tester) async {
+      var now = DateTime(2026, 11, 14, 10);
+      await openOtp(tester, FakeAdapter(), screen: OtpScreen(now: () => now));
+      expect(find.text('يمكنك طلب رمز جديد بعد 60 ثانية'), findsOneWidget);
+      // 50 s reading WhatsApp, no tick meanwhile
+      now = now.add(const Duration(seconds: 50));
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pump();
+      expect(find.text('يمكنك طلب رمز جديد بعد 10 ثانية'), findsOneWidget);
+      now = now.add(const Duration(seconds: 11));
+      await tester.pump(const Duration(seconds: 1));
+      expect(find.byKey(const Key('resend')), findsOneWidget);
+    });
+
+    testWidgets('M2: a wrong code empties the boxes (the error stays)', (tester) async {
+      final adapter = FakeAdapter()
+        ..on('POST', '/api/auth/verify-otp', const FakeResponse(400, {'error': 'رمز التحقق غير صحيح'}));
+      await openOtp(tester, adapter);
+      await tester.enterText(find.byKey(const Key('otp-field')), '123456');
+      await tester.pump();
+      await tester.pump();
+      expect(find.text('رمز التحقق غير صحيح'), findsOneWidget);
+      expect(tester.widget<TextField>(find.byKey(const Key('otp-field'))).controller!.text, isEmpty);
+    });
+
+    testWidgets('M3: the token step refuses a used code: the code is dropped and a new one is offered', (tester) async {
+      final adapter = FakeAdapter()
+        ..on('POST', '/api/auth/verify-otp', const FakeResponse(200, {'verified': true, 'userExists': true}))
+        ..on('POST', '/api/mobile/auth/token',
+            const FakeResponse(401, {'error': 'رمز التحقق غير صالح أو انتهت صلاحيته', 'code': 'INVALID_CODE'}));
+      final c = await openOtp(tester, adapter);
+      await tester.enterText(find.byKey(const Key('otp-field')), '123456');
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(c.read(pendingAuthProvider)!.code, isNull);
+      expect(find.text(codeExpiredMessage), findsOneWidget);
+      expect(tester.widget<TextField>(find.byKey(const Key('otp-field'))).controller!.text, isEmpty);
+    });
+
+    Future<ProviderContainer> openRegister(WidgetTester tester, FakeAdapter adapter, PendingAuth pending) async {
+      tester.view.physicalSize = const Size(1179, 2556);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+      final c = ProviderContainer(overrides: await testOverrides(adapter));
+      addTearDown(c.dispose);
+      c.read(pendingAuthProvider.notifier).set(pending);
+      await tester.pumpWidget(UncontrolledProviderScope(container: c, child: rtlApp(const RegisterScreen())));
+      await tester.pumpAndSettle();
+      return c;
+    }
+
+    testWidgets('M3: sign-up with a used code (register 400 without details) drops it and offers a new one',
+        (tester) async {
+      final adapter = FakeAdapter()
+        ..on('POST', '/api/auth/register', const FakeResponse(400, {'error': 'رمز التحقق غير صالح أو منتهي الصلاحية'}));
+      final c = await openRegister(tester, adapter,
+          const PendingAuth(phone: '0796922292', countryCode: 'JO', mode: OtpContext.register, code: '123456'));
+      await tester.enterText(find.byKey(const Key('first-name')), 'مريم');
+      await tester.enterText(find.byKey(const Key('last-name')), 'أحمد');
+      await tester.scrollUntilVisible(find.byKey(const Key('register-submit')), 200,
+          scrollable: find.byType(Scrollable).first);
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('امرأة'));
+      await tester.tap(find.text('امرأة'));
+      await tester.ensureVisible(find.byKey(const Key('terms')));
+      await tester.tap(find.byKey(const Key('terms')));
+      await tester.ensureVisible(find.byKey(const Key('register-submit')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('register-submit')));
+      await tester.pumpAndSettle();
+      expect(c.read(pendingAuthProvider)!.code, isNull);
+      expect(find.text(codeExpiredMessage), findsOneWidget);
+      expect(find.byKey(const Key('register-new-code')), findsOneWidget);
+    });
+
+    testWidgets('M6: a number with no account on «تسجيل الدخول» is told so on the sign-up form', (tester) async {
+      await openRegister(tester, FakeAdapter(),
+          const PendingAuth(phone: '0796922292', countryCode: 'JO', mode: OtpContext.login, userExists: false, code: '1'));
+      expect(find.byKey(const Key('not-registered')), findsOneWidget);
+    });
+
+    test('M7: the name rule refuses Arabic-Indic digits like the server', () {
+      expect(validateArabicName('محمد٢', 'الاسم الأول'), 'الاسم الأول يجب أن يكون بالعربية فقط');
+      expect(validateArabicName('محمد۲', 'الاسم الأول'), 'الاسم الأول يجب أن يكون بالعربية فقط');
+      expect(validateArabicName('عبد الله', 'الاسم الأول'), isNull);
+    });
+
+    test('M8: terms and privacy fall back to the country\'s website pages', () {
+      expect(legalFallback('JO', 'terms'), 'https://naseebak.com/terms');
+      expect(legalFallback('SA', 'privacy'), 'https://naseebak.com/sa/privacy');
+      expect(legalFallback('LB', 'terms'), 'https://naseebak.com/lb/terms');
+    });
+
+    Future<(ProviderContainer, FakeAdapter)> openPhone(WidgetTester tester, {FakeAdapter? adapter}) async {
+      tester.view.physicalSize = const Size(1179, 2556);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+      final a = adapter ?? FakeAdapter();
+      final c = ProviderContainer(overrides: await testOverrides(a));
+      addTearDown(c.dispose);
+      await tester.pumpWidget(UncontrolledProviderScope(
+        container: c,
+        child: rtlApp(Scaffold(body: PhoneForm(country: Country.fromJson(lbJson)))),
+      ));
+      await tester.pump(const Duration(seconds: 1));
+      return (c, a);
+    }
+
+    testWidgets('M5: a pasted «00 962 …» number with spaces isn\'t cut', (tester) async {
+      await openPhone(tester);
+      await tester.enterText(find.byKey(const Key('phone-field')), '00 961 3 123 456 7');
+      expect(tester.widget<TextField>(find.byKey(const Key('phone-field'))).controller!.text, '00 961 3 123 456 7');
+    });
+
+    testWidgets('M6: WhatsApp line icon, and the mode switch taps are 44 px high', (tester) async {
+      await openPhone(tester);
+      expect(find.byIcon(Icons.chat_outlined), findsOneWidget);
+      expect(find.byIcon(Icons.sms_outlined), findsNothing);
+      expect(tester.getSize(find.byKey(const Key('mode-login'))).height, greaterThanOrEqualTo(44));
+    });
+
+    testWidgets('M9: the sign-in page says once why the session ended', (tester) async {
+      final (c, _) = await openPhone(tester);
+      expect(find.text(sessionEndedMessage), findsNothing);
+      c.read(sessionNoticeProvider.notifier).set(sessionEndedMessage);
+      await tester.pump();
+      expect(find.text(sessionEndedMessage), findsOneWidget);
+    });
+
+    testWidgets('M4: send-otp failing after the form is gone does not crash', (tester) async {
+      final release = Completer<void>();
+      final adapter = FakeAdapter()
+        ..on('POST', '/api/auth/send-otp', const FakeResponse.network())
+        ..hold('POST', '/api/auth/send-otp', release.future);
+      await openPhone(tester, adapter: adapter);
+      await tester.enterText(find.byKey(const Key('phone-field')), '03123456');
+      await tester.ensureVisible(find.byKey(const Key('send-otp')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('send-otp')));
+      await tester.pump();
+      await tester.pumpWidget(const SizedBox());
+      release.complete();
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(tester.takeException(), isNull);
     });
   });
 }

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -18,18 +19,23 @@ import 'phone_validation.dart';
 
 /// 6-digit code entry with a 60-second resend cooldown.
 class OtpScreen extends ConsumerStatefulWidget {
-  const OtpScreen({super.key, this.resendSeconds = 60});
+  const OtpScreen({super.key, this.resendSeconds = 60, this.now = DateTime.now});
   final int resendSeconds;
+
+  /// The wall clock (tests): the countdown also follows it, since an iPhone pauses timers while the member reads the
+  /// code in WhatsApp
+  final DateTime Function() now;
 
   @override
   ConsumerState<OtpScreen> createState() => _OtpScreenState();
 }
 
-class _OtpScreenState extends ConsumerState<OtpScreen> {
+class _OtpScreenState extends ConsumerState<OtpScreen> with WidgetsBindingObserver {
   final _controller = TextEditingController();
   final _focus = FocusNode();
   Timer? _timer;
   late int _left = widget.resendSeconds;
+  late DateTime _resendAt = widget.now().add(Duration(seconds: widget.resendSeconds));
   bool _verifying = false;
   bool _resending = false;
   String? _error;
@@ -38,11 +44,25 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
   void initState() {
     super.initState();
     _focus.addListener(() => setState(() {}));
+    WidgetsBinding.instance.addObserver(this);
     _startCooldown();
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && _left > 0) setState(_followClock);
+  }
+
+  /// Seconds left by the wall clock, never more than the ticks say (the ticks drive it in tests)
+  void _followClock() {
+    final byClock = (_resendAt.difference(widget.now()).inMilliseconds / 1000).ceil();
+    _left = math.max(0, math.min(_left, byClock));
+    if (_left == 0) _timer?.cancel();
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _timer?.cancel();
     _controller.dispose();
     _focus.dispose();
@@ -51,10 +71,16 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
 
   void _startCooldown() {
     _timer?.cancel();
-    setState(() => _left = widget.resendSeconds);
+    setState(() {
+      _left = widget.resendSeconds;
+      _resendAt = widget.now().add(Duration(seconds: widget.resendSeconds));
+    });
     _timer = Timer.periodic(const Duration(seconds: 1), (t) {
       if (!mounted) return;
-      setState(() => _left = _left > 0 ? _left - 1 : 0);
+      setState(() {
+        _left = _left > 0 ? _left - 1 : 0;
+        _followClock();
+      });
       if (_left == 0) t.cancel();
     });
   }
@@ -117,7 +143,22 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
         context.pushReplacement('/auth/register');
       }
     } on ApiException catch (e) {
-      if (mounted) setState(() => _error = e.message);
+      if (!mounted) return;
+      if (e.statusCode == 401 && e.code == 'INVALID_CODE') {
+        // The token step refused the verified code (used up by a sign-in whose answer was lost, or too old): retrying
+        // it would only count as failed sign-ins, so it is dropped and a new code is needed
+        ref.read(pendingAuthProvider.notifier).set(pending.withCode(null));
+        _controller.clear();
+        _focus.requestFocus();
+        setState(() => _error = codeExpiredMessage);
+      } else {
+        // A wrong code (400): the boxes empty for the next try, the error line stays
+        if (e.kind == ApiErrorKind.invalid) {
+          _controller.clear();
+          _focus.requestFocus();
+        }
+        setState(() => _error = e.message);
+      }
     } catch (_) {
       if (mounted) setState(() => _error = ApiException.genericMessage);
     } finally {

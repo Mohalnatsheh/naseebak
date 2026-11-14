@@ -13,6 +13,7 @@ import '../country_selection/country_providers.dart';
 import '../../core/routing/website_links.dart';
 import '../referral/referral_screen.dart' show cleanReferralCode;
 import '../welcome/brand_visuals.dart';
+import 'auth_repository.dart' show OtpContext;
 import 'pending_auth.dart';
 
 /// Arabic name rule of the backend: Arabic letters and spaces, at least 2 letters, at most 40 chars.
@@ -20,10 +21,17 @@ String? validateArabicName(String value, String label) {
   final v = value.trim().replaceAll(RegExp(r'\s+'), ' ');
   if (v.isEmpty) return '$label مطلوب';
   if (v.length > 40) return '$label طويل جداً (40 حرفاً كحد أقصى)';
-  if (!RegExp(r'^[؀-ۿ\s]+$').hasMatch(v)) return '$label يجب أن يكون بالعربية فقط';
+  // The server's `arabicNameRegex`: the Arabic block without its digits (٠-٩, ۰-۹)
+  if (!RegExp(r'^(?:(?![٠-٩۰-۹])[؀-ۿ\s])+$').hasMatch(v)) return '$label يجب أن يكون بالعربية فقط';
   final letters = RegExp(r'[ء-ي]').allMatches(v).length;
   if (letters < 2) return '$label يجب أن يكون حرفين على الأقل';
   return null;
+}
+
+/// The website's legal page of a country ('terms' / 'privacy'): used when the country details couldn't be read
+String legalFallback(String countryCode, String page) {
+  final prefix = switch (countryCode.toUpperCase()) { 'SA' => '/sa', 'LB' => '/lb', _ => '' };
+  return 'https://naseebak.com$prefix/$page';
 }
 
 /// New member details after the code is verified, then sign-in.
@@ -48,6 +56,23 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   String? _error;
   Map<String, String?> _fieldErrors = {};
 
+  /// The verified code can't be used any more: the page offers to ask for a new one
+  bool _codeExpired = false;
+
+  // Kept and disposed with the page (not made anew in every build)
+  late final _termsTap = TapGestureRecognizer()..onTap = () => _openLegal('terms');
+  late final _privacyTap = TapGestureRecognizer()..onTap = () => _openLegal('privacy');
+
+  /// The link from the country details, else the website's page (a failed load stayed cached: try again meanwhile)
+  void _openLegal(String page) {
+    final code = ref.read(pendingAuthProvider)?.countryCode ?? 'JO';
+    final details = ref.read(countryDetailsProvider(code));
+    final links = details.valueOrNull?.links;
+    final url = page == 'terms' ? links?.terms : links?.privacy;
+    if (details.hasError) ref.invalidate(countryDetailsProvider(code));
+    openExternal(context, url != null && url.isNotEmpty ? url : legalFallback(code, page));
+  }
+
   @override
   void initState() {
     super.initState();
@@ -60,6 +85,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     _first.dispose();
     _last.dispose();
     _invite.dispose();
+    _termsTap.dispose();
+    _privacyTap.dispose();
     super.dispose();
   }
 
@@ -85,7 +112,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     if (errors.values.any((e) => e != null) || _busy) return;
     final code = pending.code;
     if (code == null) {
-      setState(() => _error = 'انتهت صلاحية الرمز. يُرجى البدء من جديد.');
+      setState(() {
+        _codeExpired = true;
+        _error = codeExpiredMessage;
+      });
       return;
     }
     setState(() => _busy = true);
@@ -131,7 +161,20 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         }
       }
     } on ApiException catch (e) {
-      if (mounted) setState(() => _error = e.message);
+      if (!mounted) return;
+      // The verified code was refused: by sign-up (400 with no field details or code) or by the token step (401
+      // `INVALID_CODE`). Retrying the same code only fails again, so a new one is needed.
+      final codeRefused = (e.statusCode == 400 && e.code == null && e.data?['details'] == null) ||
+          (e.statusCode == 401 && e.code == 'INVALID_CODE');
+      if (codeRefused) {
+        ref.read(pendingAuthProvider.notifier).set(pending.withCode(null));
+        setState(() {
+          _codeExpired = true;
+          _error = codeExpiredMessage;
+        });
+      } else {
+        setState(() => _error = e.message);
+      }
     } catch (_) {
       if (mounted) setState(() => _error = ApiException.genericMessage);
     } finally {
@@ -153,8 +196,11 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         ),
       );
     }
-    final details = ref.watch(countryDetailsProvider(pending.countryCode)).valueOrNull;
+    // Read early so the links are ready on tap (`_openLegal`)
+    ref.watch(countryDetailsProvider(pending.countryCode));
     final theme = Theme.of(context);
+    // «تسجيل الدخول» with a number that has no account: say so (a mistyped number would make a second account)
+    final notRegistered = pending.mode == OtpContext.login && pending.userExists == false;
     return Scaffold(
       backgroundColor: AppColors.offWhite,
       body: Column(
@@ -171,6 +217,17 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
               // was clipped by the list's edge (QA A2-L10)
               padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
               children: [
+                if (notRegistered) ...[
+                  InfoBanner(
+                    key: const Key('not-registered'),
+                    text: 'هذا الرقم غير مسجّل. يمكنك إنشاء حساب جديد أو تعديل الرقم.',
+                    action: TextButton(
+                      onPressed: _busy ? null : () => context.go('/auth/phone'),
+                      child: const Text('تعديل الرقم'),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
                 TextField(
                   key: const Key('first-name'),
                   controller: _first,
@@ -243,8 +300,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                                     fontWeight: FontWeight.w700,
                                     decoration: TextDecoration.underline,
                                   ),
-                                  recognizer: TapGestureRecognizer()
-                                    ..onTap = () => openExternal(context, details?.links.terms),
+                                  recognizer: _termsTap,
                                 ),
                                 const TextSpan(text: ' و'),
                                 TextSpan(
@@ -254,8 +310,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                                     fontWeight: FontWeight.w700,
                                     decoration: TextDecoration.underline,
                                   ),
-                                  recognizer: TapGestureRecognizer()
-                                    ..onTap = () => openExternal(context, details?.links.privacy),
+                                  recognizer: _privacyTap,
                                 ),
                                 const TextSpan(text: '، وأؤكد أن عمري 18 سنة أو أكثر.'),
                               ],
@@ -272,6 +327,15 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     child: Text(_fieldErrors['terms']!, style: AppText.labelRegular.copyWith(color: AppColors.danger)),
                   ),
                 if (_error != null) ...[const SizedBox(height: 14), InfoBanner(text: _error!, tone: BannerTone.danger)],
+                if (_codeExpired)
+                  Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: TextButton(
+                      key: const Key('register-new-code'),
+                      onPressed: () => context.go('/auth/phone'),
+                      child: const Text('طلب رمز جديد'),
+                    ),
+                  ),
                 const SizedBox(height: 24),
                 LoadingButton(
                   key: const Key('register-submit'),

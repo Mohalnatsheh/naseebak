@@ -7,29 +7,22 @@
  */
 import { db } from "@/lib/db";
 import { getSetting, setSetting } from "@/lib/settings";
-import { makeBlurPreview, readPhotoBytes } from "@/lib/photos/blur-preview";
+import { makeBlurPreview, readPhotoBytes, withTimeout, PHOTO_READ_TIMEOUT_MS } from "@/lib/photos/blur-preview";
 
 /** Stop starting new rows after this long, so the morning job is never held up by slow storage */
 export const PREVIEW_DEADLINE_MS = 90_000;
-/** One photo read gives up after this long */
-export const PREVIEW_READ_TIMEOUT_MS = 15_000;
+export const PREVIEW_READ_TIMEOUT_MS = PHOTO_READ_TIMEOUT_MS;
 export const PREVIEW_CURSOR_KEY = "photo_preview_cursor";
 
-function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
-  let timer: ReturnType<typeof setTimeout>;
-  const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new Error("read timeout")), ms);
-  });
-  return Promise.race([p, timeout]).finally(() => clearTimeout(timer));
-}
-
-export async function fillPhotoPreviews({ limit = 200, after }: { limit?: number; after?: string } = {}): Promise<{
+export async function fillPhotoPreviews({ limit = 200, after, deadlineMs = PREVIEW_DEADLINE_MS }: { limit?: number; after?: string; deadlineMs?: number | null } = {}): Promise<{
   filled: number;
   failed: number;
   /** The last photo id looked at, to continue after it (a row that failed stays null and would be picked again) */
   lastId?: string;
   /** How many rows the query returned (fewer than the limit = the sweep reached the end) */
   rows: number;
+  /** True when the deadline cut the run short */
+  cut: boolean;
 }> {
   const rows = await db.photo.findMany({
     where: { blurPreview: null, ...(after ? { id: { gt: after } } : {}) },
@@ -40,9 +33,13 @@ export async function fillPhotoPreviews({ limit = 200, after }: { limit?: number
   let filled = 0;
   let failed = 0;
   let lastId: string | undefined;
-  const deadline = Date.now() + PREVIEW_DEADLINE_MS;
+  const deadline = deadlineMs === null ? Infinity : Date.now() + deadlineMs;
+  let cut = false;
   for (const row of rows) {
-    if (Date.now() >= deadline) break;
+    if (Date.now() >= deadline) {
+      cut = true;
+      break;
+    }
     lastId = row.id;
     try {
       const bytes = await withTimeout(readPhotoBytes(row.url), PREVIEW_READ_TIMEOUT_MS);
@@ -56,7 +53,7 @@ export async function fillPhotoPreviews({ limit = 200, after }: { limit?: number
       console.warn(`[photo-previews] photo ${row.id}:`, String((err as Error)?.message ?? err).split(":")[0]);
     }
   }
-  return { filled, failed, lastId, rows: rows.length };
+  return { filled, failed, lastId, rows: rows.length, cut };
 }
 
 /**
@@ -67,7 +64,30 @@ export async function fillPhotoPreviews({ limit = 200, after }: { limit?: number
 export async function runPhotoPreviewSweep(limit = 200): Promise<{ filled: number; failed: number }> {
   const cursor = (await getSetting(PREVIEW_CURSOR_KEY)) || undefined;
   const r = await fillPhotoPreviews({ limit, after: cursor });
-  const next = r.rows < limit ? "" : (r.lastId ?? cursor ?? "");
+  // Reset only when every returned row was tried and the sweep reached the end; a deadline cut keeps the cursor
+  const next = r.rows < limit && !r.cut ? "" : (r.lastId ?? cursor ?? "");
   await setSetting(PREVIEW_CURSOR_KEY, next);
   return { filled: r.filled, failed: r.failed };
+}
+
+/**
+ * The backfill script's loop: every batch without a deadline, continuing after the last row tried (failed rows are
+ * passed, so it always ends), until a batch comes back shorter than `batch`.
+ */
+export async function backfillAllPreviews(
+  batch = 200,
+  onBatch?: (r: { filled: number; failed: number }) => void,
+): Promise<{ filled: number; failed: number }> {
+  let filled = 0;
+  let failed = 0;
+  let after: string | undefined;
+  for (;;) {
+    const r = await fillPhotoPreviews({ limit: batch, after, deadlineMs: null });
+    filled += r.filled;
+    failed += r.failed;
+    onBatch?.(r);
+    if (!r.lastId || r.rows < batch) break;
+    after = r.lastId;
+  }
+  return { filled, failed };
 }

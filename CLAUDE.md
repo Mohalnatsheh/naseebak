@@ -257,7 +257,7 @@ src/
 - No contact between members except chat after a mutual match and an accepted request: text only, filtered.
 - Photos: before a match other members see only a server-made, strongly blurred 16 px preview of the main photo (`Photo.blurPreview`; `photoPreview` on pre-match cards, built by `src/lib/photos/preview-payload.ts`). The real photo shows only after a mutual like. Member photos use `next/image` with `unoptimized`.
   - Switch `photo_blur_preview` (default on, no Admin button, set in `system_settings`; off sends `photoPreview: null`). Owner, 2026-11-14: on for all, no member opt-out, no notice.
-  - Backfill: `npx tsx scripts/backfill-photo-previews.ts` (run after deploy, `.env` loaded) plus the morning task `previewFill` (cursor `photo_preview_cursor`). The deploy needs `--db-push` (one additive column).
+  - Backfill: `pnpm exec tsx scripts/backfill-photo-previews.ts` (run after deploy, `.env` loaded) plus the morning task `previewFill` (cursor `photo_preview_cursor`). The deploy needs `--db-push` (one additive column).
 - Parent/guardian data is admin-only, except after an accepted family introduction with consent (`ParentInfo.shareConsentAt`).
 - A closed match never returns guardian contacts.
 - Members are 18+.

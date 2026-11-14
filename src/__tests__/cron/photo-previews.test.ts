@@ -5,9 +5,12 @@ const blur = vi.hoisted(() => ({ makeBlurPreview: vi.fn(), readPhotoBytes: vi.fn
 const settings = vi.hoisted(() => ({ getSetting: vi.fn(), setSetting: vi.fn() }));
 vi.mock("@/lib/settings", () => settings);
 vi.mock("@/lib/db", () => ({ db }));
-vi.mock("@/lib/photos/blur-preview", () => blur);
+vi.mock("@/lib/photos/blur-preview", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/photos/blur-preview")>()),
+  ...blur,
+}));
 
-import { fillPhotoPreviews, runPhotoPreviewSweep, PREVIEW_CURSOR_KEY, PREVIEW_READ_TIMEOUT_MS, PREVIEW_DEADLINE_MS } from "@/lib/cron/photo-previews";
+import { fillPhotoPreviews, runPhotoPreviewSweep, PREVIEW_CURSOR_KEY, PREVIEW_READ_TIMEOUT_MS, PREVIEW_DEADLINE_MS, backfillAllPreviews } from "@/lib/cron/photo-previews";
 
 beforeEach(() => {
   vi.resetAllMocks();
@@ -56,7 +59,7 @@ describe("fillPhotoPreviews", () => {
     expect(db.photo.findMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: { blurPreview: null, id: { gt: "p9" } }, take: 5 }),
     );
-    expect(r).toEqual({ filled: 0, failed: 0, lastId: undefined, rows: 0 });
+    expect(r).toEqual({ filled: 0, failed: 0, lastId: undefined, rows: 0, cut: false });
   });
 });
 
@@ -111,5 +114,51 @@ describe("sweep cursor and time bounds", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("deadline cut, no-deadline mode and the backfill loop", () => {
+  it("a deadline cut keeps the cursor at the last row tried instead of resetting", async () => {
+    vi.useFakeTimers();
+    try {
+      settings.getSetting.mockResolvedValue("");
+      db.photo.findMany.mockResolvedValue([{ id: "p1", url: "u" }, { id: "p2", url: "u" }]);
+      blur.readPhotoBytes.mockImplementationOnce(async () => {
+        vi.advanceTimersByTime(PREVIEW_DEADLINE_MS + 1);
+        return Buffer.from("x");
+      });
+      await runPhotoPreviewSweep(5); // 2 rows < limit 5, but the run was cut
+      expect(settings.setSetting).toHaveBeenCalledWith(PREVIEW_CURSOR_KEY, "p1");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("deadlineMs null never cuts", async () => {
+    vi.useFakeTimers();
+    try {
+      db.photo.findMany.mockResolvedValue([{ id: "p1", url: "u" }, { id: "p2", url: "u" }]);
+      blur.readPhotoBytes.mockImplementationOnce(async () => {
+        vi.advanceTimersByTime(PREVIEW_DEADLINE_MS * 5);
+        return Buffer.from("x");
+      });
+      const r = await fillPhotoPreviews({ deadlineMs: null });
+      expect(r).toMatchObject({ filled: 2, cut: false, lastId: "p2" });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("the backfill loop runs full batches past the deadline and stops on a short one", async () => {
+    db.photo.findMany
+      .mockResolvedValueOnce([{ id: "p1", url: "u" }, { id: "p2", url: "u" }])
+      .mockResolvedValueOnce([{ id: "p3", url: "u" }]);
+    blur.readPhotoBytes.mockResolvedValueOnce(null); // p1 fails and is passed
+    const seen: unknown[] = [];
+    const r = await backfillAllPreviews(2, (b) => seen.push(b));
+    expect(r).toEqual({ filled: 2, failed: 1 });
+    expect(db.photo.findMany).toHaveBeenCalledTimes(2);
+    expect(db.photo.findMany.mock.calls[1][0].where).toEqual({ blurPreview: null, id: { gt: "p2" } });
+    expect(seen).toHaveLength(2);
   });
 });

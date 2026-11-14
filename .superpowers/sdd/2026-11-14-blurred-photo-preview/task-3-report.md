@@ -12,3 +12,9 @@ Concern: rows that can never process (>200 of them) would crowd the morning batc
 3. Guard regex restored (`primaryPhotoPreview|blurPreview` back); `lib/cron/photo-previews.ts` allowed; client files recognised by `"use client"` in the first lines. Task key renamed `previewFill` (the name `blurPreviews` matched `blurPreview`).
 4. daily test: morning runs `previewFill` and isolates its failure.
 5. Local backfill against naseeb_push (13 photos): filled 1, failed 12 (seed rows whose files are not in `.dev-uploads`); preview 139 chars. Re-run is idempotent.
+
+## Final-review fix wave
+1. `fillPhotoPreviews({ deadlineMs: null })` turns the deadline off; the script loop is now `backfillAllPreviews` (cron/photo-previews.ts), no deadline, stops when a batch has fewer than BATCH rows. Tests for the no-deadline mode and the loop.
+2. `tsx` 4.23.15 added as an exact devDependency (lockfile updated). Script header and CLAUDE.md say `pnpm exec tsx scripts/backfill-photo-previews.ts`. Run locally against naseeb_push: `@/` imports resolve (done: filled 0, failed 12, the seed rows without files; the 13th was filled earlier).
+3. Sweep: a deadline-cut run keeps the cursor at `lastId`; reset only when rows < limit and not cut. Test.
+4. `refreshMemberPreviews` wraps each read in `withTimeout(…, PHOTO_READ_TIMEOUT_MS)` (both now live in lib/photos/blur-preview.ts, re-exported by the cron module). Fake-timer test.

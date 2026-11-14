@@ -9,6 +9,18 @@
 import { db as prisma } from "@/lib/db";
 import { base64ToBuffer, getBunnyPathFromUrl, readFromBunny } from "@/lib/bunny";
 
+/** One photo read gives up after this long (slow storage must never hang a request or a job) */
+export const PHOTO_READ_TIMEOUT_MS = 15_000;
+
+/** The promise's result, or a rejection after `ms` */
+export function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error("read timeout")), ms);
+  });
+  return Promise.race([p, timeout]).finally(() => clearTimeout(timer));
+}
+
 /** A larger data URI is discarded (null) */
 export const BLUR_PREVIEW_MAX_BYTES = 1024;
 /** Longest side of the stored preview */
@@ -83,7 +95,7 @@ export async function refreshMemberPreviews(userId: string, db: PhotoDb = prisma
     for (const row of rows) {
       if (row.blurPreview) continue;
       try {
-        const bytes = await readPhotoBytes(row.url);
+        const bytes = await withTimeout(readPhotoBytes(row.url), PHOTO_READ_TIMEOUT_MS);
         const preview = bytes ? await makeBlurPreview(bytes) : null;
         if (preview) await db.photo.update({ where: { id: row.id }, data: { blurPreview: preview } });
       } catch (err) {

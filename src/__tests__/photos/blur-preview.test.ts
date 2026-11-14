@@ -151,3 +151,28 @@ describe("readPhotoBytes reads only our own photo storage", () => {
     expect(bunny.readFromBunny).toHaveBeenCalledWith("photos/u1/a.jpg");
   });
 });
+
+describe("refreshMemberPreviews with slow storage", () => {
+  it("abandons a hanging read after 15 s and goes on with the next photo", async () => {
+    vi.clearAllMocks();
+    vi.useFakeTimers();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      db.photo.update.mockResolvedValue({});
+      db.photo.findMany.mockResolvedValue([
+        { id: "p1", url: "cdn://photos/u1/a.jpg", blurPreview: null },
+        { id: "p2", url: "cdn://photos/u1/b.jpg", blurPreview: null },
+      ]);
+      const img = await jpeg800x600();
+      bunny.readFromBunny.mockImplementationOnce(() => new Promise(() => {})).mockResolvedValueOnce(img);
+      const run = refreshMemberPreviews("u1", db as never);
+      await vi.advanceTimersByTimeAsync(15_001);
+      await run;
+      expect(db.photo.update).toHaveBeenCalledTimes(1);
+      expect(db.photo.update.mock.calls[0][0].where).toEqual({ id: "p2" });
+    } finally {
+      warn.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+});

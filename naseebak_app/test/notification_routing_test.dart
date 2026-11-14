@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
-import 'package:naseebak_app/core/push/push_service.dart' show foregroundNoticeId;
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:naseebak_app/core/push/push_service.dart' show foregroundNoticeId, localLaunchUrl;
 import 'package:naseebak_app/core/routing/router.dart' show creditsRedirect;
 import 'package:naseebak_app/features/notifications/notifications_screen.dart';
 
@@ -9,6 +10,16 @@ void main() {
   test('a tagged foreground banner takes id 0, replacing FCM\'s tray notice of that chat (QA A2-L7)', () {
     expect(foregroundNoticeId(tag: 'chat:c1', messageId: 'x'), 0);
     expect(foregroundNoticeId(messageId: 'x'), 'x'.hashCode);
+  });
+
+  test('a tap on our own banner that started the app opens its screen (audit M1)', () {
+    const tapped = NotificationResponse(
+        notificationResponseType: NotificationResponseType.selectedNotification, payload: '/dashboard/chats/c1');
+    expect(localLaunchUrl(const NotificationAppLaunchDetails(true, notificationResponse: tapped)), '/dashboard/chats/c1');
+    // Started normally: nothing (the response may be an old one)
+    expect(localLaunchUrl(const NotificationAppLaunchDetails(false, notificationResponse: tapped)), isNull);
+    expect(localLaunchUrl(const NotificationAppLaunchDetails(true)), isNull);
+    expect(localLaunchUrl(null), isNull);
   });
 
   group('notification links → app screens', () {

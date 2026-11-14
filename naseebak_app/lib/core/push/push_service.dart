@@ -76,7 +76,15 @@ class PushService with WidgetsBindingObserver {
       try {
         final initial = await messaging.getInitialMessage();
         _initialRead = true;
-        if (initial != null) _open(initial.data['url'] as String?);
+        if (initial != null) {
+          _open(initial.data['url'] as String?);
+        } else {
+          // Or from our own banner (`_showForeground`) left in the tray: `onDidReceiveNotificationResponse` doesn't
+          // fire for a tap that starts the app (audit M1)
+          await _initLocal();
+          final url = localLaunchUrl(await _local.getNotificationAppLaunchDetails());
+          if (url != null) _open(url);
+        }
       } catch (e) {
         debugPrint('[push] initial message failed: $e');
       }
@@ -242,6 +250,10 @@ class PushService with WidgetsBindingObserver {
     router.routerDelegate.addListener(listener);
   }
 }
+
+/// The link of our own banner whose tap started the app, else null
+String? localLaunchUrl(NotificationAppLaunchDetails? details) =>
+    details != null && details.didNotificationLaunchApp ? details.notificationResponse?.payload : null;
 
 /// Android tells notices apart by tag and id together, and FCM's own tray notice for a tagged push has id 0: a tagged
 /// banner uses id 0 too, so it replaces the tray notice of the same chat instead of showing beside it (QA A2-L7)

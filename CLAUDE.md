@@ -373,7 +373,7 @@ Detail: [docs/reference/suggestions-and-credits.md](docs/reference/suggestions-a
 
 ## Deployment
 
-**Production: `f3815f64` (2026-11-14, slot b, no schema change): sign-up fixes (the dial-code flag no longer jumps to Lebanon midway through a Jordanian 079… number; English letters in a name show why they vanish); on top of `88347103`: the suggestions page's «تفضيلات الشريك» window edits values and «شرط أساسي» together (as the app); on top of `98bb300b` (`--db-push` `Photo.blurPreview`, blurred photo preview before a match, backfill done: 887 photos), admin popup on the dashboard home only. `auth_profile_redesign` ON in production since 2026-11-14 16:35 Amman (new sign-in, 7-step setup, one-list profile edit).**
+**Production: `b444dc9c` (2026-11-14, slot a, no schema change): home-page SEO (keyword in the h1 via the eyebrow pill, «أدلة ونصائح للزواج» block with the country's 3 newest posts, `MobileApplication` JSON-LD; plan in `docs/seo/2026-11-14-jordan-seo-audit.md`); on top of `f3815f64`: sign-up fixes (the dial-code flag no longer jumps to Lebanon midway through a Jordanian 079… number; English letters in a name show why they vanish); on top of `88347103`: the suggestions page's «تفضيلات الشريك» window edits values and «شرط أساسي» together (as the app); on top of `98bb300b` (`--db-push` `Photo.blurPreview`, blurred photo preview before a match, backfill done: 887 photos), admin popup on the dashboard home only. `auth_profile_redesign` ON in production since 2026-11-14 16:35 Amman (new sign-in, 7-step setup, one-list profile edit).**
 
 Update that one line after each deploy. Don't list past versions. The live revision is in `/var/www/naseebak/REVISION`.
 

@@ -1,5 +1,10 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
+import 'package:naseebak_app/features/home/counts.dart';
 import 'package:naseebak_app/features/notifications/notifications_screen.dart';
 
 import 'helpers/fake_api.dart';
@@ -51,5 +56,38 @@ void main() {
     expect(find.text('إشعار ج'), findsOneWidget);
     expect(find.text('عرض المزيد'), findsOneWidget);
     expect(tester.getTopLeft(find.text('إشعار ج')).dy, lessThan(tester.getTopLeft(find.text('إشعار أ')).dy));
+  });
+
+  testWidgets('a row that switches to a tab still refreshes the bell badge once marked read (audit M8)', (tester) async {
+    final release = Completer<void>();
+    final adapter = FakeAdapter()
+      ..on('GET', '/api/notifications', FakeResponse(200, page(1, 1, [row('a', 'إشعار أ')])))
+      ..on('PATCH', '/api/notifications/a/read', const FakeResponse(200, {'ok': true}))
+      ..hold('PATCH', '/api/notifications/a/read', release.future)
+      ..on('GET', '/api/notifications/unread-count', const FakeResponse(200, {'count': 1}));
+    final overrides = await testOverrides(adapter);
+    final container = ProviderContainer(overrides: overrides);
+    addTearDown(container.dispose);
+    // The bell's badge listens all along (the tab shell)
+    container.listen(unreadNotificationsProvider, (_, _) {}, fireImmediately: true);
+    final router = GoRouter(initialLocation: '/home', routes: [
+      GoRoute(path: '/home', builder: (_, _) => const Scaffold(body: Text('home'))),
+      GoRoute(path: '/notifications', builder: (_, _) => const NotificationsScreen()),
+    ]);
+    addTearDown(router.dispose);
+    await tester.pumpWidget(UncontrolledProviderScope(container: container, child: rtlRouterApp(router)));
+    router.push('/notifications');
+    await tester.pumpAndSettle();
+    final before = adapter.to('GET', '/api/notifications/unread-count').length;
+
+    // A SYSTEM notice opens home: switched to with `go`, so this screen is gone before the server answers
+    await tester.tap(find.text('إشعار أ'));
+    await tester.pumpAndSettle();
+    expect(find.text('home'), findsOneWidget);
+    release.complete();
+    for (var i = 0; i < 5; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+    expect(adapter.to('GET', '/api/notifications/unread-count').length, greaterThan(before));
   });
 }

@@ -230,7 +230,10 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     final n = _items[i];
     if (!n.isRead) {
       setState(() => _items[i] = n.read());
-      _repo.markRead(n.id).then((_) => ref.invalidate(unreadNotificationsProvider)).catchError((_) {});
+      // Taken now: a tab link (`go`) removes this screen before the answer, and a `ref` used after that throws, so
+      // the bell badge stayed stale (audit M8)
+      final container = ProviderScope.containerOf(context, listen: false);
+      _repo.markRead(n.id).then((_) => container.invalidate(unreadNotificationsProvider)).catchError((_) {});
     }
     openAppRoute(GoRouter.of(context), appRouteFor(n));
   }
@@ -251,9 +254,10 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     final i = _items.indexWhere((e) => e.id == n.id);
     if (i < 0) return;
     setState(() => _items.removeAt(i));
+    final container = ProviderScope.containerOf(context, listen: false);
     try {
       await _repo.delete(n.id);
-      if (!n.isRead) ref.invalidate(unreadNotificationsProvider);
+      if (!n.isRead) container.invalidate(unreadNotificationsProvider);
     } on ApiException catch (e) {
       // Already gone (deleted on the website): nothing to put back
       if (e.statusCode == 404) return;

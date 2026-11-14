@@ -6,6 +6,8 @@ import '../../app/providers.dart';
 import '../../core/auth/auth_controller.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/push/push_permission.dart';
+import '../../core/review/store_review.dart';
+import '../../core/update/app_update.dart';
 import '../../core/network/json.dart';
 import '../../core/localization/digits.dart';
 import '../../core/theme/app_theme.dart';
@@ -179,6 +181,18 @@ class AccountScreen extends ConsumerWidget {
           GroupedSection(rows: [
             GroupedRow(icon: Icons.settings_outlined, title: 'الإعدادات', onTap: () => context.push('/settings')),
             GroupedRow(icon: Icons.support_agent_rounded, title: 'المساعدة والدعم', onTap: () => context.push('/support')),
+            GroupedRow(
+              rowKey: const Key('menu-rate-app'),
+              icon: Icons.star_rate_rounded,
+              title: 'قيّم التطبيق',
+              onTap: () async {
+                // Read before the await: this screen may be gone by the answer
+                final review = ref.read(storeReviewProvider);
+                final platform = ref.read(appPlatformProvider);
+                final url = await ref.read(storeUrlProvider.future);
+                await review.openRatingPage(platform: platform, storeUrl: url);
+              },
+            ),
           ]),
           const SizedBox(height: AppSpace.md),
           Center(child: Text('تغيير الدولة متاح قبل تسجيل الدخول فقط.', style: AppText.caption.copyWith(color: AppColors.muted))),

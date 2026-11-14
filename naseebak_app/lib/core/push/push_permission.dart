@@ -84,6 +84,7 @@ Future<void> enablePushNotifications(BuildContext context, WidgetRef ref, {bool 
     context: context,
     // Above the tab bar (home is inside the tab shell)
     useRootNavigator: true,
+    isScrollControlled: true,
     showDragHandle: true,
     builder: (_) => PushStepsSheet(female: female),
   );
@@ -109,8 +110,9 @@ class PushStepsSheet extends StatelessWidget {
           : '${g('فعّل', 'فعّلي')} «جميع إشعارات نصيبك» (أو «السماح بالإشعارات»).',
       '${g('ارجع', 'ارجعي')} إلى نصيبك، وتصلك الإشعارات من الآن.',
     ];
+    // Scrolls on a short screen (iPhone SE, large text): the steps never overflow
     return SafeArea(
-      child: Padding(
+      child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -256,9 +258,17 @@ class _PushOffCardState extends ConsumerState<PushOffCard> with WidgetsBindingOb
 /// Shared preferences: the «why notifications» sheet was shown on this install (once)
 const pushExplainedKey = 'push_explained';
 
-/// Asks for notifications once, on home after the short setup, with a word on what they are for, before the system
-/// prompt (iOS shows it once only; a bare «Don't Allow» over the first setup step lost pushes for good). Signing in
-/// no longer asks (`PushService.start`). «لاحقاً» leaves the «الإشعارات غير مفعّلة» card on home.
+/// Shared preferences: when the last notifications popup (first ask or daily reminder) showed, in ms since epoch
+const pushReminderAtKey = 'push_reminder_at';
+
+/// While notifications stay off, the reminder popup comes back at most this often (owner, 2026-11-14: daily)
+const pushReminderEvery = Duration(days: 1);
+
+/// The notifications popup on home. The first time: what they are for, then the system prompt (iOS shows it once
+/// only; a bare «Don't Allow» over the first setup step lost pushes for good). After that, while the device still
+/// blocks our pushes: a reminder popup at most once a day ([pushReminderEvery]), whose button asks again where the
+/// system still can and otherwise shows how to turn them on in the phone's settings. «لاحقاً» waits for the next day;
+/// the «الإشعارات غير مفعّلة» card stays on home either way.
 class PushAskGate extends ConsumerStatefulWidget {
   const PushAskGate({super.key});
 
@@ -269,10 +279,11 @@ class PushAskGate extends ConsumerStatefulWidget {
 class _PushAskGateState extends ConsumerState<PushAskGate> {
   bool _asked = false;
 
-  Future<void> _ask() async {
+  Future<void> _ask({required bool reminder}) async {
     if (!mounted) return;
     final prefs = ref.read(sharedPreferencesProvider);
     await prefs.setBool(pushExplainedKey, true);
+    await prefs.setInt(pushReminderAtKey, DateTime.now().millisecondsSinceEpoch);
     if (!mounted) return;
     final female = ref.read(authControllerProvider).me?.isFemale ?? false;
     final allow = await showModalBottomSheet<bool>(
@@ -280,17 +291,26 @@ class _PushAskGateState extends ConsumerState<PushAskGate> {
       useRootNavigator: true,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (_) => PushAskSheet(female: female),
+      builder: (_) => PushAskSheet(female: female, reminder: reminder),
     );
-    if (allow == true && mounted) await enablePushNotifications(context, ref, explainIfRefused: false);
+    // The first ask leaves a «Don't Allow» at that; the reminder explains the phone's settings when the system
+    // can no longer ask
+    if (allow == true && mounted) await enablePushNotifications(context, ref, explainIfRefused: reminder);
   }
 
   @override
   Widget build(BuildContext context) {
     final allowed = ref.watch(pushAllowedProvider).valueOrNull;
-    if (allowed == false && !_asked && !(ref.read(sharedPreferencesProvider).getBool(pushExplainedKey) ?? false)) {
-      _asked = true;
-      WidgetsBinding.instance.addPostFrameCallback((_) => _ask());
+    if (allowed == false && !_asked) {
+      final prefs = ref.read(sharedPreferencesProvider);
+      final explained = prefs.getBool(pushExplainedKey) ?? false;
+      final last = prefs.getInt(pushReminderAtKey);
+      final due = last == null ||
+          DateTime.now().difference(DateTime.fromMillisecondsSinceEpoch(last)) >= pushReminderEvery;
+      if (!explained || due) {
+        _asked = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) => _ask(reminder: explained));
+      }
     }
     return const SizedBox.shrink();
   }
@@ -298,8 +318,11 @@ class _PushAskGateState extends ConsumerState<PushAskGate> {
 
 /// What the notifications are for, then «السماح بالإشعارات» (the system prompt) or «لاحقاً»
 class PushAskSheet extends StatelessWidget {
-  const PushAskSheet({super.key, required this.female});
+  const PushAskSheet({super.key, required this.female, this.reminder = false});
   final bool female;
+
+  /// The daily reminder (notifications still off): its own title and button
+  final bool reminder;
 
   @override
   Widget build(BuildContext context) {
@@ -318,10 +341,13 @@ class PushAskSheet extends StatelessWidget {
           children: [
             const Icon(Icons.notifications_active_outlined, color: AppColors.goldText, size: 40),
             const SizedBox(height: 10),
-            Text('الإشعارات', textAlign: TextAlign.center, style: AppText.headline.copyWith(fontWeight: FontWeight.w800)),
+            Text(reminder ? 'الإشعارات غير مفعّلة' : 'الإشعارات',
+                textAlign: TextAlign.center, style: AppText.headline.copyWith(fontWeight: FontWeight.w800)),
             const SizedBox(height: 6),
             Text(
-              'لا نرسل إلا ما يهمّ${g('ك', 'كِ')}، فتعرف${g('', 'ين')} فوراً:',
+              reminder
+                  ? '${g('قد تفوتك', 'قد تفوتكِ')} أمور مهمة. ${g('فعّلها', 'فعّليها')} ${g('لتعرف', 'لتعرفي')} فوراً:'
+                  : 'لا نرسل إلا ما يهمّ${g('ك', 'كِ')}، فتعرف${g('', 'ين')} فوراً:',
               textAlign: TextAlign.center,
               style: const TextStyle(color: AppColors.muted, height: 1.6),
             ),
@@ -339,7 +365,7 @@ class PushAskSheet extends StatelessWidget {
             FilledButton(
               key: const Key('push-ask-allow'),
               onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('السماح بالإشعارات'),
+              child: Text(reminder ? g('فعّل الإشعارات', 'فعّلي الإشعارات') : 'السماح بالإشعارات'),
             ),
             const SizedBox(height: 6),
             TextButton(

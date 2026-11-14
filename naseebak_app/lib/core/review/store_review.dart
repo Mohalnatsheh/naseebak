@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:in_app_review/in_app_review.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -25,6 +26,29 @@ class StoreReview {
 
   /// Leaving a chat where both have written (the other side replied): the same one-time ask
   Future<void> afterConversation({Duration delay = const Duration(milliseconds: 600)}) => _ask(delay);
+
+  /// «قيّم التطبيق» in the account menu: the store's rating page, whenever the member asks.
+  /// Android: the Play listing (by package name). iPhone: the App Store's «write a review» page when the server has
+  /// the iPhone store link (`/api/mobile/config` ios.storeUrl, Admin → Settings), else Apple's rating sheet.
+  Future<void> openRatingPage({required String platform, String storeUrl = ''}) async {
+    _analytics.log('rate_app_tapped');
+    try {
+      if (platform == 'ios' && storeUrl.isNotEmpty) {
+        final uri = Uri.tryParse(storeUrl.trim());
+        if (uri != null && uri.scheme == 'https') {
+          final review = uri.replace(queryParameters: {...uri.queryParameters, 'action': 'write-review'});
+          if (await launchUrl(review, mode: LaunchMode.externalApplication)) return;
+        }
+      }
+      if (platform == 'android') {
+        await _review.openStoreListing();
+        return;
+      }
+      if (await _review.isAvailable()) await _review.requestReview();
+    } catch (e) {
+      debugPrint('[review] $e');
+    }
+  }
 
   Future<void> _ask(Duration delay) async {
     if (_prefs.getBool(askedKey) ?? false) return;

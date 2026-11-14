@@ -55,6 +55,16 @@ final appVersionProvider = FutureProvider<String>((ref) async => (await PackageI
 /// "android" | "ios" (overridden in tests)
 final appPlatformProvider = Provider<String>((ref) => Platform.isIOS ? 'ios' : 'android');
 
+/// This platform's store link from `GET /api/mobile/config` ('' when unset or unreachable): «قيّم التطبيق»
+final storeUrlProvider = FutureProvider<String>((ref) async {
+  try {
+    final config = await ref.read(apiClientProvider).get('/api/mobile/config', auth: false);
+    return asStringOr(asMap(config[ref.read(appPlatformProvider)])['storeUrl']);
+  } catch (_) {
+    return '';
+  }
+});
+
 /// The update gate (Admin → Settings → Mobile app versions on the server): checked on start and on every resume.
 /// A failed check (offline, server error) never blocks the app.
 class UpdateCheck extends Notifier<UpdateStatus> {

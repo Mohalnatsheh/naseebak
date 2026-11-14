@@ -18,11 +18,12 @@ Map<String, dynamic> page(List<Map<String, dynamic>> rows) =>
     {'notifications': rows, 'page': 1, 'total': rows.length, 'totalPages': 1};
 
 void main() {
-  testWidgets('home asks for notifications once, with what they are for; «لاحقاً» never asks again', (tester) async {
+  testWidgets('home asks for notifications with what they are for; while still off, a reminder once a day', (tester) async {
     late SharedPreferences prefs;
-    Future<void> pump(bool? allowed) async {
+    Future<void> pump(bool? allowed, {int? reminderAt}) async {
       final overrides = await testOverrides(FakeAdapter(), prefs: {
         if (prefsSeen) pushExplainedKey: true,
+        if (reminderAt != null) pushReminderAtKey: reminderAt,
       });
       await tester.pumpWidget(ProviderScope(
         key: UniqueKey(),
@@ -47,9 +48,42 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(PushAskSheet), findsNothing);
     expect(prefs.getBool(pushExplainedKey), isTrue);
+    expect(prefs.getInt(pushReminderAtKey), isNotNull);
     prefsSeen = true;
-    await pump(false);
+    // Asked under a day ago: nothing
+    final now = DateTime.now();
+    await pump(false, reminderAt: now.subtract(const Duration(hours: 23)).millisecondsSinceEpoch);
     expect(find.byType(PushAskSheet), findsNothing);
+    // A day later and still off: the reminder, with its own title and button
+    await pump(false, reminderAt: now.subtract(const Duration(days: 1, minutes: 1)).millisecondsSinceEpoch);
+    expect(find.byType(PushAskSheet), findsOneWidget);
+    expect(find.text('الإشعارات غير مفعّلة'), findsOneWidget);
+    expect(find.text('فعّل الإشعارات'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('push-ask-later')));
+    await tester.pumpAndSettle();
+    expect(find.byType(PushAskSheet), findsNothing);
+    expect(prefs.getInt(pushReminderAtKey)! >= now.millisecondsSinceEpoch, isTrue);
+    // Allowed now: never a reminder, however long ago
+    await pump(true, reminderAt: now.subtract(const Duration(days: 5)).millisecondsSinceEpoch);
+    expect(find.byType(PushAskSheet), findsNothing);
+  });
+
+  testWidgets('the reminder\'s button explains the phone\'s settings when the system can no longer ask',
+      (tester) async {
+    prefsSeen = true;
+    final overrides = await testOverrides(FakeAdapter(), prefs: {
+      pushExplainedKey: true,
+      pushReminderAtKey: DateTime.now().subtract(const Duration(days: 2)).millisecondsSinceEpoch,
+    });
+    await tester.pumpWidget(ProviderScope(
+      overrides: [...overrides, pushAllowedProvider.overrideWith((ref) async => false)],
+      child: rtlApp(const Scaffold(body: PushAskGate())),
+    ));
+    await tester.pumpAndSettle();
+    // No Firebase in tests: the system answer counts as a refusal, so the steps sheet follows
+    await tester.tap(find.byKey(const Key('push-ask-allow')));
+    await tester.pumpAndSettle();
+    expect(find.byType(PushStepsSheet), findsOneWidget);
   });
 
   testWidgets('«السماح» then a refusal on that first prompt: no second «how to enable» sheet at once', (tester) async {

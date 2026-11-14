@@ -187,9 +187,12 @@ class _IntroSlide extends StatelessWidget {
     final visible = 1 - d.abs();
     final rtl = Directionality.of(context) == TextDirection.rtl;
     return LayoutBuilder(builder: (context, box) {
-      final imageHeight = math.min(box.maxHeight * 0.52, 420.0);
+      // The words need about 300 px: on a short phone (iPhone SE) the photo gives way rather than cut the last point
+      final imageHeight =
+          math.max(140.0, math.min(math.min(box.maxHeight * 0.52, 420.0), box.maxHeight - 300));
       return SingleChildScrollView(
-        physics: const NeverScrollableScrollPhysics(),
+        // Scrolls only when it still doesn't fit (very large text)
+        physics: const ClampingScrollPhysics(),
         padding: const EdgeInsets.symmetric(horizontal: 24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

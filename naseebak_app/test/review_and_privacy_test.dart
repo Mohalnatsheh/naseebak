@@ -20,6 +20,11 @@ class FakeReview implements InAppReview {
   @override
   Future<void> requestReview() async => requests++;
 
+  int listings = 0;
+
+  @override
+  Future<void> openStoreListing({String? appStoreId, String? microsoftStoreId}) async => listings++;
+
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
@@ -44,6 +49,23 @@ void main() {
     final fake = FakeReview(available: false);
     await StoreReview(prefs, AppAnalytics(false), review: fake).afterFirstMatch(delay: Duration.zero);
     expect(fake.requests, 0);
+    expect(prefs.getBool(StoreReview.askedKey), isNull);
+  });
+
+  test('«قيّم التطبيق»: Android opens the Play listing; iPhone without a store link asks Apple\'s sheet; '
+      'neither uses up the one automatic ask', () async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    final fake = FakeReview();
+    final review = StoreReview(prefs, AppAnalytics(false), review: fake);
+    await review.openRatingPage(platform: 'android', storeUrl: 'https://play.google.com/store/apps/details?id=x');
+    expect(fake.listings, 1);
+    expect(fake.requests, 0);
+    await review.openRatingPage(platform: 'ios');
+    expect(fake.requests, 1);
+    // Every tap works, again and again
+    await review.openRatingPage(platform: 'ios');
+    expect(fake.requests, 2);
     expect(prefs.getBool(StoreReview.askedKey), isNull);
   });
 

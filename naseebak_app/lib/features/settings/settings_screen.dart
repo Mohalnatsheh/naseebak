@@ -202,7 +202,7 @@ class AccountScreen extends ConsumerWidget {
             GroupedRow(
               rowKey: const Key('menu-rate-app'),
               icon: Icons.star_rate_rounded,
-              title: 'قيّم التطبيق',
+              title: 'تقييم التطبيق',
               onTap: () async {
                 // Read before the await: this screen may be gone by the answer
                 final review = ref.read(storeReviewProvider);

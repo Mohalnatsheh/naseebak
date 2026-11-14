@@ -68,7 +68,7 @@ class _SuspendedScreenState extends ConsumerState<SuspendedScreen> {
             ),
             const SizedBox(height: 12),
             LoadingButton(
-              label: 'تحقّق مرة أخرى',
+              label: 'إعادة التحقق',
               outlined: true,
               loading: _checking,
               onPressed: _checkAgain,

@@ -27,7 +27,7 @@ class StoreReview {
   /// Leaving a chat where both have written (the other side replied): the same one-time ask
   Future<void> afterConversation({Duration delay = const Duration(milliseconds: 600)}) => _ask(delay);
 
-  /// «قيّم التطبيق» in the account menu: the store's rating page, whenever the member asks.
+  /// «تقييم التطبيق» in the account menu: the store's rating page, whenever the member asks.
   /// Android: the Play listing (by package name). iPhone: the App Store's «write a review» page when the server has
   /// the iPhone store link (`/api/mobile/config` ios.storeUrl, Admin → Settings), else Apple's rating sheet.
   Future<void> openRatingPage({required String platform, String storeUrl = ''}) async {

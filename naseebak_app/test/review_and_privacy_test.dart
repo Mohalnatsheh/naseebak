@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -52,7 +54,7 @@ void main() {
     expect(prefs.getBool(StoreReview.askedKey), isNull);
   });
 
-  test('«قيّم التطبيق»: Android opens the Play listing; iPhone without a store link asks Apple\'s sheet; '
+  test('«تقييم التطبيق»: Android opens the Play listing; iPhone without a store link asks Apple\'s sheet; '
       'neither uses up the one automatic ask', () async {
     SharedPreferences.setMockInitialValues({});
     final prefs = await SharedPreferences.getInstance();
@@ -127,5 +129,17 @@ void main() {
     await tester.pumpWidget(const SizedBox());
     await tester.pump();
     expect(calls, [true, false, true, false]);
+  });
+
+  test('shared labels use nouns, never a masculine command: «تقييم التطبيق», «إعادة التحقق» (review minor 10)', () {
+    String read(String path) => File(path).readAsStringSync();
+    expect(read('lib/features/settings/settings_screen.dart'), contains("'تقييم التطبيق'"));
+    expect(read('lib/core/update/app_update.dart'), contains("'إعادة التحقق'"));
+    expect(read('lib/features/auth/suspended_screen.dart'), contains("'إعادة التحقق'"));
+    for (final f in Directory('lib').listSync(recursive: true).whereType<File>().where((f) => f.path.endsWith('.dart'))) {
+      final src = f.readAsStringSync();
+      expect(src.contains('قيّم التطبيق'), isFalse, reason: f.path);
+      expect(src.contains('تحقّق مرة أخرى'), isFalse, reason: f.path);
+    }
   });
 }

@@ -54,6 +54,10 @@ class _AlertGateState extends ConsumerState<AlertGate> with WidgetsBindingObserv
   /// Whether the tabs' route is the top one (kept current through the route's scope dependency)
   bool _routeIsCurrent = true;
 
+  /// A check is owed: the first one, one after the app came back to the front, or one put off because home wasn't
+  /// visible. Switching tabs alone asks the server only when one is owed.
+  bool _owed = true;
+
   /// Home is what the member sees: the home tab, nothing pushed over the tabs, the app in front
   bool _onHome() {
     if (!widget.active || !mounted) return false;
@@ -62,7 +66,9 @@ class _AlertGateState extends ConsumerState<AlertGate> with WidgetsBindingObserv
     return _routeIsCurrent;
   }
 
-  void _checkSoon() => WidgetsBinding.instance.addPostFrameCallback((_) => _check());
+  void _checkSoon() => WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_owed) _check();
+      });
 
   @override
   void didUpdateWidget(covariant AlertGate oldWidget) {
@@ -93,11 +99,15 @@ class _AlertGateState extends ConsumerState<AlertGate> with WidgetsBindingObserv
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) _check();
+    if (state == AppLifecycleState.resumed) {
+      _owed = true;
+      _check();
+    }
   }
 
   Future<void> _check() async {
     if (_showing || _checking || !_onHome()) return;
+    _owed = false;
     _checking = true;
     try {
       await _checkNow();
@@ -126,6 +136,8 @@ class _AlertGateState extends ConsumerState<AlertGate> with WidgetsBindingObserv
       }
       return;
     }
+    // Closed: the next waiting one, if any
+    _owed = true;
     _checkSoon();
   }
 
@@ -141,8 +153,12 @@ class _AlertGateState extends ConsumerState<AlertGate> with WidgetsBindingObserv
     } catch (_) {
       return null; // Next time the app comes back
     }
+    if (alert == null || !mounted || _showing) return null;
     // Left home while asking: shown next time home is visible (not dismissed)
-    if (alert == null || !mounted || _showing || !_onHome()) return null;
+    if (!_onHome()) {
+      _owed = true;
+      return null;
+    }
     _showing = true;
     final openLink = await showDialog<bool>(
       context: context,

@@ -42,6 +42,11 @@ export interface FeedCandidate {
   drivingLicense: boolean | null;
   willingToRelocate: string | null;
   familyValues: string | null;
+  /**
+   * The 16 px blurred copy of their main photo (`data:image/webp;base64,…`, ≤ 1 KB) for the locked avatar, or null
+   * (no photo, no preview yet, or switch `photo_blur_preview` off). The feed always sends it; never a photo url.
+   */
+  photoPreview?: string | null;
 }
 
 export interface OpenFeedItem {

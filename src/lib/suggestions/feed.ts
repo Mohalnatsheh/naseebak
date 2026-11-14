@@ -19,6 +19,7 @@ import { expireMutualSuggestions, openMutualWhere } from "@/lib/suggestions/mutu
 import { isUnavailable } from "@/lib/matches/state";
 import { proUserIds } from "@/lib/pro/status";
 import { getCycleFlags, getReligionEnabled, type CycleFlags } from "@/lib/settings";
+import { photoPreviewEnabled, previewSelect, withPhotoPreview, type PreviewPhotos } from "@/lib/photos/preview-payload";
 import type { FeedCandidate, FeedItem, FeedKind, FeedTab } from "@/lib/suggestions/feed-types";
 
 const LEGACY_SENT_VISIBLE_MS = 14 * 24 * 60 * 60 * 1000;
@@ -132,6 +133,9 @@ const personSelect = {
   personalityResult: { select: { vector: true } },
 } as const;
 
+/** The other person on a card: the viewer's fields plus the blurred preview's (never a photo url) */
+const otherPersonSelect = { ...personSelect, ...previewSelect } as const;
+
 /** countOnly: just enough to apply the feed's filters (blocked, unavailable) */
 const countSelect = { id: true, isDeactivated: true, status: true, lastActiveAt: true } as const;
 
@@ -145,6 +149,8 @@ type Person = {
   lastActiveAt?: Date | null;
   profile: Record<string, unknown> | null;
   personalityResult: { vector: number[] } | null;
+  /** Only the preview fields (`previewSelect`), only for the other person */
+  photos?: PreviewPhotos;
 };
 
 // Only public profile fields — never preferences, dealbreakers or anything private
@@ -155,12 +161,13 @@ const CARD_FIELDS = [
   "drivingLicense", "willingToRelocate", "familyValues",
 ] as const;
 
-export function toFeedCandidate(p: Person, religionOn = false): FeedCandidate {
+/** previewOn: add `photoPreview` (the feed always passes the switch); off sends null */
+export function toFeedCandidate(p: Person, religionOn = false, previewOn = false): FeedCandidate {
   const prof = p.profile ?? {};
   const dob = prof.dateOfBirth as Date | string | null | undefined;
   const age = dob ? Math.floor((Date.now() - new Date(dob).getTime()) / (365.25 * 24 * 60 * 60 * 1000)) : null;
   const fields = Object.fromEntries(CARD_FIELDS.map((k) => [k, (prof[k] as unknown) ?? null]));
-  return {
+  const card: FeedCandidate = {
     id: p.id,
     firstName: p.firstName,
     isVerified: p.isVerified,
@@ -170,6 +177,7 @@ export function toFeedCandidate(p: Person, religionOn = false): FeedCandidate {
     // religion, plus hijab/niqab/beard/sect (a Christian shows none; «أفضّل عدم الذكر» is never shown)
     ...publicReligionFields(prof as Parameters<typeof publicReligionFields>[0], religionOn),
   };
+  return withPhotoPreview(card, p.photos, previewOn);
 }
 
 async function blockedIdsOf(userId: string): Promise<Set<string>> {
@@ -237,13 +245,15 @@ export async function getSuggestionFeed(
   await expireMutualSuggestions(userId);
   const now = new Date();
   // «الديانة» on cards only: a count never builds cards, and a failed read shows no religion (switch off)
-  const [flags, religionOn] = await Promise.all([
+  const [flags, religionOn, previewOn] = await Promise.all([
     getCycleFlags(),
     opts.countOnly ? Promise.resolve(false) : getReligionEnabled().catch(() => false),
+    opts.countOnly ? Promise.resolve(false) : photoPreviewEnabled(),
   ]);
   const order = suggestionOrder(flags);
   const groupDays: GroupDays = flags.activeFirstFeed ? ACTIVE_FIRST_GROUP_DAYS : ACTIVITY_GROUP_DAYS;
-  const otherSelect = opts.countOnly ? countSelect : personSelect;
+  // The other person's blurred preview comes with the card query (no round trip per card); the viewer's row never loads photos
+  const otherSelect = opts.countOnly ? countSelect : otherPersonSelect;
 
   const [viewer, blocked] = await Promise.all([
     db.user.findUnique({ where: { id: userId }, select: { ...personSelect, matchCredits: true } }),
@@ -401,7 +411,7 @@ export async function getSuggestionFeed(
       compatibilityScore: r.score ?? calculateCompatibility(v, o),
       reason: suggestionReason(v, o),
       createdAt: r.createdAt.toISOString(),
-      candidate: toFeedCandidate(r.other, religionOn),
+      candidate: toFeedCandidate(r.other, religionOn, previewOn),
       ...(pros.has(r.other.id) && { isPro: true as const }),
       ...(activity && { activity }),
       ...(r.expiresAt && { expiresAt: r.expiresAt.toISOString() }),

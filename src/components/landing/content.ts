@@ -50,7 +50,7 @@ export function landingContent(mode: LandingMode, country: CountryCode = DEFAULT
   const noKnown = pick({ JO: "يعرف بها أحد", SA: "يعرفها إلا من أبدى اهتمامه", LB: "يعرف بها أحد" });
 
   const hero = {
-    eyebrow: pick({ JO: "منصة زواج أردنية", SA: "منصة زواج سعودية", LB: "منصة زواج بلبنان" }),
+    eyebrow: pick({ JO: "منصة زواج بالحلال في الأردن", SA: "منصة زواج سعودية", LB: "منصة زواج بلبنان" }),
     title: pick({ JO: "يمكن نصيبك أقرب مما تتوقع", SA: "لعلّ نصيبك أقرب مما تتوقع", LB: "يمكن نصيبك أقرب ممّا منتخيّل" }),
     lead: coi
       ? pick({

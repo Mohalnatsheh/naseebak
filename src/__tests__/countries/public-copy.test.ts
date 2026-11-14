@@ -16,7 +16,7 @@ describe("landing copy per visitor country", () => {
     for (const m of MODES) expect(contentFor(m, "JO")).toEqual(landingContent(m));
     const jo = contentFor(MODES[0], "JO");
     expect(jo.country).toBe("JO");
-    expect(jo.hero.eyebrow).toBe("منصة زواج أردنية");
+    expect(jo.hero.eyebrow).toBe("منصة زواج بالحلال في الأردن");
     expect(jo.hero.title).toBe("يمكن نصيبك أقرب مما تتوقع");
   });
 

@@ -26,15 +26,18 @@ export function LandingHero({
       <div className="landing-khatam absolute inset-0" aria-hidden />
       <div className="container relative mx-auto grid items-center gap-12 px-4 lg:grid-cols-[1.1fr_0.9fr] lg:gap-8">
         <div className="text-center lg:text-start">
-          <p className="inline-flex items-center gap-2 rounded-full border border-accent/40 bg-accent/10 px-4 py-1.5 text-sm font-bold text-accent">
-            {content.hero.eyebrow}
-          </p>
-          <h1
-            className="mt-5 text-[2.35rem] font-extrabold leading-[1.3] sm:text-6xl lg:text-[3.5rem] xl:text-[4rem]"
-          >
-            {content.hero.title.split(" ").slice(0, 2).join(" ")}
-            <br />
-            <span className="text-accent">{content.hero.title.split(" ").slice(2).join(" ")}</span>
+          {/* The eyebrow is part of the h1 (same look): the page's main heading then names what it is and where
+              («منصة زواج بالحلال في الأردن»), which the slogan alone never told search engines */}
+          <h1>
+            <span className="inline-flex items-center gap-2 rounded-full border border-accent/40 bg-accent/10 px-4 py-1.5 text-sm font-bold text-accent">
+              {content.hero.eyebrow}
+            </span>
+            <span className="sr-only"> — </span>
+            <span className="mt-5 block text-[2.35rem] font-extrabold leading-[1.3] sm:text-6xl lg:text-[3.5rem] xl:text-[4rem]">
+              {content.hero.title.split(" ").slice(0, 2).join(" ")}
+              <br />
+              <span className="text-accent">{content.hero.title.split(" ").slice(2).join(" ")}</span>
+            </span>
           </h1>
           <p className="mx-auto mt-5 min-h-[6.75rem] max-w-xl text-lg leading-loose text-white/80 sm:min-h-0 lg:mx-0">
             {content.hero.lead}

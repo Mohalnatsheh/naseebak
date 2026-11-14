@@ -259,6 +259,9 @@ class _ProfileEditFormState extends ConsumerState<ProfileEditForm> {
     }
     setState(() => _saving = true);
     final repo = ref.read(profileRepositoryProvider);
+    // Taken before the request: a save that lands after the member left still refreshes «ملفي», the pending badge
+    // and me (audit M6); only the snack needs this screen
+    final container = ProviderScope.containerOf(context, listen: false);
     try {
       if (plan.fills.isNotEmpty) {
         await repo.save(withoutMuslimOnly(_v['religion'], {...requiredPayload(widget.profile), ...plan.fills}));
@@ -267,6 +270,9 @@ class _ProfileEditFormState extends ConsumerState<ProfileEditForm> {
         final note = _message.text.trim();
         await repo.requestUpdate(plan.reviewed, message: note.isEmpty ? null : note);
       }
+      container.invalidate(myProfileProvider);
+      container.invalidate(pendingEditProvider);
+      container.read(authControllerProvider.notifier).refreshMe();
       if (!mounted) return;
       showSnack(
         context,
@@ -276,9 +282,6 @@ class _ProfileEditFormState extends ConsumerState<ProfileEditForm> {
                 ? 'أُرسل التعديل للمراجعة وسيظهر بعد اعتماده'
                 : 'حُفظت الحقول الجديدة، وأُرسل تعديل البيانات المحفوظة للمراجعة',
       );
-      ref.invalidate(myProfileProvider);
-      ref.invalidate(pendingEditProvider);
-      ref.read(authControllerProvider.notifier).refreshMe();
     } on ApiException catch (e) {
       if (mounted) setState(() => _error = e.message);
     } finally {

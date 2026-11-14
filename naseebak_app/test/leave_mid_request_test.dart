@@ -14,10 +14,12 @@ import 'package:naseebak_app/features/auth/pending_auth.dart';
 import 'package:naseebak_app/features/home/counts.dart';
 import 'package:naseebak_app/features/profile/guardian_form.dart';
 import 'package:naseebak_app/features/profile/preferences_screen.dart';
+import 'package:naseebak_app/features/profile/profile_edit_screen.dart';
 import 'package:naseebak_app/features/profile/profile_repository.dart';
 import 'package:naseebak_app/features/settings/settings_screen.dart';
 
 import 'helpers/fake_api.dart';
+import 'profile_required_and_locks_test.dart' show profileWith, stored, lists;
 
 /// The screen inside one provider scope, so it can be closed while the scope (and its requests) live on
 Future<(ProviderContainer, ValueNotifier<bool>)> mount(WidgetTester tester, FakeAdapter adapter, Widget screen) async {
@@ -168,5 +170,44 @@ void main() {
     await settle(tester);
     expect(tester.takeException(), isNull);
     expect(adapter.to('GET', '/api/me/counts').length, greaterThan(countsBefore));
+  });
+
+  // Audit 2026-11-14 M6: a profile edit that lands after the form was left still refreshes «ملفي», the pending badge
+  // and me
+  testWidgets('profile edit closed while saving: «ملفي», the pending edit and me still refresh', (tester) async {
+    final gate = Completer<void>();
+    final adapter = FakeAdapter()
+      ..on('GET', '/api/mobile/me', FakeResponse(200, {'user': meJson()}))
+      ..on('POST', '/api/profile/update-request', const FakeResponse(200, {'message': 'ok', 'requested': true}))
+      ..on('GET', '/api/profile/update-request', const FakeResponse(200, {'requests': []}))
+      ..hold('POST', '/api/profile/update-request', gate.future);
+    final (container, open) = await mount(
+      tester,
+      adapter,
+      Scaffold(body: ProfileEditForm(profile: profileWith(stored), lists: lists, pending: null)),
+    );
+    container.read(authControllerProvider);
+    for (var i = 0; i < 50 && !container.read(authControllerProvider).isSignedIn; i++) {
+      await tester.pump(const Duration(milliseconds: 10));
+    }
+    // Watched elsewhere («ملفي»): it must be read again after the save
+    final sub = container.listen(pendingEditProvider, (_, _) {});
+    addTearDown(sub.close);
+    await settle(tester);
+    final pendingBefore = adapter.to('GET', '/api/profile/update-request').length;
+    final meBefore = adapter.to('GET', '/api/mobile/me').length;
+    await tester.tap(find.byKey(const Key('city-إربد')));
+    await tester.pump();
+    await tester.scrollUntilVisible(find.byKey(const Key('save-profile')), 300, scrollable: find.byType(Scrollable).first);
+    await tester.tap(find.byKey(const Key('save-profile')));
+    await tester.pump(const Duration(milliseconds: 20));
+    expect(adapter.to('POST', '/api/profile/update-request'), hasLength(1));
+    open.value = false;
+    await tester.pump();
+    gate.complete();
+    await settle(tester);
+    expect(tester.takeException(), isNull);
+    expect(adapter.to('GET', '/api/profile/update-request').length, greaterThan(pendingBefore));
+    expect(adapter.to('GET', '/api/mobile/me').length, greaterThan(meBefore));
   });
 }

@@ -11,6 +11,7 @@ const ROOT = join(__dirname, "..", "..");
 const ALLOWED = new Set([
   "lib/photos/preview-payload.ts",
   "lib/suggestions/feed.ts",
+  "lib/suggestions/feed-types.ts", // the field in the card type
   "app/api/suggestions/route.ts",
   "app/api/suggestions/sent/route.ts",
   "app/api/interests/received/route.ts",
@@ -30,9 +31,9 @@ const sources = files(ROOT).map((p) => ({ rel: relative(ROOT, p).split("\\").joi
 describe("photoPreview guard", () => {
   it("only the listed server files add the preview", () => {
     const users = sources
-      .filter((s) => /withPhotoPreview|previewSelect|primaryPhotoPreview|blurPreview/.test(s.text))
+      .filter((s) => /withPhotoPreview|previewSelect|photoPreview/.test(s.text))
       .map((s) => s.rel)
-      .filter((rel) => !rel.startsWith("lib/photos/") && !rel.startsWith("app/api/profile/photos"));
+      .filter((rel) => !rel.startsWith("lib/photos/") && !rel.startsWith("components/") && !rel.startsWith("app/(ar)/") && !rel.startsWith("app/api/profile/photos"));
     expect(users.filter((rel) => !ALLOWED.has(rel))).toEqual([]);
   });
 

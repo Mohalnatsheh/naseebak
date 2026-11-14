@@ -21,6 +21,7 @@ const alert = vi.hoisted(() => ({ sendAdminAlert: vi.fn() }));
 vi.mock("@/lib/admin-alert", () => alert);
 vi.mock("@/lib/rate-limit-db", () => ({ purgeExpiredRateLimits: vi.fn(async () => 0) }));
 vi.mock("@/lib/engagement/polls", () => ({ runPollRotation: vi.fn(async () => ({ rotated: 0, queueEmpty: 0 })) }));
+vi.mock("@/lib/cron/photo-previews", () => ({ fillPhotoPreviews: vi.fn(async () => ({ filled: 0, failed: 0 })) }));
 vi.mock("@/lib/pro/grants", () => ({ runYearlyProGrants: tasks.runYearlyProGrants }));
 vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/settings", () => settings);

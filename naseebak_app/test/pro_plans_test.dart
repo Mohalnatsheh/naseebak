@@ -477,7 +477,7 @@ void main() {
     final note = tester.widget<InfoBanner>(find.byKey(const Key('pro-past-due'))).text;
     expect(note, startsWith('لم ينجح تجديد الدفع.'));
     expect(note, contains('مزايا Pro مستمرة حتى 1 ديسمبر 2026.'));
-    expect(note, contains('سنحاول مرة أخرى تلقائياً خلال الأيام القادمة، وإن لم ينجح الدفع ينتهي الاشتراك.'));
+    expect(note, contains('سنعيد محاولة الدفع تلقائياً خلال الأيام القادمة، وإن لم ينجح ينتهي الاشتراك.'));
     expect(note, isNot(contains('من الموقع')));
   });
 

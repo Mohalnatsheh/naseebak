@@ -545,7 +545,7 @@ class _MyProCardState extends ConsumerState<MyProCard> {
                   InfoBanner(
                     key: const Key('pro-past-due'),
                     text: 'لم ينجح تجديد الدفع. ${date != null ? 'مزايا Pro مستمرة حتى $date. ' : ''}'
-                        'سنحاول مرة أخرى تلقائياً خلال الأيام القادمة، وإن لم ينجح الدفع ينتهي الاشتراك. يمكنك التأكد من '
+                        'سنعيد محاولة الدفع تلقائياً خلال الأيام القادمة، وإن لم ينجح ينتهي الاشتراك. يمكنك التأكد من '
                         'بطاقتك أو رصيدها، وإن انتهى الاشتراك يمكنك الاشتراك من جديد ببطاقة أخرى.',
                     tone: BannerTone.warning,
                     icon: Icons.warning_amber_rounded,

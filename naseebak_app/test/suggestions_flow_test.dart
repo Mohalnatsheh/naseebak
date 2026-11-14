@@ -379,7 +379,7 @@ void main() {
     await tester.tap(find.byKey(const Key('card-full-s1')));
     await pumpFor(tester);
     expect(find.byType(CandidateProfileScreen), findsOneWidget);
-    expect(find.text('الصور تظهر بعد التوافق المتبادل فقط'), findsOneWidget);
+    expect(find.text('الصور تظهر بوضوح بعد التوافق المتبادل فقط'), findsOneWidget);
   });
 
   testWidgets('credit on interest off: «مهتم» decides directly, no chat/family sheet', (tester) async {

@@ -173,7 +173,7 @@ class HomeSuggestionCard extends StatelessWidget {
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      MemberAvatar(name: c.firstName, size: 46, locked: true, pro: item.isPro),
+                      MemberAvatar(name: c.firstName, size: 46, locked: true, pro: item.isPro, preview: c.photoPreview),
                       const SizedBox(width: AppSpace.sm),
                       Expanded(child: who),
                       if (!large && score != null) ...[const SizedBox(width: AppSpace.xs), score],

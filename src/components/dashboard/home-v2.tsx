@@ -245,7 +245,7 @@ export function HomeV2() {
                 {people.map((p, i) => (
                   <li key={p.id} data-person className={cn(i >= INTERESTED_PHONE && "max-md:hidden")}>
                     <Link href={INTERESTED_HREF} className="flex min-h-11 flex-col items-center gap-1 rounded-xl px-1 py-1 text-center transition-colors hover:bg-muted/40">
-                      <MemberAvatar name={p.candidate.firstName} size={56} locked pro={!!p.isPro} />
+                      <MemberAvatar name={p.candidate.firstName} size={56} locked photoPreview={p.candidate.photoPreview} pro={!!p.isPro} />
                       <span className="w-full truncate text-label text-ink">{p.candidate.age ? `${p.candidate.firstName}، ${p.candidate.age}` : p.candidate.firstName}</span>
                       {p.candidate.city && <span className="w-full truncate text-caption text-muted-ink">{p.candidate.city}</span>}
                     </Link>

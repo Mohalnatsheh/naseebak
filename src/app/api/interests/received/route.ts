@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { parsePagination } from "@/lib/utils";
 import { publicReligionFields } from "@/lib/profile-religion";
 import { getReligionEnabled } from "@/lib/settings";
+import { photoPreviewEnabled, previewSelect, withPhotoPreview } from "@/lib/photos/preview-payload";
 
 export async function GET(request: Request) {
   try {
@@ -54,6 +55,8 @@ export async function GET(request: Request) {
               id: true,
               firstName: true,
               isVerified: true,
+              // The blurred preview only (never a photo url): photos stay hidden until a match
+              ...previewSelect,
               profile: {
                 select: {
                   dateOfBirth: true,
@@ -112,7 +115,7 @@ export async function GET(request: Request) {
       : [];
     const scoreMap = new Map(suggestions.map((s) => [s.id, s.compatibilityScore]));
 
-    const religionOn = await getReligionEnabled().catch(() => false);
+    const [religionOn, previewOn] = await Promise.all([getReligionEnabled().catch(() => false), photoPreviewEnabled()]);
 
     const interests = likes
       .map((l) => {
@@ -129,7 +132,7 @@ export async function GET(request: Request) {
           suggestionId: l.suggestionId,
           compatibilityScore: (l.suggestionId ? scoreMap.get(l.suggestionId) : null) ?? 0,
           receivedAt: l.createdAt,
-          candidate: {
+          candidate: withPhotoPreview({
             id: l.fromUser.id,
             firstName: l.fromUser.firstName,
             isVerified: l.fromUser.isVerified,
@@ -165,7 +168,7 @@ export async function GET(request: Request) {
             drivingLicense: l.fromUser.profile?.drivingLicense,
             willingToRelocate: l.fromUser.profile?.willingToRelocate,
             familyValues: l.fromUser.profile?.familyValues,
-          },
+          }, l.fromUser.photos, previewOn),
         };
       });
 

@@ -367,7 +367,7 @@ function LegacyHome() {
                   <li key={s.id} className="w-[5.25rem] shrink-0 snap-start">
                     <Link href="/dashboard/suggestions" className="flex flex-col items-center gap-1.5 rounded-xl px-1 py-1 text-center transition-colors hover:bg-muted/40">
                       <span className="relative">
-                        <MemberAvatar name={s.candidate.firstName} size={64} locked pro={!!s.isPro} />
+                        <MemberAvatar name={s.candidate.firstName} size={64} locked photoPreview={s.candidate.photoPreview} pro={!!s.isPro} />
                         <span className="absolute inset-x-0 -bottom-3 mx-auto w-fit rounded-full bg-accent px-1.5 text-caption font-bold leading-4 tabular-nums text-primary-deep">
                           {Math.round(s.compatibilityScore)}%
                         </span>

@@ -174,7 +174,7 @@ class ProfileScreen extends ConsumerWidget {
                 const SizedBox(height: 8),
                 const SectionTitle('ملفي في نصيبك'),
                 for (final link in const [
-                  (Icons.photo_library_outlined, 'صوري', 'مخفية حتى التوافق المتبادل', '/profile/photos'),
+                  (Icons.photo_library_outlined, 'صوري', 'ضبابية حتى التوافق المتبادل', '/profile/photos'),
                   (Icons.tune_rounded, 'تفضيلات الشريك', 'العمر والمدينة والتعليم… وشروطي الأساسية', '/profile/preferences'),
                   (Icons.psychology_alt_outlined, 'اختبار الشخصية', 'يدخل في نسبة التوافق', '/profile/quiz'),
                 ])

@@ -190,7 +190,7 @@ class AccountScreen extends ConsumerWidget {
             GroupedRow(
               icon: Icons.photo_library_outlined,
               title: 'صوري',
-              value: 'مخفية حتى التوافق',
+              value: 'ضبابية حتى التوافق',
               onTap: () => context.push('/profile/photos'),
             ),
             GroupedRow(icon: Icons.card_giftcard_rounded, title: 'ادعُ صديقاً', onTap: () => context.push('/referral')),

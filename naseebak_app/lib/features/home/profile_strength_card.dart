@@ -7,7 +7,7 @@ String? strengthSubtitle(StrengthSection s) {
   if (missing.isNotEmpty) return missing;
   return switch (s.key) {
     'quiz' => 'أسئلة قصيرة تجعل نسبة التوافق أدق',
-    'photos' => 'تظهر بعد التوافق المتبادل فقط',
+    'photos' => 'تظهر بوضوح بعد التوافق المتبادل فقط',
     _ => null,
   };
 }

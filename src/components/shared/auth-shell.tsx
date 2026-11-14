@@ -42,7 +42,7 @@ export function AuthShell({
           <div className="flex flex-col gap-4 text-sm opacity-75" style={{ animation: "fadeSlideUp 1s var(--motion-ease) 0.8s both" }}>
             <span className="flex items-center justify-center gap-2">
               <Shield className="size-4" aria-hidden />
-              صورك مخفية حتى التوافق المتبادل
+              صورك ضبابية حتى التوافق المتبادل
             </span>
             <span className="flex items-center justify-center gap-2">
               <Sparkles className="size-4" aria-hidden />

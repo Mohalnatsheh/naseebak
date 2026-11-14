@@ -304,7 +304,7 @@ class _PhoneFormState extends ConsumerState<PhoneForm> {
                 child: Row(children: [
                   Expanded(child: _Promise(icon: Icons.verified_user_outlined, text: 'رقم مؤكَّد\nلكل حساب')),
                   SizedBox(width: 10),
-                  Expanded(child: _Promise(icon: Icons.visibility_off_outlined, text: 'الصور مخفية\nحتى التوافق')),
+                  Expanded(child: _Promise(icon: Icons.visibility_off_outlined, text: 'الصور ضبابية\nحتى التوافق')),
                   SizedBox(width: 10),
                   Expanded(child: _Promise(icon: Icons.family_restroom_rounded, text: 'العائلة جزء\nمن الطريق')),
                 ]),

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { parsePagination } from "@/lib/utils";
+import { photoPreviewEnabled, previewSelect, withPhotoPreview } from "@/lib/photos/preview-payload";
 
 export async function GET(request: Request) {
   try {
@@ -27,6 +28,8 @@ export async function GET(request: Request) {
               id: true,
               firstName: true,
               isVerified: true,
+              // The blurred preview only (never a photo url): photos stay hidden until a match
+              ...previewSelect,
               profile: {
                 select: {
                   city: true,
@@ -53,7 +56,7 @@ export async function GET(request: Request) {
     const suggestionIds = suggestions.map((s) => s.id);
     const candidateIds = suggestions.map((s) => s.candidateId);
 
-    const [notifications, mutualMatches] = await Promise.all([
+    const [notifications, mutualMatches, previewOn] = await Promise.all([
       db.notification.findMany({
         where: {
           type: "INTEREST",
@@ -77,6 +80,7 @@ export async function GET(request: Request) {
           maleId: true,
         },
       }),
+      photoPreviewEnabled(),
     ]);
 
     // Build lookup maps
@@ -113,18 +117,20 @@ export async function GET(request: Request) {
         status = "waiting";
       }
 
+      const candidate = {
+        firstName: s.candidate.firstName,
+        isVerified: s.candidate.isVerified,
+        age,
+        city: s.candidate.profile?.city ?? null,
+        education: s.candidate.profile?.education ?? null,
+        job: s.candidate.profile?.job ?? null,
+      };
       return {
         id: s.id,
         status,
         sentAt: s.updatedAt,
-        candidate: {
-          firstName: s.candidate.firstName,
-          isVerified: s.candidate.isVerified,
-          age,
-          city: s.candidate.profile?.city ?? null,
-          education: s.candidate.profile?.education ?? null,
-          job: s.candidate.profile?.job ?? null,
-        },
+        // The blurred preview only before a match; a matched card adds nothing (the match page has the real photos)
+        candidate: status === "matched" ? candidate : withPhotoPreview(candidate, s.candidate.photos, previewOn),
       };
     });
 

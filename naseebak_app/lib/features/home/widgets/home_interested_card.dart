@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_theme.dart';
+import '../../../shared/widgets/brand_kit.dart' show photoPreviewImage;
 import '../../discovery/suggestion_models.dart';
 import '../../notifications/notifications_screen.dart' show openAppRoute;
 import '../gendered_copy.dart';
@@ -15,7 +16,7 @@ import 'home_suggestion_card.dart' show openOnSuggestions;
 /// How many people «مهتمون بك» shows on home
 const homeInterestedCardsShown = 3;
 
-/// «مهتمون بك» (spec 2026-11-14 item 5): up to three cards, each a hidden-photo tile with «مخفية», «الاسم، العمر»
+/// «مهتمون بك» (spec 2026-11-14 item 5): up to three cards, each a hidden-photo tile («مخفية», or the blurred preview «ضبابية»), «الاسم، العمر»
 /// and the city, plus «ردّك مجاني» while the free reply is on. Nothing while loading or empty; a failed load says so
 /// with a retry. A tap opens that card on the suggestions tab «مهتمون بك».
 class HomeInterestedCards extends StatelessWidget {
@@ -87,8 +88,8 @@ class HomeInterestedCards extends StatelessWidget {
   }
 }
 
-/// One person who said «مهتم»: a neutral tile in place of the photo (never a photo, nor an image of any kind, before
-/// a match) tagged «مخفية», then «الاسم، العمر», the city and the free-reply tag
+/// One person who said «مهتم»: a neutral tile in place of the photo (never their photo before a match: at most the
+/// server's tiny pre-blurred preview, shown under a blur and tagged «ضبابية»; else a drawn wash tagged «مخفية»), then «الاسم، العمر», the city and the free-reply tag
 class HomeInterestedCard extends StatelessWidget {
   const HomeInterestedCard({super.key, required this.item, required this.onOpen, this.freeReplyLabel});
   final FeedItem item;
@@ -119,7 +120,7 @@ class HomeInterestedCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const _HiddenPhotoTile(),
+              _HiddenPhotoTile(preview: photoPreviewImage(p.photoPreview)),
               Padding(
                 padding: const EdgeInsets.fromLTRB(AppSpace.xs, AppSpace.sm, AppSpace.xs, AppSpace.sm),
                 child: Column(
@@ -166,13 +167,45 @@ class HomeInterestedCard extends StatelessWidget {
   }
 }
 
-/// The photo's place: a blurred neutral wash (two soft shapes under a blur) with a lock, tagged «مخفية». Drawn in
-/// code from tokens; no image at all.
+/// The photo's place: with the server's preview, that tiny pre-blurred copy scaled to cover under a strong blur,
+/// tagged «ضبابية»; else a blurred neutral wash (two soft shapes under a blur) drawn from tokens, tagged «مخفية».
+/// Both keep the lock.
 class _HiddenPhotoTile extends StatelessWidget {
-  const _HiddenPhotoTile();
+  const _HiddenPhotoTile({this.preview});
+  final ImageProvider? preview;
 
   @override
   Widget build(BuildContext context) {
+    final preview = this.preview;
+    if (preview != null) {
+      return SizedBox(
+        key: const Key('home-interested-preview-tile'),
+        height: 88,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            ClipRect(
+              child: ImageFiltered(
+                imageFilter: ImageFilter.blur(sigmaX: 10, sigmaY: 10, tileMode: TileMode.clamp),
+                child: Transform.scale(
+                  scale: 1.2,
+                  child: Image(
+                    key: const Key('home-interested-preview'),
+                    image: preview,
+                    fit: BoxFit.cover,
+                    gaplessPlayback: true,
+                    filterQuality: FilterQuality.low,
+                    errorBuilder: (_, _, _) => const _HiddenPhotoTile(),
+                  ),
+                ),
+              ),
+            ),
+            ColoredBox(color: AppColors.ink.withValues(alpha: 0.12)),
+            ..._marks('ضبابية'),
+          ],
+        ),
+      );
+    }
     return Container(
       key: const Key('home-interested-hidden-tile'),
       height: 88,
@@ -200,23 +233,28 @@ class _HiddenPhotoTile extends StatelessWidget {
               ),
             ),
           ),
-          Center(child: Icon(Icons.lock_outline_rounded, color: AppColors.surface.withValues(alpha: 0.9))),
-          PositionedDirectional(
-            bottom: 6,
-            end: 6,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-              decoration: BoxDecoration(
-                color: AppColors.ink.withValues(alpha: 0.6),
-                borderRadius: BorderRadius.circular(AppRadius.sm),
-              ),
-              child: Text('مخفية', style: AppText.caption.copyWith(color: AppColors.surface)),
-            ),
-          ),
+          ..._marks('مخفية'),
         ],
       ),
     );
   }
+
+  /// The lock in the middle and the tag in the corner
+  static List<Widget> _marks(String tag) => [
+    Center(child: Icon(Icons.lock_outline_rounded, color: AppColors.surface.withValues(alpha: 0.9))),
+    PositionedDirectional(
+      bottom: 6,
+      end: 6,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+        decoration: BoxDecoration(
+          color: AppColors.ink.withValues(alpha: 0.6),
+          borderRadius: BorderRadius.circular(AppRadius.sm),
+        ),
+        child: Text(tag, style: AppText.caption.copyWith(color: AppColors.surface)),
+      ),
+    ),
+  ];
 
   static Widget _blob(double size, Color color) => Container(
     width: size,

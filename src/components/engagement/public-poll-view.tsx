@@ -81,7 +81,7 @@ export function PublicPollView({
               <section className="space-y-3 rounded-2xl border border-accent/40 bg-card p-5">
                 <h2 className="text-lg font-bold text-foreground">{copy.notDating}</h2>
                 <ul className="space-y-1.5 text-sm leading-relaxed text-muted-foreground">
-                  <li>• الصور مخفية حتى يقول الطرفان «مهتم».</li>
+                  <li>• الصور ضبابية حتى يقول الطرفان «مهتم».</li>
                   <li>• لا تواصل قبل التوافق المتبادل، وقرار «لا» بدون إشعار.</li>
                   <li>• بعد التوافق تختار: محادثة محمية أو تعارف عائلي.</li>
                 </ul>

@@ -40,6 +40,7 @@ class PersonDetails {
     this.willingToRelocate,
     this.familyValues,
     this.religion,
+    this.photoPreview,
   });
 
   factory PersonDetails.fromJson(Map<String, dynamic> j) => PersonDetails(
@@ -79,6 +80,7 @@ class PersonDetails {
         willingToRelocate: asString(j['willingToRelocate']),
         familyValues: asString(j['familyValues']),
         religion: asString(j['religion']),
+        photoPreview: asString(j['photoPreview']),
       );
 
   final String id;
@@ -125,6 +127,11 @@ class PersonDetails {
 
   /// «الديانة» (null: switch off or an older server)
   final String? religion;
+
+  /// Before a match only: a tiny, already strongly blurred copy of their main photo as a
+  /// `data:image/webp;base64,…` URI (≤ 1 KB, spec 2026-11-14), shown under a blur in the locked avatar. Null when
+  /// they have none, the setting is off, or an older server. Never a photo URL.
+  final String? photoPreview;
 }
 
 /// The «المذهب» answer never shown to other members (the server already sends null for it) and never a partner

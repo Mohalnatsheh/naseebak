@@ -31,6 +31,8 @@ const DEFAULTS: Record<string, string> = {
   religion_enabled: "false",
   // Jordan charged in JOD instead of USD for new purchases (2026-11-11). Open checkouts and Pro subscriptions keep theirs
   jod_charging: "false",
+  // Blurred 16 px photo preview on locked avatars before a match (2026-11-14). Default on; off = every payload sends null
+  photo_blur_preview: "true",
   // Home + suggestions redesign (2026-11-13). Off = the current home and suggestion cards
   dashboard_redesign: "false",
   // Sale offer (2026-11-13): +percent% credits on purchases and the first Pro payment inside the window. 0 = off
@@ -125,6 +127,11 @@ export async function getChatWhatsappLayout(): Promise<boolean> {
 /** Redesigned sign-in, sign-up and profile edit (`auth_profile_redesign`, Admin → Settings). Default off */
 export async function getAuthRedesignEnabled(): Promise<boolean> {
   return (await getSetting("auth_profile_redesign")) === "true";
+}
+
+/** Blurred photo preview before a match (`photo_blur_preview`): on unless set to "false" */
+export async function getPhotoBlurPreview(): Promise<boolean> {
+  return (await getSetting("photo_blur_preview")) !== "false";
 }
 
 /** «الديانة» question switch (`religion_enabled`, Admin → Settings). Default off: nothing asked, shown or stored */

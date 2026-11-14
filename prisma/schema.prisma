@@ -438,6 +438,8 @@ model Photo {
   url             String
   isPrimary       Boolean  @default(false)
   order           Int      @default(0)
+  /// 16 px strongly blurred WebP data URI (≤ 1 KB) shown on a locked avatar before a match; null = none yet
+  blurPreview     String?
 
   createdAt       DateTime @default(now())
 

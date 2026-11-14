@@ -34,7 +34,7 @@ describe("PersonCard", () => {
   it("uses the photo only when one is passed, otherwise a locked placeholder", () => {
     const { rerender } = render(<PersonCard name="أحمد" photoLocked />);
     expect(screen.queryByRole("img", { name: "صورة أحمد" })).not.toBeInTheDocument();
-    expect(screen.getByText("الصور تظهر بعد الاهتمام المتبادل")).toBeInTheDocument();
+    expect(screen.getByText("الصور تظهر بعد التوافق المتبادل")).toBeInTheDocument();
     rerender(<PersonCard name="أحمد" photoLocked photoUrl="https://cdn.naseebak.com/x.jpg" />);
     expect(screen.getByRole("img", { name: "صورة أحمد" })).toHaveAttribute("src", "https://cdn.naseebak.com/x.jpg");
   });

@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:ui' show ImageFilter;
 
@@ -23,7 +24,13 @@ class MemberAvatar extends StatelessWidget {
     this.pro = false,
     this.timeLeft,
     this.dimmed = false,
+    this.preview,
   });
+
+  /// Before a match: the server's tiny pre-blurred copy of their main photo (`photoPreview`, a
+  /// `data:image/webp;base64,…` URI). Shown only while [locked] and no [photo], under a blur with the lock kept; an
+  /// absent or invalid one keeps the veil with the initial.
+  final String? preview;
 
   /// Over (an ended chat, a closed match): the veil in muted grey
   final bool dimmed;
@@ -48,9 +55,13 @@ class MemberAvatar extends StatelessWidget {
   Widget build(BuildContext context) {
     final ring = timeLeft != null || matched;
     final inner = ring ? size - 8 : size;
-    Widget face = photo == null
-        ? _Veil(initial: initial, size: inner, locked: locked, dimmed: dimmed)
-        : _PhotoFadeIn(image: photo!, size: inner);
+    final veil = _Veil(initial: initial, size: inner, locked: locked, dimmed: dimmed);
+    final blurred = photo == null && locked && !dimmed ? photoPreviewImage(preview) : null;
+    Widget face = photo != null
+        ? _PhotoFadeIn(image: photo!, size: inner)
+        : blurred != null
+            ? _BlurredPreview(image: blurred, size: inner, fallback: veil)
+            : veil;
     face = ClipOval(
       child: SizedBox(width: inner, height: inner, child: face),
     );
@@ -155,6 +166,81 @@ class _StarVeilPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_StarVeilPainter old) => false;
+}
+
+/// The largest preview string taken (the server caps the data URI at 1 KB; some slack, never a real photo)
+const maxPhotoPreviewChars = 4096;
+
+final _previewCache = <String, MemoryImage>{};
+
+/// The only previews taken: WebP, as the server makes them (the website accepts the same)
+const _previewPrefix = 'data:image/webp;base64,';
+
+/// The image of a server `photoPreview` (`data:image/webp;base64,…`), or null when absent, too large, another kind
+/// or not valid base64. The same string gives the same [MemoryImage], so the image cache keeps it across rebuilds.
+ImageProvider? photoPreviewImage(String? dataUri) {
+  if (dataUri == null || dataUri.length > maxPhotoPreviewChars || !dataUri.startsWith(_previewPrefix)) return null;
+  final cached = _previewCache.remove(dataUri);
+  if (cached != null) return _previewCache[dataUri] = cached;
+  try {
+    final bytes = base64Decode(dataUri.substring(_previewPrefix.length));
+    if (bytes.isEmpty) return null;
+    final image = MemoryImage(bytes);
+    _previewCache[dataUri] = image;
+    if (_previewCache.length > 100) _previewCache.remove(_previewCache.keys.first);
+    return image;
+  } on FormatException {
+    return null;
+  }
+}
+
+/// A locked member's blurred preview: the tiny copy scaled to cover the circle under a strong blur, a faint navy
+/// wash, and the lock (no initial). Bytes that don't decode fall back to the veil.
+class _BlurredPreview extends StatelessWidget {
+  const _BlurredPreview({required this.image, required this.size, required this.fallback});
+  final ImageProvider image;
+  final double size;
+  final Widget fallback;
+
+  @override
+  Widget build(BuildContext context) {
+    final sigma = math.max(4.0, size / 10);
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        ImageFiltered(
+          imageFilter: ImageFilter.blur(sigmaX: sigma, sigmaY: sigma, tileMode: TileMode.clamp),
+          child: Transform.scale(
+            scale: 1.2,
+            child: Image(
+              key: const Key('member-avatar-preview'),
+              image: image,
+              width: size,
+              height: size,
+              fit: BoxFit.cover,
+              gaplessPlayback: true,
+              filterQuality: FilterQuality.low,
+              errorBuilder: (_, _, _) => fallback,
+            ),
+          ),
+        ),
+        ColoredBox(color: AppColors.navy.withValues(alpha: 0.12)),
+        if (size >= 36)
+          Positioned(
+            bottom: size * 0.06,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: Container(
+                padding: EdgeInsets.all(size * 0.035),
+                decoration: BoxDecoration(color: AppColors.navy.withValues(alpha: 0.55), shape: BoxShape.circle),
+                child: Icon(Icons.lock_rounded, size: size * 0.15, color: AppColors.goldLight),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
 }
 
 /// A shown photo fades from blurred to sharp once (S2: after a match), 300 ms; at once with reduced motion

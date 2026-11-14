@@ -648,7 +648,7 @@ export default function ProfileSetupPage() {
             <h2 className="text-headline text-ink">{forViewer(gender, "أهلاً بك في نصيبك", "أهلاً بكِ في نصيبك")}</h2>
             <p className="mt-0.5 text-label font-normal text-muted-ink">
               {/* The adjective agrees with the count: «خطوتان قصيرتان» (review X4b minor 8) */}
-              {arabicCount(totalSteps, { one: "خطوة واحدة قصيرة", two: "خطوتان قصيرتان", few: "خطوات قصيرة", many: "خطوة قصيرة" })}، ثم تبدأ الاقتراحات. صورك تبقى مخفية حتى التوافق المتبادل.
+              {arabicCount(totalSteps, { one: "خطوة واحدة قصيرة", two: "خطوتان قصيرتان", few: "خطوات قصيرة", many: "خطوة قصيرة" })}، ثم تبدأ الاقتراحات. صورك تبقى ضبابية حتى التوافق المتبادل.
             </p>
           </div>
         </div>

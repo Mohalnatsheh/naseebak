@@ -92,7 +92,7 @@ void main() {
     expect(find.text('Pro'), findsOneWidget);
     expect(find.text('شهري'), findsOneWidget);
     expect(find.text('7'), findsOneWidget);
-    expect(find.text('مخفية حتى التوافق'), findsOneWidget);
+    expect(find.text('ضبابية حتى التوافق'), findsOneWidget);
     var last = -1.0;
     for (final t in ['الرصيد', 'عضوية Pro', 'ما أبحث عنه', 'صوري', 'ادعُ صديقاً', 'الإعدادات', 'المساعدة والدعم']) {
       final y = tester.getTopLeft(find.text(t)).dy;

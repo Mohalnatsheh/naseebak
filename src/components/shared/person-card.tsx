@@ -38,6 +38,8 @@ export interface PersonCardProps {
   photoUrl?: string | null;
   /** Photos exist but stay hidden until a mutual like: shows a small lock on the avatar */
   photoLocked?: boolean;
+  /** With `photoLocked`: the server's tiny pre-blurred copy of their main photo (`candidate.photoPreview`) */
+  photoPreview?: string | null;
   /** Small mark on the avatar corner (e.g. admin pick) */
   avatarMark?: ReactNode;
   /** «نشطة اليوم» / «نشط هذا الأسبوع»: a green dot on the meta line */
@@ -137,6 +139,7 @@ export function PersonCard({
   score,
   photoUrl,
   photoLocked,
+  photoPreview,
   avatarMark,
   activity,
   pro,
@@ -194,7 +197,7 @@ export function PersonCard({
           <div className="flex items-center gap-3">
             <span className="relative shrink-0">
               {/* S2: a matched photo fades in from the veil's blur */}
-              <MemberAvatar name={name} size={compact ? 44 : 48} photoUrl={photoUrl} locked={photoLocked} matched={matched} pro={pro} reveal={matched} />
+              <MemberAvatar name={name} size={compact ? 44 : 48} photoUrl={photoUrl} photoPreview={photoPreview} locked={photoLocked} matched={matched} pro={pro} reveal={matched} />
               {avatarMark && <span className="absolute -top-1.5 -end-1.5">{avatarMark}</span>}
             </span>
             <div className="min-w-0 flex-1">

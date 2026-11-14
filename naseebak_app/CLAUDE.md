@@ -305,6 +305,7 @@ Changing one of these on the server must keep old app versions working (members 
   frame times on a real Android phone (A2-M6), and the launch / sign-in log on a device with Impeller free of
   «SetInheritedOpacity» (A-L10). The report-only option needs the server branch live first.
 - **Full setup, 7 steps (2026-11-14, merged into local main, next app version, not released):** setup covers the whole profile and partner preferences, 6 steps without «شروط أساسية» when `counts.flags.mutualSuggestions` is false. `setup_steps.dart` mirrors `src/lib/setup-steps.ts` (keep them identical). Shared `ProfileFieldControl`, `PartnerPrefsFields`, `DealbreakerToggles`. Setup resumes at the first step with a missing required answer; the final PUT carries `dealbreakers`; a required choice whose list the server doesn't send is hidden.
+- **Blurred photo preview (2026-11-14, next app version after 1.4.0, not released):** `MemberAvatar` takes `preview`, read from `candidate.photoPreview` (card level also accepted). Shown only when locked, with no photo and not dimmed; only `data:image/webp;base64,` URIs up to 4096 chars, decoded once per string; a bad value falls back to the letter veil. Matches, chats and my own avatar are unchanged.
 - **Planned, not built (next version):** a `purchase` analytics event, and popup taps:
   `features/alerts/alert_gate.dart` posts `/api/alerts/{id}/dismiss` with no body, so admin → Popup Alerts can't tell an
   app tap from a close — send `{ "action": "TAPPED" | "CLOSED" }` like the website does (the server already accepts it;

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { deleteFromBunny, getBunnyPathFromUrl } from "@/lib/bunny";
+import { refreshMemberPreviews } from "@/lib/photos/blur-preview";
 
 export async function DELETE(
   request: Request,
@@ -68,6 +69,9 @@ export async function DELETE(
       }
     }
 
+    // The member's preview follows the new main photo in this request (no photo left = none)
+    await refreshMemberPreviews(session.user.id);
+
     return NextResponse.json({ message: "تم حذف الصورة بنجاح" });
   } catch (error) {
     console.error("Photo delete error:", error);
@@ -91,6 +95,8 @@ export async function PATCH(_request: Request, { params }: { params: Promise<{ i
       db.photo.updateMany({ where: { userId, isPrimary: true }, data: { isPrimary: false } }),
       db.photo.update({ where: { id }, data: { isPrimary: true } }),
     ]);
+    // The member's preview is now this photo's: make sure it has one
+    await refreshMemberPreviews(userId);
     return NextResponse.json({ message: "تم تعيين الصورة الرئيسية" });
   } catch (error) {
     console.error("Set primary photo error:", error);

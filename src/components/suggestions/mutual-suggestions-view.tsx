@@ -1056,6 +1056,7 @@ export function MutualSuggestionsView({
                   job={c.job && describeOption("job", c.job, partnerGender)}
                   score={score}
                   photoLocked
+                  photoPreview={c.photoPreview}
                   pro={!!item.isPro}
                   activity={declined ? null : item.activity}
                   badges={

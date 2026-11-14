@@ -8,6 +8,7 @@ import { recordActivityDay } from "@/lib/activity-days";
 import { getCycleFlags, getReligionEnabled } from "@/lib/settings";
 import { countNewItems, hasOpenMutual, suggestionOrder } from "@/lib/suggestions/feed";
 import { publicReligionFields } from "@/lib/profile-religion";
+import { photoPreviewEnabled, previewSelect, withPhotoPreview } from "@/lib/photos/preview-payload";
 
 export async function GET(request: Request) {
   try {
@@ -95,6 +96,8 @@ export async function GET(request: Request) {
               id: true,
               firstName: true,
               isVerified: true,
+              // The blurred preview only (never a photo url): photos stay hidden until a match
+              ...previewSelect,
               profile: {
                 select: {
                   dateOfBirth: true,
@@ -141,7 +144,7 @@ export async function GET(request: Request) {
       db.suggestion.count({ where }),
     ]);
 
-    const religionOn = await getReligionEnabled().catch(() => false);
+    const [religionOn, previewOn] = await Promise.all([getReligionEnabled().catch(() => false), photoPreviewEnabled()]);
     const formattedSuggestions = suggestions.map((s) => {
       const rel = publicReligionFields(s.candidate.profile, religionOn);
       const age = s.candidate.profile?.dateOfBirth
@@ -153,7 +156,7 @@ export async function GET(request: Request) {
         compatibilityScore: s.compatibilityScore,
         source: s.source,
         createdAt: s.createdAt,
-        candidate: {
+        candidate: withPhotoPreview({
           id: s.candidate.id,
           firstName: s.candidate.firstName,
           isVerified: s.candidate.isVerified,
@@ -189,7 +192,7 @@ export async function GET(request: Request) {
           drivingLicense: s.candidate.profile?.drivingLicense,
           willingToRelocate: s.candidate.profile?.willingToRelocate,
           familyValues: s.candidate.profile?.familyValues,
-        },
+        }, s.candidate.photos, previewOn),
       };
     });
 

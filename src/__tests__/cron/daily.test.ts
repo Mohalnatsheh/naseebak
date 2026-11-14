@@ -15,12 +15,14 @@ const tasks = vi.hoisted(() => ({
   remindWaitingInterest: vi.fn(),
   remindUnpaidPayments: vi.fn(),
   runYearlyProGrants: vi.fn(),
+  runPhotoPreviewSweep: vi.fn(),
 }));
 const authMod = vi.hoisted(() => ({ requireAdmin: vi.fn() }));
 const alert = vi.hoisted(() => ({ sendAdminAlert: vi.fn() }));
 vi.mock("@/lib/admin-alert", () => alert);
 vi.mock("@/lib/rate-limit-db", () => ({ purgeExpiredRateLimits: vi.fn(async () => 0) }));
 vi.mock("@/lib/engagement/polls", () => ({ runPollRotation: vi.fn(async () => ({ rotated: 0, queueEmpty: 0 })) }));
+vi.mock("@/lib/cron/photo-previews", () => ({ runPhotoPreviewSweep: tasks.runPhotoPreviewSweep }));
 vi.mock("@/lib/pro/grants", () => ({ runYearlyProGrants: tasks.runYearlyProGrants }));
 vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/settings", () => settings);
@@ -68,6 +70,7 @@ beforeEach(() => {
   tasks.remindWaitingInterest.mockResolvedValue({ members: 0, reminded: 0 });
   tasks.remindUnpaidPayments.mockResolvedValue({ payments: 3, reminded: 2 });
   tasks.runYearlyProGrants.mockResolvedValue({ granted: 0 });
+  tasks.runPhotoPreviewSweep.mockResolvedValue({ filled: 0, failed: 0 });
   settings.setSetting.mockResolvedValue(undefined);
   authMod.requireAdmin.mockResolvedValue({ session: { user: { id: "admin1", role: "ADMIN" } } });
   process.env.CRON_SECRET = "s3cret";
@@ -120,6 +123,18 @@ describe("runDailyJobs", () => {
       expect(t).not.toHaveBeenCalled();
     }
     expect(settings.setSetting).toHaveBeenCalledWith(LAST_RUN_KEY, expect.any(String));
+  });
+
+  it("morning runs previewFill and isolates its failure", async () => {
+    const ok = await runDailyJobs("cron", "morning");
+    expect(tasks.runPhotoPreviewSweep).toHaveBeenCalled();
+    expect(ok.tasks.previewFill).toEqual({ filled: 0, failed: 0 });
+    tasks.runPhotoPreviewSweep.mockRejectedValue(new Error("sharp down"));
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const run = await runDailyJobs("cron", "morning");
+    spy.mockRestore();
+    expect(run.tasks.previewFill).toEqual({ error: "sharp down" });
+    expect(tasks.processAccountDeletions).toHaveBeenCalled();
   });
 
   it("evening: only the reminders and nudges, stored under its own key", async () => {

@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { maybeAwardReferral } from "@/lib/referral";
-import { uploadBase64ToBunny } from "@/lib/bunny";
+import { base64ToBuffer, uploadBase64ToBunny } from "@/lib/bunny";
+import { makeBlurPreview, refreshMemberPreviews } from "@/lib/photos/blur-preview";
 import { randomUUID } from "crypto";
 
 const MAX_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
@@ -90,6 +91,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "فشل رفع الصورة. يمكنك المحاولة مرة أخرى" }, { status: 500 });
     }
 
+    // The blurred preview for locked avatars. Never fails the upload: null keeps the initial
+    const parsed = base64ToBuffer(photoData);
+    const blurPreview = parsed ? await makeBlurPreview(parsed.buffer) : null;
+
     // If this photo is set as primary, unset other primary photos
     if (isPrimary) {
       await db.photo.updateMany({
@@ -104,11 +109,17 @@ export async function POST(request: Request) {
         url: cdnUrl,
         isPrimary: isPrimary || count === 0,
         order: count,
+        blurPreview,
       },
     });
+    // Older rows of this member without a preview get theirs too (no-op when all have one)
+    await refreshMemberPreviews(session.user.id);
 
     await maybeAwardReferral(session.user.id);
-    return NextResponse.json({ message: "تم رفع الصورة", photo });
+    // My own photos answer stays as before: no preview field
+    const { blurPreview: _preview, ...ownPhoto } = photo;
+    void _preview;
+    return NextResponse.json({ message: "تم رفع الصورة", photo: ownPhoto });
   } catch (error) {
     console.error("Photo upload error:", error);
     return NextResponse.json({ error: "حدث خطأ في الخادم" }, { status: 500 });

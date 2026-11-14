@@ -235,7 +235,7 @@ class SuggestionCard extends StatelessWidget {
       return Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          MemberAvatar(name: c.firstName, size: 56, locked: true),
+          MemberAvatar(name: c.firstName, size: 56, locked: true, preview: c.photoPreview),
           const SizedBox(width: AppSpace.md),
           Expanded(
             child: narrow && score != null

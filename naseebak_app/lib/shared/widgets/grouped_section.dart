@@ -126,7 +126,7 @@ class _Row extends StatelessWidget {
                 ] else ...[
                   if (row.value != null) ...[
                     const SizedBox(width: AppSpace.sm),
-                    // At most about half the row, on one line: a long value («مخفية حتى التوافق») at large text never
+                    // At most about half the row, on one line: a long value («ضبابية حتى التوافق») at large text never
                     // squeezes the title to nothing (sweep I2); the title keeps the rest
                     ConstrainedBox(
                       constraints: BoxConstraints(maxWidth: valueMax),

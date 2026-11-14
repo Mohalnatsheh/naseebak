@@ -20,7 +20,7 @@ void main() {
               GroupedRow(
                 icon: Icons.photo_library_outlined,
                 title: 'صوري',
-                value: 'مخفية حتى التوافق',
+                value: 'ضبابية حتى التوافق',
                 rowKey: const Key('row'),
                 onTap: () {},
               ),
@@ -31,12 +31,12 @@ void main() {
       expect(tester.takeException(), isNull);
       final row = tester.getSize(find.byKey(const Key('row'))).width;
       final title = tester.getSize(find.text('صوري')).width;
-      final value = tester.getSize(find.text('مخفية حتى التوافق')).width;
+      final value = tester.getSize(find.text('ضبابية حتى التوافق')).width;
       // The value takes at most about half of the row
       expect(value, lessThanOrEqualTo(row * 0.5));
       // The title keeps a real share of the row (it had 0 width at 2x before)
       expect(title, greaterThanOrEqualTo(row * 0.25));
-      final valueText = tester.widget<Text>(find.text('مخفية حتى التوافق'));
+      final valueText = tester.widget<Text>(find.text('ضبابية حتى التوافق'));
       expect(valueText.maxLines, 1);
     });
   }

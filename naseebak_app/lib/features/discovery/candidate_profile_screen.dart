@@ -88,7 +88,7 @@ class CandidateProfileScreen extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                MemberAvatar(name: c.firstName, size: 72, locked: true),
+                MemberAvatar(name: c.firstName, size: 72, locked: true, preview: c.photoPreview),
                 const SizedBox(width: AppSpace.md),
                 Expanded(
                   child: Column(
@@ -124,7 +124,7 @@ class CandidateProfileScreen extends StatelessWidget {
                 const Icon(Icons.lock_outline_rounded, size: 15, color: AppColors.muted),
                 const SizedBox(width: 6),
                 Expanded(
-                  child: Text('الصور تظهر بعد التوافق المتبادل فقط', style: AppText.caption.copyWith(color: AppColors.muted)),
+                  child: Text('الصور تظهر بوضوح بعد التوافق المتبادل فقط', style: AppText.caption.copyWith(color: AppColors.muted)),
                 ),
               ],
             ),

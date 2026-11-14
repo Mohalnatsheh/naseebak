@@ -73,7 +73,7 @@ void main() {
   testWidgets('shows name, lock line, reason, every detail and the back button', (t) async {
     await open(t, screen());
     expect(find.text('هدى'), findsOneWidget);
-    expect(find.text('الصور تظهر بعد التوافق المتبادل فقط'), findsOneWidget);
+    expect(find.text('الصور تظهر بوضوح بعد التوافق المتبادل فقط'), findsOneWidget);
     expect(find.text('قيم متقاربة وسكن قريب'), findsOneWidget);
     expect(find.text('165 سم'), findsOneWidget);
     expect(find.text('نص تعريفي'), findsOneWidget);

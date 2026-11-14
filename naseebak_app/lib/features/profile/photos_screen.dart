@@ -35,7 +35,8 @@ String? photoDataUrl(Uint8List bytes) {
 
 final myPhotosProvider = FutureProvider.autoDispose<List<MyPhoto>>((ref) => ref.watch(profileRepositoryProvider).photos());
 
-/// «صوري»: up to 5 photos, one main. Nobody sees them before a mutual match.
+/// «صوري»: up to 5 photos, one main. Nobody sees them clearly before a mutual match; before it, suggested members
+/// see only a strongly blurred tiny copy of the main photo (`photoPreview`, made on the server).
 class PhotosScreen extends ConsumerStatefulWidget {
   const PhotosScreen({super.key, this.picker});
 
@@ -115,7 +116,7 @@ class _PhotosScreenState extends ConsumerState<PhotosScreen> {
           children: [
             const InfoBanner(
               icon: Icons.lock_outline_rounded,
-              text: 'صورك مخفية عن الجميع، ولا تظهر إلا بعد توافق متبادل. الصورة الرئيسية هي أول ما يُرى.',
+              text: 'لا تظهر صورك بوضوح إلا بعد توافق متبادل. قبل التوافق تظهر لمن تُقترح عليهم نسخة ضبابية جداً من صورتك الرئيسية. الصورة الرئيسية هي أول ما يُرى.',
             ),
             if (list.isEmpty) ...[
               const SizedBox(height: 12),

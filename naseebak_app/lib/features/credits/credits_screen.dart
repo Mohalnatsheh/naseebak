@@ -486,17 +486,26 @@ class _CreditsScreenState extends ConsumerState<CreditsScreen> with WidgetsBindi
               child: FilledButton(
                 key: Key('buy-${pkg.id}'),
                 onPressed: busy || _buying != null ? null : () => _buy(pkg),
+                // A clear «شراء» button with the price under it: a bare price pill didn't read as the place to tap
                 style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.navy.withValues(alpha: 0.1),
-                  foregroundColor: AppColors.navy,
-                  minimumSize: const Size(74, 44),
-                  padding: const EdgeInsets.symmetric(horizontal: AppSpace.lg),
-                  shape: const StadiumBorder(),
-                  textStyle: AppText.label.copyWith(fontWeight: FontWeight.w700),
+                  backgroundColor: AppColors.navy,
+                  foregroundColor: Colors.white,
+                  disabledBackgroundColor: AppColors.navy.withValues(alpha: 0.35),
+                  disabledForegroundColor: Colors.white,
+                  minimumSize: const Size(88, 52),
+                  padding: const EdgeInsets.symmetric(horizontal: AppSpace.lg, vertical: 6),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
                 child: busy
-                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                    : Text(price),
+                    ? const SizedBox(
+                        width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    : Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text('شراء', style: AppText.label.copyWith(color: Colors.white, fontWeight: FontWeight.w800)),
+                          Text(price, style: AppText.caption.copyWith(color: Colors.white, fontWeight: FontWeight.w600)),
+                        ],
+                      ),
               ),
             )
           : const OutlinedButton(onPressed: null, child: Text('غير متاح')),

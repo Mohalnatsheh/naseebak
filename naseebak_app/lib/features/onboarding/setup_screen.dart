@@ -586,6 +586,8 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
             TextField(
               controller: _children,
               keyboardType: TextInputType.number,
+              // The iPhone number pad has no «تم» key: a tap outside closes it
+              onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
               inputFormatters: [LatinDigitsFormatter()],
               onChanged: (_) => setState(() {}),
               decoration: InputDecoration(hintText: '0', errorText: _errors['children']),
@@ -627,15 +629,19 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
         return [
           _label('عمر ${female ? 'الزوج' : 'الزوجة'} المناسب'),
           Row(
+            // An error under one field must not push the other down
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
                 child: TextField(
                   key: const Key('age-min'),
                   controller: _ageMin,
                   keyboardType: TextInputType.number,
+                  // The iPhone number pad has no «تم» key: a tap outside closes it
+                  onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
                   inputFormatters: [LatinDigitsFormatter()],
                   onChanged: (_) => setState(() {}),
-                  decoration: InputDecoration(labelText: 'من', errorText: _errors['ageMin'], errorMaxLines: 2),
+                  decoration: InputDecoration(labelText: 'من', errorText: _errors['ageMin'], errorMaxLines: 3),
                 ),
               ),
               const SizedBox(width: 12),
@@ -644,9 +650,11 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
                   key: const Key('age-max'),
                   controller: _ageMax,
                   keyboardType: TextInputType.number,
+                  // The iPhone number pad has no «تم» key: a tap outside closes it
+                  onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
                   inputFormatters: [LatinDigitsFormatter()],
                   onChanged: (_) => setState(() {}),
-                  decoration: InputDecoration(labelText: 'إلى', errorText: _errors['ageMax'], errorMaxLines: 2),
+                  decoration: InputDecoration(labelText: 'إلى', errorText: _errors['ageMax'], errorMaxLines: 3),
                 ),
               ),
             ],

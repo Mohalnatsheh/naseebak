@@ -5,6 +5,7 @@ import '../../core/network/api_exception.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/common.dart';
 import '../home/gendered_copy.dart';
+import '../profile/guardian_form.dart' show GuardianSaved;
 import 'suggestion_models.dart';
 
 /// «مهتم» on a shared suggestion: choose how to get to know each other, then send.
@@ -73,6 +74,9 @@ class InterestSheet extends StatefulWidget {
 class _InterestSheetState extends State<InterestSheet> {
   late String? _pref = widget.chatAvailable ? null : 'FAMILY';
   bool _consent = false;
+
+  /// Consent already given: from the start, or just now in the guardian form opened from GUARDIAN_REQUIRED (audit M5)
+  late bool _guardianConsented = widget.guardianConsented;
   bool _busy = false;
   String? _error;
   String? _errorCode;
@@ -87,7 +91,7 @@ class _InterestSheetState extends State<InterestSheet> {
       setState(() => _error = 'يُرجى اختيار طريقة التعارف: محادثة أو تعارف عائلي');
       return;
     }
-    if (_pref == 'FAMILY' && !widget.guardianConsented && !_consent) {
+    if (_pref == 'FAMILY' && !_guardianConsented && !_consent) {
       setState(() => _error = 'يلزم موافقتك على مشاركة بيانات وليّ الأمر');
       return;
     }
@@ -97,7 +101,7 @@ class _InterestSheetState extends State<InterestSheet> {
       _errorCode = null;
     });
     try {
-      final res = await widget.onSubmit(_pref!, _pref == 'FAMILY' ? (widget.guardianConsented || _consent) : false);
+      final res = await widget.onSubmit(_pref!, _pref == 'FAMILY' ? (_guardianConsented || _consent) : false);
       if (mounted) Navigator.of(context).pop(res);
     } on ApiException catch (e) {
       if (!mounted) return;
@@ -177,7 +181,7 @@ class _InterestSheetState extends State<InterestSheet> {
               body: 'عند التوافق تتبادل العائلتان بيانات التواصل لوليّ الأمر.',
               onTap: _busy ? null : () => setState(() => _pick('FAMILY')),
             ),
-            if (_pref == 'FAMILY' && !widget.guardianConsented) ...[
+            if (_pref == 'FAMILY' && !_guardianConsented) ...[
               const SizedBox(height: 12),
               CheckboxListTile(
                 key: const Key('guardian-consent'),
@@ -273,8 +277,17 @@ class _InterestSheetState extends State<InterestSheet> {
           icon: const Icon(Icons.family_restroom_rounded, size: 18),
           label: const Text('إضافة بيانات وليّ الأمر'),
           onPressed: () async {
-            await context.push('/profile/guardian');
-            if (mounted) setState(() => _error = null);
+            final saved = await context.push<GuardianSaved>('/profile/guardian');
+            if (!mounted) return;
+            setState(() {
+              _error = null;
+              _errorCode = null;
+              // Agreed in the form: not asked again here
+              if (saved == GuardianSaved.consented) {
+                _guardianConsented = true;
+                _consent = true;
+              }
+            });
           },
         );
       default:

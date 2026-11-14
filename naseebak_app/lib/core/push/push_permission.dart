@@ -34,17 +34,20 @@ const pushCardSnooze = Duration(days: 1);
 /// ✕ on the chat's push chip hides it this long (daily, like the home card)
 const pushChipHide = Duration(days: 1);
 
-final pushCardHiddenProvider = StateProvider<bool>((ref) {
+/// Read from the stored time against the clock: invalidated by «لاحقاً» and on every resume ([PushOffCard]), and
+/// re-read whenever the card comes back on screen, so the day ends without an app restart (audit M7: the app can
+/// stay alive in the background for days)
+final pushCardHiddenProvider = Provider.autoDispose<bool>((ref) {
   final until = ref.watch(sharedPreferencesProvider).getInt(pushCardHiddenUntilKey);
   return until != null && DateTime.now().millisecondsSinceEpoch < until;
 });
 
-/// «لاحقاً»: hidden now, and for the next day
+/// «لاحقاً»: hidden now, and for the next day (the preferences cache takes the value at once)
 void snoozePushCard(WidgetRef ref) {
-  ref.read(pushCardHiddenProvider.notifier).state = true;
   ref
       .read(sharedPreferencesProvider)
       .setInt(pushCardHiddenUntilKey, DateTime.now().add(pushCardSnooze).millisecondsSinceEpoch);
+  ref.invalidate(pushCardHiddenProvider);
 }
 
 const _system = MethodChannel('naseebak/system');
@@ -161,7 +164,8 @@ class PushStepsSheet extends StatelessWidget {
 }
 
 /// «الإشعارات مغلقة» card: shown while the device blocks our pushes, checked again when the app comes back (from the
-/// phone's settings). [dismissible] adds «لاحقاً» (home), hidden until the next launch.
+/// phone's settings). [dismissible] adds «لاحقاً» (home): hidden for one day ([pushCardSnooze]), then back on the
+/// next resume or visit.
 class PushOffCard extends ConsumerStatefulWidget {
   const PushOffCard({super.key, this.dismissible = false, this.padding = EdgeInsets.zero});
   final bool dismissible;
@@ -186,7 +190,10 @@ class _PushOffCardState extends ConsumerState<PushOffCard> with WidgetsBindingOb
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) ref.invalidate(pushAllowedProvider);
+    if (state != AppLifecycleState.resumed) return;
+    ref.invalidate(pushAllowedProvider);
+    // «لاحقاً» lasts one day, also while the app stayed alive in the background
+    ref.invalidate(pushCardHiddenProvider);
   }
 
   @override

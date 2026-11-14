@@ -23,7 +23,7 @@ void main() {
     Future<void> pump(bool? allowed, {int? reminderAt}) async {
       final overrides = await testOverrides(FakeAdapter(), prefs: {
         if (prefsSeen) pushExplainedKey: true,
-        if (reminderAt != null) pushReminderAtKey: reminderAt,
+        pushReminderAtKey: ?reminderAt,
       });
       await tester.pumpWidget(ProviderScope(
         key: UniqueKey(),
@@ -124,9 +124,9 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('push-off-card')), findsNothing);
 
-    // «لاحقاً» lasts 7 days, also after the app restarts (design P1-5)
+    // «لاحقاً» lasts until the stored time, also after the app restarts (design P1-5)
     final overrides = await testOverrides(FakeAdapter(), prefs: {
-      pushCardHiddenUntilKey: DateTime.now().add(const Duration(days: 6)).millisecondsSinceEpoch,
+      pushCardHiddenUntilKey: DateTime.now().add(const Duration(hours: 20)).millisecondsSinceEpoch,
     });
     await tester.pumpWidget(ProviderScope(
       key: UniqueKey(),
@@ -135,6 +135,35 @@ void main() {
     ));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('push-off-card')), findsNothing);
+  });
+
+  testWidgets('«لاحقاً» hides the card for one day, then it comes back on resume without a restart (audit M7)',
+      (tester) async {
+    final overrides = await testOverrides(FakeAdapter());
+    await tester.pumpWidget(ProviderScope(
+      overrides: [...overrides, pushAllowedProvider.overrideWith((ref) async => false)],
+      child: rtlApp(const Scaffold(body: PushOffCard(dismissible: true))),
+    ));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('لاحقاً'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('push-off-card')), findsNothing);
+    final prefs = await SharedPreferences.getInstance();
+    final until = prefs.getInt(pushCardHiddenUntilKey)!;
+    expect(until - DateTime.now().millisecondsSinceEpoch, closeTo(pushCardSnooze.inMilliseconds, 60000));
+
+    // A resume within the day: still hidden
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('push-off-card')), findsNothing);
+
+    // The day is over (the app stayed alive in the background): the next resume shows it again
+    await prefs.setInt(pushCardHiddenUntilKey, DateTime.now().subtract(const Duration(minutes: 1)).millisecondsSinceEpoch);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('push-off-card')), findsOneWidget);
   });
 
   testWidgets('the steps sheet speaks to her and names the iPhone switch', (tester) async {

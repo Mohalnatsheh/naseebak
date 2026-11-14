@@ -11,6 +11,51 @@ import 'matches_repository.dart';
 /// «حظر» / «إبلاغ وحظر» / «إلغاء الحظر», shared by match and suggestion cards (website matches-view.tsx and
 /// mutual-suggestions-view.tsx). Each asks first, shows the outcome and returns whether it went through.
 
+/// Runs [task] under a small modal progress (no tap through, no back) until it answers: after «حظر» / «إبلاغ وحظر»
+/// nothing else showed the request was running, and the menu could be opened again meanwhile (audit M8).
+Future<T> withSafetyProgress<T>(BuildContext context, Future<T> Function() task) {
+  final future = task();
+  showDialog<void>(
+    context: context,
+    useRootNavigator: true,
+    barrierDismissible: false,
+    builder: (_) => _SafetyProgress(future),
+  );
+  return future;
+}
+
+class _SafetyProgress extends StatefulWidget {
+  const _SafetyProgress(this.future);
+  final Future<Object?> future;
+
+  @override
+  State<_SafetyProgress> createState() => _SafetyProgressState();
+}
+
+class _SafetyProgressState extends State<_SafetyProgress> {
+  @override
+  void initState() {
+    super.initState();
+    // Closes itself once the request answered (even one that answered before this was built)
+    widget.future.then<void>((_) {}, onError: (_) {}).whenComplete(() {
+      if (mounted) Navigator.of(context).pop();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return PopScope(
+      canPop: false,
+      child: Center(
+        child: Semantics(
+          label: 'جارٍ التنفيذ',
+          child: const CircularProgressIndicator(key: Key('safety-progress'), color: AppColors.gold),
+        ),
+      ),
+    );
+  }
+}
+
 Future<bool> confirmAndBlock(
   BuildContext context,
   WidgetRef ref, {
@@ -28,7 +73,8 @@ Future<bool> confirmAndBlock(
   );
   if (!ok || !context.mounted) return false;
   try {
-    await ref.read(matchesRepositoryProvider).block(userId);
+    final repo = ref.read(matchesRepositoryProvider);
+    await withSafetyProgress(context, () => repo.block(userId));
     if (context.mounted) showSnack(context, 'تم الحظر');
     return true;
   } catch (e) {
@@ -61,7 +107,8 @@ Future<bool> reportAndBlock(
   );
   if (res == null || !context.mounted) return false;
   try {
-    await ref.read(matchesRepositoryProvider).reportAndBlock(userId, res.reason, details: res.details);
+    final repo = ref.read(matchesRepositoryProvider);
+    await withSafetyProgress(context, () => repo.reportAndBlock(userId, res.reason, details: res.details));
     if (context.mounted) showSnack(context, 'تم الإبلاغ والحظر. سيراجع فريق نصيبك البلاغ.');
     return true;
   } catch (e) {
@@ -84,7 +131,8 @@ Future<bool> confirmAndUnblock(
   );
   if (!ok || !context.mounted) return false;
   try {
-    await ref.read(matchesRepositoryProvider).unblock(blockId);
+    final repo = ref.read(matchesRepositoryProvider);
+    await withSafetyProgress(context, () => repo.unblock(blockId));
     if (context.mounted) showSnack(context, 'تم إلغاء الحظر');
     return true;
   } catch (e) {

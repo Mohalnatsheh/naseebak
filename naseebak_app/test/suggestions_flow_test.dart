@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -965,6 +967,45 @@ void main() {
       await pumpFor(tester);
       expect(find.textContaining('باكتشاف الاقتراحات الجديدة'), findsOneWidget);
       expect(find.textContaining('التوافقات'), findsNothing);
+    });
+
+    testWidgets('M8: «حظر» shows it is running until the answer, then the snack', (tester) async {
+      final h = Harness(gender: 'MALE');
+      final gate = Completer<void>();
+      h.adapter.hold('POST', '/api/blocks', gate.future);
+      await h.pump(tester);
+      await tester.tap(find.byKey(const Key('card-menu-s1')));
+      await pumpFor(tester);
+      await tester.tap(find.text('حظر'));
+      await pumpFor(tester);
+      await tester.tap(find.widgetWithText(FilledButton, 'حظر'));
+      await pumpFor(tester, 5);
+      expect(find.byKey(const Key('safety-progress')), findsOneWidget);
+      gate.complete();
+      await pumpFor(tester, 30);
+      expect(find.byKey(const Key('safety-progress')), findsNothing);
+      expect(find.text('تم الحظر'), findsOneWidget);
+      expect(h.adapter.to('POST', '/api/blocks'), hasLength(1));
+    });
+
+    testWidgets('M8: «إبلاغ وحظر» shows it is running until the answer', (tester) async {
+      final h = Harness();
+      final gate = Completer<void>();
+      h.adapter.hold('POST', '/api/reports', gate.future);
+      await h.pump(tester);
+      await tester.tap(find.byKey(const Key('card-menu-s1')));
+      await pumpFor(tester);
+      await tester.tap(find.text('إبلاغ وحظر'));
+      await pumpFor(tester);
+      await tester.tap(find.text('حساب غير حقيقي'));
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('report-submit')));
+      await pumpFor(tester, 5);
+      expect(find.byKey(const Key('safety-progress')), findsOneWidget);
+      gate.complete();
+      await pumpFor(tester, 30);
+      expect(find.byKey(const Key('safety-progress')), findsNothing);
+      expect(h.adapter.to('POST', '/api/blocks'), hasLength(1));
     });
   });
 }

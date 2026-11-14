@@ -101,7 +101,11 @@ class GuardianFieldsView extends ConsumerWidget {
         TextField(
           controller: fields.address,
           onChanged: (_) => changed('address'),
-          decoration: InputDecoration(labelText: 'العنوان (المدينة والحي)', errorText: errors['address']),
+          decoration: InputDecoration(
+            labelText: 'العنوان (اختياري)',
+            hintText: 'المدينة والحي',
+            errorText: errors['address'],
+          ),
         ),
         const SizedBox(height: 4),
         CheckboxListTile(
@@ -136,7 +140,8 @@ Map<String, String?> validateGuardian(GuardianFields f) {
     errors['parentName'] = 'يرجى كتابة اسم ولي الأمر باللغة العربية';
   }
   if (f.relationship == null) errors['relationship'] = 'صلة القرابة مطلوبة';
-  if (f.address.text.trim().length < 3) errors['address'] = 'العنوان مطلوب';
+  // Optional (server since 2026-11-13: empty is stored as null); only its length is checked
+  if (f.address.text.trim().length > 300) errors['address'] = 'العنوان طويل جداً';
   return errors;
 }
 

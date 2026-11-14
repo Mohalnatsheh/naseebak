@@ -50,6 +50,10 @@ class PushService with WidgetsBindingObserver {
   bool _localReady = false;
   String? _fid;
 
+  /// Bumped by every [reset]: a start that was still waiting when the member signed out (and maybe in again) knows
+  /// its listeners are gone (audit M11)
+  int _session = 0;
+
   /// Same id as the server's `FCM_ANDROID_CHANNEL` and the manifest's default channel
   static const channel = AndroidNotificationChannel(
     'naseebak_default',
@@ -70,6 +74,7 @@ class PushService with WidgetsBindingObserver {
     }
     if (_started || _starting) return;
     _starting = true;
+    final session = _session;
     final messaging = FirebaseMessaging.instance;
     // Opened from a push while the app was closed: whatever happens to the registration below
     if (!_initialRead) {
@@ -105,13 +110,23 @@ class PushService with WidgetsBindingObserver {
       }
       // The FID arrives through onRegistered (now, and again whenever FCM changes it)
       await messaging.register();
-      // Signed out meanwhile: reset() already stopped everything
-      _started = _wanted;
+      // Signed out meanwhile: reset() already stopped everything (and cleared the listeners)
+      _started = _wanted && session == _session;
     } catch (e) {
       // Not started: the next resume (or sign-in) tries again
       debugPrint('[push] start failed: $e');
     } finally {
       _starting = false;
+    }
+    if (session != _session) {
+      if (_wanted) {
+        // Signed out and in again while this start waited: the new sign-in's start returned early (`_starting`), so
+        // start again for it, with fresh listeners
+        if (!_started) unawaited(start());
+      } else {
+        // Signed out while it waited: no listeners left behind for nobody
+        _cancelSubs();
+      }
     }
   }
 
@@ -136,10 +151,8 @@ class PushService with WidgetsBindingObserver {
   /// Signed out (also after a 401): stop listening and take the previous member's notifications off the tray (on
   /// Android this also clears those FCM showed); the next sign-in registers again.
   void reset() {
-    for (final s in _subs) {
-      s.cancel();
-    }
-    _subs.clear();
+    _session++;
+    _cancelSubs();
     _wanted = false;
     _started = false;
     _fid = null;
@@ -151,6 +164,13 @@ class PushService with WidgetsBindingObserver {
     if (_used) {
       _local.cancelAll().catchError((Object e) => debugPrint('[push] clearing notifications failed: $e'));
     }
+  }
+
+  void _cancelSubs() {
+    for (final s in _subs) {
+      s.cancel();
+    }
+    _subs.clear();
   }
 
   Future<void> _initLocal() async {

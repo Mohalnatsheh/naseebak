@@ -36,42 +36,78 @@ const basics = {
   'education': 'بكالوريوس',
 };
 
+/// Step 2's own answers besides religiosity, as a Saudi server sends their choices (no skin colour, cooking, lifestyle,
+/// job, housing or money lists in [saDetails]: those questions aren't asked)
+const step2Rest = {
+  'hijab': true,
+  'niqab': false,
+  'smokingStatus': 'لا أدخن',
+  'drivingLicense': false,
+  'willingToRelocate': 'no',
+};
+
+/// Every required answer of the 7 steps (with [saDetails]' lists)
+const allAnswered = {
+  ...basics,
+  'maritalStatus': 'أعزب/عزباء',
+  'childrenCount': 0,
+  'religiosity': 'ملتزم',
+  ...step2Rest,
+  'prefAgeMin': 25,
+  'prefAgeMax': 35,
+};
+
+/// Answers [step2Rest] on screen (step 2 open)
+Future<void> answerStep2Rest(WidgetTester tester) async {
+  for (final key in ['hijab-hijab', 'smokingStatus-لا أدخن', 'drivingLicense-false', 'willingToRelocate-no']) {
+    final f = find.byKey(Key(key));
+    await tester.scrollUntilVisible(f, 200, scrollable: find.byType(Scrollable).first);
+    await tester.pumpAndSettle();
+    await tester.tap(f);
+    await tester.pumpAndSettle();
+  }
+}
+
 void main() {
-  testWidgets('reopened mid-setup: back at the step she stopped, the back key goes one step back', (tester) async {
-    final (_, overrides) = await setupWith(
-      {...basics, 'maritalStatus': 'أعزب/عزباء', 'childrenCount': 0, 'religiosity': 'ملتزم'},
-      savedStep: 2,
-    );
+  testWidgets('reopened mid-setup: on the first step with something missing, the back key goes one step back',
+      (tester) async {
+    final (_, overrides) = await setupWith({...allAnswered}..remove('prefAgeMax'), savedStep: 2);
     await tester.pumpWidget(ProviderScope(overrides: overrides, child: rtlApp(const SetupScreen())));
     await tester.pumpAndSettle();
-    expect(find.text('الخطوة 3 من 3'), findsOneWidget);
+    expect(find.text('الخطوة 6 من 7'), findsOneWidget);
     expect(find.text('من تبحثين عنه'), findsOneWidget);
 
     await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();
-    expect(find.text('الخطوة 2 من 3'), findsOneWidget);
+    expect(find.text('الخطوة 5 من 7'), findsOneWidget);
   });
 
-  testWidgets('a saved step whose earlier answers are gone: the first unfinished step', (tester) async {
+  testWidgets('a step remembered on the phone whose answers are gone: the first unfinished step', (tester) async {
     final (_, overrides) = await setupWith(null, savedStep: 2);
     await tester.pumpWidget(ProviderScope(overrides: overrides, child: rtlApp(const SetupScreen())));
     await tester.pumpAndSettle();
-    expect(find.text('الخطوة 1 من 3'), findsOneWidget);
+    expect(find.text('الخطوة 1 من 7'), findsOneWidget);
   });
 
   testWidgets('«التالي» saves the step\'s answers as a draft', (tester) async {
     final (adapter, overrides) = await setupWith(basics);
     await tester.pumpWidget(ProviderScope(overrides: overrides, child: rtlApp(const SetupScreen())));
     await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(find.byKey(const Key('setup-next')), 300);
+    expect(find.text('الخطوة 1 من 7'), findsOneWidget);
+    final scrollable = find.byType(Scrollable).first;
+    await tester.scrollUntilVisible(find.byKey(const Key('maritalStatus-أعزب/عزباء')), 300, scrollable: scrollable);
+    await tester.tap(find.byKey(const Key('maritalStatus-أعزب/عزباء')));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.byKey(const Key('setup-next')), 300, scrollable: scrollable);
     await tester.tap(find.byKey(const Key('setup-next')));
     await tester.pumpAndSettle();
-    expect(find.text('الخطوة 2 من 3'), findsOneWidget);
+    expect(find.text('الخطوة 2 من 7'), findsOneWidget);
     expect(adapter.to('PATCH', '/api/profile/draft').single.data, {
       'dateOfBirth': '1997-03-15',
       'nationality': 'سعودية',
       'city': 'الرياض',
-      'education': 'بكالوريوس',
+      'maritalStatus': 'أعزب/عزباء',
+      'childrenCount': 0,
     });
   });
 }

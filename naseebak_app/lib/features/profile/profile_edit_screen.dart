@@ -3,10 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/auth/auth_controller.dart';
 import '../../core/localization/digits.dart';
-import '../../core/localization/safe_input_formatter.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/network/json.dart';
-import '../../shared/person.dart';
 import '../../shared/religion.dart';
 import '../../shared/widgets/common.dart';
 import '../country_selection/country.dart';
@@ -14,63 +12,16 @@ import '../country_selection/country_providers.dart';
 import '../onboarding/profile_options.dart';
 import '../onboarding/setup_screen.dart' show dateOfBirthError;
 import 'profile_edit_plan.dart';
+import 'profile_field_control.dart';
 import 'profile_repository.dart';
 import 'profile_screen.dart' show requiredPayload;
-import '../../core/theme/app_theme.dart';
 
-/// Arabic names of the profile fields (pending-request summary, errors)
-const profileFieldLabels = <String, String>{
-  'dateOfBirth': 'تاريخ الميلاد',
-  'nationality': 'الجنسية',
-  'city': 'المدينة',
-  'area': 'المنطقة',
-  'education': 'المستوى التعليمي',
-  'fieldOfStudy': 'التخصص',
-  'job': 'الوظيفة',
-  'maritalStatus': 'الحالة الاجتماعية',
-  'childrenCount': 'عدد الأبناء',
-  'religion': 'الديانة',
-  'religiosity': 'مستوى التدين',
-  'sect': 'المذهب',
-  'height': 'الطول',
-  'weight': 'الوزن',
-  'skinColor': 'لون البشرة',
-  'incomeRange': 'مستوى الدخل',
-  'smokingStatus': 'التدخين',
-  'hijab': 'الحجاب',
-  'niqab': 'النقاب',
-  'beard': 'اللحية',
-  'cookingAbility': 'مهارة الطبخ',
-  'lifestyle': 'نمط الحياة',
-  'drivingLicense': 'رخصة القيادة',
-  'willingToRelocate': 'الاستعداد للانتقال',
-  'aboutMe': 'نبذة عني',
-  'partnerExpectations': 'مواصفات الشريك المطلوبة',
-  'hobbies': 'الهوايات',
-  'interests': 'الاهتمامات',
-  'familyValues': 'القيم العائلية',
-  'tribe': 'العشيرة',
-  'familyOriginArea': 'منطقة أصل العائلة',
-  'numberOfSiblings': 'عدد الإخوة والأخوات',
-  'housingType': 'نوع السكن',
-  'monthlyExpenses': 'المصاريف الشهرية',
-  'healthConditions': 'حالات صحية',
-};
-
-const _numberLimits = <String, (int, int)>{
-  'height': (100, 250),
-  'weight': (30, 300),
-  'childrenCount': (0, 20),
-  'numberOfSiblings': (0, 20),
-};
+export 'profile_field_control.dart'
+    show profileFieldLabels, areaAfterCityChange, femaleOnlyJobs, jobOptionsFor;
 
 /// Single-choice fields the website's edit page requires (`validateStep`): a chip can be changed, never cleared
 /// («المذهب» only shows where the country asks it)
 const requiredChoices = {'nationality', 'city', 'education', 'maritalStatus', 'religion', 'religiosity', 'sect'};
-
-/// The area kept after a city change: only if it is one of the new city's areas (the website's `handleCityChange`)
-String? areaAfterCityChange(String? area, List<String> newCityAreas) =>
-    area != null && newCityAreas.contains(area) ? area : null;
 
 /// The first required field left empty, as the website words it, or null
 String? missingRequiredChoice(Map<String, Object?> values) {
@@ -88,11 +39,6 @@ String? missingRequiredChoice(Map<String, Object?> values) {
   return null;
 }
 
-const _shortTexts = {'fieldOfStudy', 'tribe', 'familyOriginArea'};
-const _longTexts = {'aboutMe', 'partnerExpectations', 'hobbies', 'interests', 'familyValues', 'healthConditions'};
-const _jobOther = 'أخرى';
-const _relocate = {'yes': 'نعم', 'no': 'لا', 'maybe': 'ربما'};
-
 /// The stored values the editor works on (only the fields it edits).
 Map<String, Object?> editableValues(MyProfile p) => {
       for (final k in profileFieldLabels.keys)
@@ -102,13 +48,6 @@ Map<String, Object?> editableValues(MyProfile p) => {
                 ? religionOf(p.field(k))
                 : p.field(k),
     };
-
-/// Jobs only women pick («ربة منزل»), like the website's `jobValuesFor`: not offered to a man (a value he already
-/// has still shows)
-const femaleOnlyJobs = {'ربة منزل'};
-
-List<String> jobOptionsFor(List<String> all, {required bool female, String? current}) =>
-    [for (final j in all) if (female || !femaleOnlyJobs.contains(j) || j == current) j];
 
 /// «تعديل ملفي»: every profile field of the website. Empty fields save at once; changing a stored value is sent to
 /// the Naseebak team for review (one request at a time, «سحب الطلب» to change it), like `/dashboard/profile/edit`.
@@ -160,7 +99,6 @@ class _ProfileEditFormState extends ConsumerState<ProfileEditForm> {
   late final Map<String, Object?> _stored = editableValues(widget.profile);
   late final Map<String, Object?> _v = {..._stored};
   final _text = <String, TextEditingController>{};
-  late bool _jobIsOther;
   final _jobCustom = TextEditingController();
   final _message = TextEditingController();
   String? _error;
@@ -178,13 +116,12 @@ class _ProfileEditFormState extends ConsumerState<ProfileEditForm> {
   @override
   void initState() {
     super.initState();
-    for (final k in [..._shortTexts, ..._longTexts, ..._numberLimits.keys]) {
+    for (final k in [...profileShortTexts, ...profileLongTexts, ...profileNumberLimits.keys]) {
       _text[k] = TextEditingController(text: _v[k]?.toString() ?? '');
     }
+    // A stored job outside the list stands on «أخرى» with its text
     final job = asString(_v['job']);
-    final jobs = widget.lists.option('job');
-    _jobIsOther = job != null && job.isNotEmpty && !jobs.contains(job);
-    if (_jobIsOther) _jobCustom.text = job!;
+    if (job != profileJobOther && jobIsOther(job, widget.lists.option('job'))) _jobCustom.text = job!;
   }
 
   @override
@@ -200,10 +137,10 @@ class _ProfileEditFormState extends ConsumerState<ProfileEditForm> {
   /// The form as the API takes it; null + an error message when something is invalid
   (Map<String, Object?>?, String?) _collect() {
     final out = <String, Object?>{..._v};
-    for (final k in [..._shortTexts, ..._longTexts]) {
+    for (final k in [...profileShortTexts, ...profileLongTexts]) {
       out[k] = _text[k]!.text.trim();
     }
-    for (final e in _numberLimits.entries) {
+    for (final e in profileNumberLimits.entries) {
       final raw = toLatinDigits(_text[e.key]!.text.trim());
       if (raw.isEmpty) {
         out[e.key] = null;
@@ -215,7 +152,7 @@ class _ProfileEditFormState extends ConsumerState<ProfileEditForm> {
       }
       out[e.key] = n;
     }
-    if (_jobIsOther) {
+    if (jobIsOther(_v['job'], widget.lists.option('job'))) {
       final custom = _jobCustom.text.trim();
       if (custom.isEmpty) return (null, 'يرجى تحديد الوظيفة');
       out['job'] = custom;
@@ -305,115 +242,17 @@ class _ProfileEditFormState extends ConsumerState<ProfileEditForm> {
 
   // ---- field widgets ----
 
-  Widget _label(String key, {String? text}) => Padding(
-        padding: const EdgeInsets.only(top: 16, bottom: 8),
-        child: Text(text ?? profileFieldLabels[key]!, style: AppText.body.copyWith(fontWeight: FontWeight.w700)),
+  /// One field as [ProfileFieldControl] draws it. A required field is changed by picking another option; tapping the
+  /// chosen one never clears it
+  Widget _control(String key) => ProfileFieldControl(
+        fieldKey: key,
+        values: _v,
+        onChanged: (k, v) => setState(() => _v[k] = v),
+        lists: widget.lists,
+        female: _female,
+        controller: key == 'job' ? _jobCustom : _text[key],
+        clearable: !requiredChoices.contains(key),
       );
-
-  void _pick(String key, String? value) {
-    // A required field is changed by picking another option; tapping the chosen one never clears it
-    if (value == null && requiredChoices.contains(key)) return;
-    setState(() {
-      if (key == 'city' && value != _v['city']) {
-        _v['area'] = areaAfterCityChange(asString(_v['area']), widget.lists.areas[value] ?? const []);
-      }
-      _v[key] = value;
-    });
-  }
-
-  Widget _choice(String key, List<String> options, {String Function(String)? labelOf, String? title}) {
-    final current = asString(_v[key]);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _label(key, text: title),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            for (final o in {...options, if (current != null && current.isNotEmpty && !options.contains(current)) current})
-              ChoiceChip(
-                key: Key('$key-$o'),
-                label: Text(labelOf?.call(o) ?? o),
-                selected: current == o,
-                onSelected: (on) => _pick(key, on ? o : null),
-              ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _yesNo(String key, String title) {
-    final current = _v[key];
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _label(key, text: title),
-        Wrap(spacing: 8, children: [
-          for (final (value, text) in const [(true, 'نعم'), (false, 'لا')])
-            ChoiceChip(
-              key: Key('$key-$value'),
-              label: Text(text),
-              selected: current == value,
-              onSelected: (on) => setState(() => _v[key] = on ? value : null),
-            ),
-        ]),
-      ],
-    );
-  }
-
-  /// Her «الحجاب»: one question, three answers stored as `hijab` + `niqab` (both always sent together)
-  Widget _hijab() {
-    final current = switch ((_v['hijab'], _v['niqab'])) {
-      (_, true) => 'niqab',
-      (true, _) => 'hijab',
-      (false, _) => 'none',
-      _ => null,
-    };
-    const choices = [('hijab', 'محجبة', true, false), ('niqab', 'منتقبة', true, true), ('none', 'غير محجبة', false, false)];
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _label('hijab'),
-        Wrap(spacing: 8, runSpacing: 8, children: [
-          for (final (id, text, hijab, niqab) in choices)
-            ChoiceChip(
-              key: Key('hijab-$id'),
-              label: Text(text),
-              selected: current == id,
-              onSelected: (on) => setState(() {
-                // Tapping the chosen answer clears it, like the other yes / no questions
-                _v['hijab'] = on ? hijab : null;
-                _v['niqab'] = on ? niqab : null;
-              }),
-            ),
-        ]),
-      ],
-    );
-  }
-
-  Widget _field(String key, {String? hint, String? title}) {
-    final long = _longTexts.contains(key);
-    final number = _numberLimits.containsKey(key);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _label(key, text: title),
-        TextField(
-          key: Key('field-$key'),
-          controller: _text[key],
-          maxLength: number ? null : (long ? 500 : 100),
-          maxLines: long ? 4 : 1,
-          minLines: 1,
-          keyboardType: number ? TextInputType.number : TextInputType.text,
-          inputFormatters: [LatinDigitsFormatter()],
-          textDirection: number ? TextDirection.ltr : null,
-          decoration: InputDecoration(hintText: hint),
-        ),
-      ],
-    );
-  }
 
   Widget _section(String title, List<Widget> children) => Padding(
         padding: const EdgeInsets.only(top: 12),
@@ -425,30 +264,10 @@ class _ProfileEditFormState extends ConsumerState<ProfileEditForm> {
         ),
       );
 
-  Future<void> _pickDate() async {
-    final current = DateTime.tryParse(asString(_v['dateOfBirth']) ?? '');
-    final now = DateTime.now();
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: current ?? DateTime(now.year - 25),
-      firstDate: DateTime(now.year - 80),
-      lastDate: DateTime(now.year - 18, now.month, now.day),
-    );
-    if (picked != null) {
-      setState(() => _v['dateOfBirth'] =
-          '${picked.year.toString().padLeft(4, '0')}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}');
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final lists = widget.lists;
-    final city = asString(_v['city']);
-    final areas = city == null ? const <String>[] : (lists.areas[city] ?? const <String>[]);
-    final jobs = jobOptionsFor(lists.option('job'), female: _female, current: asString(_v['job']));
-    final dob = DateTime.tryParse(asString(_v['dateOfBirth']) ?? '');
     final pending = widget.pending;
-    String self(String field, String v) => OptionLabels.self(field, v, female: _female);
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
@@ -469,74 +288,32 @@ class _ProfileEditFormState extends ConsumerState<ProfileEditForm> {
             text: 'الحقول الفارغة تُحفظ فوراً. تغيير بيانات محفوظة يُرسل لفريق نصيبك للمراجعة قبل ظهوره.',
           ),
         _section('البيانات الأساسية', [
-          if (_religionAsked) _choice('religion', lists.option('religion'), labelOf: (v) => self('religion', v)),
-          _label('dateOfBirth'),
-          OutlinedButton.icon(
-            key: const Key('field-dateOfBirth'),
-            onPressed: _pickDate,
-            icon: const Icon(Icons.calendar_month_outlined),
-            label: Text(dob == null ? 'اختيار التاريخ' : formatDate(dob)),
-          ),
-          _choice('nationality', lists.nationalities(female: _female)),
-          _choice('city', lists.cities),
-          if (areas.isNotEmpty) _choice('area', areas),
-          _choice('education', lists.option('education')),
-          _field('fieldOfStudy', hint: 'مثال: هندسة حاسوب، محاسبة، طب...'),
-          _label('job'),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final j in jobs)
-                ChoiceChip(
-                  label: Text(self('job', j)),
-                  selected: j == _jobOther ? _jobIsOther : (!_jobIsOther && _v['job'] == j),
-                  onSelected: (on) => setState(() {
-                    _jobIsOther = on && j == _jobOther;
-                    _v['job'] = on && j != _jobOther ? j : null;
-                  }),
-                ),
-            ],
-          ),
-          if (_jobIsOther)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: TextField(
-                key: const Key('field-jobCustom'),
-                controller: _jobCustom,
-                maxLength: 100,
-                decoration: InputDecoration(hintText: _female ? 'حدّدي وظيفتكِ...' : 'حدّد وظيفتك...'),
-              ),
-            ),
-          _choice('maritalStatus', lists.option('maritalStatus'), labelOf: (v) => self('maritalStatus', v)),
-          if (_v['maritalStatus'] != null && _v['maritalStatus'] != ProfileOptions.single) _field('childrenCount'),
-          _choice('religiosity', lists.option('religiosity'), labelOf: (v) => self('religiosity', v)),
-          if (!_christian && lists.option('sect').isNotEmpty) _choice('sect', lists.option('sect'), labelOf: (v) => self('sect', v)),
+          if (_religionAsked) _control('religion'),
+          _control('dateOfBirth'),
+          _control('nationality'),
+          _control('city'),
+          _control('education'),
+          _control('fieldOfStudy'),
+          _control('job'),
+          _control('maritalStatus'),
+          if (_v['maritalStatus'] != null && _v['maritalStatus'] != ProfileOptions.single) _control('childrenCount'),
+          _control('religiosity'),
+          if (!_christian && lists.option('sect').isNotEmpty) _control('sect'),
         ]),
         _section('المظهر والعمل', [
-          _field('height', title: 'الطول (سم)'),
-          _field('weight', title: 'الوزن (كغ)'),
-          _choice('skinColor', lists.option('skinColor')),
-          _choice('incomeRange', lists.incomeRanges),
+          for (final k in ['height', 'weight', 'skinColor', 'incomeRange']) _control(k),
         ]),
         _section('نمط الحياة', [
-          _choice('smokingStatus', lists.option('smokingStatus')),
-          if (!_christian) ...[if (_female) _hijab() else _yesNo('beard', 'هل أنت ملتحٍ؟')],
-          _choice('cookingAbility', lists.option('cookingAbility')),
-          _choice('lifestyle', lists.option('lifestyle'), labelOf: (v) => self('lifestyle', v)),
-          _yesNo('drivingLicense', _female ? 'هل لديكِ رخصة قيادة؟' : 'هل لديك رخصة قيادة؟'),
-          _choice('willingToRelocate', _relocate.keys.toList(), labelOf: (v) => _relocate[v] ?? v),
+          _control('smokingStatus'),
+          if (!_christian) _control(_female ? 'hijab' : 'beard'),
+          for (final k in ['cookingAbility', 'lifestyle', 'drivingLicense', 'willingToRelocate']) _control(k),
         ]),
         _section('عنّي', [
-          for (final k in ['aboutMe', 'partnerExpectations', 'hobbies', 'interests', 'familyValues']) _field(k),
+          for (final k in ['aboutMe', 'partnerExpectations', 'hobbies', 'interests', 'familyValues']) _control(k),
         ]),
         _section('العائلة والسكن', [
-          _field('tribe', title: lists.tribeLabel),
-          _field('familyOriginArea'),
-          _field('numberOfSiblings'),
-          _choice('housingType', lists.option('housingType')),
-          _choice('monthlyExpenses', lists.expenseRanges),
-          _field('healthConditions', hint: 'اختياري — يراه من يتوافق معك فقط'),
+          for (final k in ['tribe', 'familyOriginArea', 'numberOfSiblings', 'housingType', 'monthlyExpenses', 'healthConditions'])
+            _control(k),
         ]),
         if (pending == null) ...[
           const SizedBox(height: 16),

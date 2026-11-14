@@ -16,6 +16,7 @@ import 'package:naseebak_app/shared/religion.dart';
 import 'helpers/fake_api.dart';
 import 'account_parity_test.dart' show lists, profileWith, storedProfile;
 import 'lebanon_test.dart' show bodyOf, lbBasics, lbDetails, lbSetupWith, prefSectOptions, sectOptions;
+import 'setup_progress_test.dart' show answerStep2Rest, step2Rest;
 import 'suggestions_flow_test.dart' show Harness, card;
 
 Future<(FakeAdapter, List<Override>)> religionSetupWith(Map<String, dynamic>? profile, {int? savedStep}) async {
@@ -54,18 +55,23 @@ Future<(FakeAdapter, List<Override>)> religionSetupWith(Map<String, dynamic>? pr
 void main() {
   group('setup', () {
     const step2 = {'maritalStatus': 'أعزب/عزباء', 'childrenCount': 0, 'religiosity': 'ملتزم'};
+    final scrollable = find.byType(Scrollable).first;
+
+    Future<void> next(WidgetTester tester) async {
+      await tester.scrollUntilVisible(find.byKey(const Key('setup-next')), 300, scrollable: scrollable);
+      await tester.tap(find.byKey(const Key('setup-next')));
+      await tester.pumpAndSettle();
+    }
 
     testWidgets('step 2: religion is required with no preselected answer', (tester) async {
       final (_, overrides) = await religionSetupWith({...lbBasics, ...step2, 'sect': 'سني'}, savedStep: 2);
       await tester.pumpWidget(ProviderScope(overrides: overrides, child: rtlApp(const SetupScreen())));
       await tester.pumpAndSettle();
-      expect(find.text('الخطوة 2 من 3'), findsOneWidget);
+      expect(find.text('الخطوة 2 من 7'), findsOneWidget);
       expect(find.text('الديانة'), findsOneWidget);
-      await tester.scrollUntilVisible(find.byKey(const Key('setup-next')), 300);
-      await tester.tap(find.byKey(const Key('setup-next')));
-      await tester.pumpAndSettle();
+      await next(tester);
       expect(find.text('الديانة مطلوبة'), findsOneWidget);
-      expect(find.text('الخطوة 2 من 3', skipOffstage: false), findsOneWidget);
+      expect(find.text('الخطوة 2 من 7', skipOffstage: false), findsOneWidget);
     });
 
     testWidgets('a Christian is not asked «المذهب»; the draft carries religion and no sect', (tester) async {
@@ -75,44 +81,54 @@ void main() {
       await tester.tap(find.text('مسيحية'));
       await tester.pumpAndSettle();
       expect(find.text('المذهب'), findsNothing);
-      await tester.scrollUntilVisible(find.byKey(const Key('setup-next')), 300);
-      await tester.tap(find.byKey(const Key('setup-next')));
-      await tester.pumpAndSettle();
-      expect(find.text('الخطوة 3 من 3'), findsOneWidget);
-      expect(adapter.to('PATCH', '/api/profile/draft').single.data, {...step2, 'religion': 'مسيحي'});
+      expect(find.text('الحجاب'), findsNothing);
+      for (final key in ['smokingStatus-لا أدخن', 'drivingLicense-false', 'willingToRelocate-no']) {
+        await tester.scrollUntilVisible(find.byKey(Key(key)), 200, scrollable: scrollable);
+        await tester.tap(find.byKey(Key(key)));
+        await tester.pumpAndSettle();
+      }
+      await next(tester);
+      expect(find.text('الخطوة 3 من 7'), findsOneWidget);
+      expect(adapter.to('PATCH', '/api/profile/draft').single.data, {
+        'religion': 'مسيحي',
+        'religiosity': 'ملتزم',
+        'smokingStatus': 'لا أدخن',
+        'drivingLicense': false,
+        'willingToRelocate': 'no',
+      });
     });
 
-    testWidgets('step 3: «لا مانع» shows its hint and is saved', (tester) async {
-      final (adapter, overrides) = await religionSetupWith({
-        ...lbBasics,
-        ...step2,
-        'sect': 'سني',
-        'religion': 'مسلم',
-        'prefAgeMin': 25,
-        'prefAgeMax': 35,
-      }, savedStep: 3);
+    /// Steps 1–5 answered, a Muslim woman in Lebanon
+    const upToStep5 = {...lbBasics, ...step2, 'sect': 'سني', 'religion': 'مسلم', ...step2Rest};
+
+    testWidgets('step 6: «لا مانع» shows its hint and is saved', (tester) async {
+      final (adapter, overrides) =
+          await religionSetupWith({...upToStep5, 'prefAgeMin': 25, 'prefAgeMax': 35}, savedStep: 3);
       await tester.pumpWidget(ProviderScope(overrides: overrides, child: rtlApp(const SetupScreen())));
       await tester.pumpAndSettle();
-      expect(find.text('الخطوة 3 من 3'), findsOneWidget);
+      expect(find.text('الخطوة 7 من 7'), findsOneWidget);
+      await tester.tap(find.byTooltip('السابق'));
+      await tester.pumpAndSettle();
+      expect(find.text('الخطوة 6 من 7'), findsOneWidget);
       expect(find.text('الديانة لدى الشريك'), findsOneWidget);
       expect(tester.widget<ChoiceChip>(find.widgetWithText(ChoiceChip, 'نفس ديانتي')).selected, isTrue);
       await tester.tap(find.text('لا مانع'));
       await tester.pumpAndSettle();
       expect(find.text(prefReligionAnyHint), findsOneWidget);
       expect(find.text(dealbreakersStillApplyHint), findsNothing);
-      await tester.tap(find.byKey(const Key('setup-next')));
-      await tester.pumpAndSettle();
+      await next(tester);
+      await next(tester);
       final body = Map<String, dynamic>.from(adapter.to('PUT', '/api/profile').single.data as Map);
       expect(body['religion'], 'مسلم');
       expect(body['prefReligion'], 'لا مانع');
     });
 
-    testWidgets('/api/profile failing: a retry first (never an empty form), then «نفس ديانتي» is the default on step 3',
+    testWidgets('/api/profile failing: a retry first (never an empty form), then «نفس ديانتي» is the default on step 6',
         (tester) async {
       tester.view.physicalSize = const Size(1080, 2400);
       tester.view.devicePixelRatio = 3;
       addTearDown(tester.view.reset);
-      final (adapter, overrides) = await religionSetupWith(null);
+      final (adapter, overrides) = await religionSetupWith(upToStep5);
       final good = adapter.handlers['GET /api/profile']!;
       adapter.on('GET', '/api/profile', const FakeResponse(500, {'error': 'x'}));
       await tester.pumpWidget(ProviderScope(overrides: overrides, child: rtlApp(const SetupScreen())));
@@ -122,27 +138,7 @@ void main() {
       adapter.handlers['GET /api/profile'] = good;
       await tester.tap(find.text('إعادة المحاولة'));
       await tester.pumpAndSettle();
-      Future<void> next() async {
-        await tester.scrollUntilVisible(find.byKey(const Key('setup-next')), 300);
-        await tester.tap(find.byKey(const Key('setup-next')));
-        await tester.pumpAndSettle();
-      }
-
-      await tester.tap(find.text('اختيار التاريخ'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.byType(TextButton).last);
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('بيروت'));
-      await tester.tap(find.text('بكالوريوس'));
-      await tester.pumpAndSettle();
-      await next();
-      expect(find.text('حالتك الاجتماعية'), findsOneWidget);
-      await tester.tap(find.text('عزباء'));
-      await tester.tap(find.text('مسلمة'));
-      await tester.tap(find.text('سنية'));
-      await tester.tap(find.text('ملتزمة'));
-      await tester.pumpAndSettle();
-      await next();
+      expect(find.text('الخطوة 6 من 7'), findsOneWidget);
       expect(find.text('من تبحثين عنه'), findsOneWidget);
       expect(find.text('الديانة لدى الشريك'), findsOneWidget);
       expect(tester.widget<ChoiceChip>(find.widgetWithText(ChoiceChip, 'نفس ديانتي')).selected, isTrue);
@@ -152,10 +148,11 @@ void main() {
       final (adapter, overrides) = await lbSetupWith({...lbBasics, ...step2, 'sect': 'سني'}, savedStep: 1);
       await tester.pumpWidget(ProviderScope(overrides: overrides, child: rtlApp(const SetupScreen())));
       await tester.pumpAndSettle();
+      expect(find.text('الخطوة 2 من 7'), findsOneWidget);
       expect(find.text('الديانة'), findsNothing);
-      await tester.scrollUntilVisible(find.byKey(const Key('setup-next')), 300);
-      await tester.tap(find.byKey(const Key('setup-next')));
-      await tester.pumpAndSettle();
+      await answerStep2Rest(tester);
+      await next(tester);
+      expect(find.text('الخطوة 3 من 7'), findsOneWidget);
       expect(adapter.to('PATCH', '/api/profile/draft').single.data, isNot(contains('religion')));
     });
   });

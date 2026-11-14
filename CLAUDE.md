@@ -441,6 +441,7 @@ Needs a new app version:
 - The filter tip on the app's empty «جديدة» page.
 - The website's «الرصيد أرخص» saving line. A live chat widget in the app.
 - «الديانة» (`religion_enabled`, 2026-11-13): the setup and edit questions, the preference, the card line and the Muslim-only rules in the app. Built and merged into local main (2026-11-14), not released. Old apps keep working (the server defaults to مسلم / نفس ديانتي) but show and ask nothing.
+- Full setup (7 steps) in the app (2026-11-14, branch `feature/app-full-setup`, not released): the whole profile and partner preferences in setup, 6 steps without «شروط أساسية». Old apps keep their short setup.
 - Chat delete (2026-11-11): the delete and clear entries, the «تم حذف الرسالة» bubble and the live `deleted` / `cleared` events in the app. Old apps show a deleted message as plain text.
 - WhatsApp-style chat in the app (2026-11-14, merged into `main`, not released): new chats list chips, bubbles (mine on the left), long-press selection, swipe to reply, emoji panel, one paperclip with «المعرض» / «الكاميرا», audit fixes B1/B2. No switch: it ships with the next app version; old apps keep their chat. Check the emoji panel ↔ keyboard swap and the first mic/camera prompts on real phones first.
 - Pro in the app: plans screen (calls `POST /api/pro/checkout`, opens the URL in the browser), «اشتراكي», sending photos and voice notes (picker, recorder, microphone permission), photo and voice bubbles, the Pro badge. Old apps still show media messages as text («حدّث التطبيق»). The website has all of it already.

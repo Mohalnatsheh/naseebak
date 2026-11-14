@@ -75,7 +75,13 @@ class _PausedScreenState extends ConsumerState<PausedScreen> {
   bool _busy = false;
   String? _error;
 
+  /// Reactivated on the server, but `me` couldn't be read after it: the next tap only reads `me` again
+  bool _reactivatedAwaitingMe = false;
+
+  static const reactivatedButStuckMessage = 'تمت إعادة التفعيل، لكن تعذّر المتابعة. يُرجى المحاولة مرة أخرى.';
+
   Future<void> _reactivate() async {
+    if (_busy) return;
     setState(() {
       _busy = true;
       _error = null;
@@ -84,9 +90,19 @@ class _PausedScreenState extends ConsumerState<PausedScreen> {
     // (refused) must still reload (QA A2-M3: home stayed on errors and the Pro badge was gone)
     final container = ProviderScope.containerOf(context, listen: false);
     try {
-      await ref.read(authRepositoryProvider).reactivate();
-      reloadAfterReactivate(container);
+      if (!_reactivatedAwaitingMe) {
+        await container.read(authRepositoryProvider).reactivate();
+        reloadAfterReactivate(container);
+      }
       await container.read(authControllerProvider.notifier).refreshMe();
+      // The router leaves this page once `me` says active; still paused here means `me` wasn't read
+      final stuck = container.read(authControllerProvider).me?.deactivated ?? false;
+      if (mounted) {
+        setState(() {
+          _reactivatedAwaitingMe = stuck;
+          if (stuck) _error = reactivatedButStuckMessage;
+        });
+      }
     } on ApiException catch (e) {
       if (mounted) setState(() => _error = e.message);
     } finally {

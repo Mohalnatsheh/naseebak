@@ -47,7 +47,7 @@ String? ticketError({String? type, required String subject, required String desc
   if (type == null) return 'يرجى اختيار نوع التذكرة';
   if (subject.trim().length < 5) return 'الموضوع يجب أن يكون 5 أحرف على الأقل';
   if (subject.trim().length > 200) return 'الموضوع يجب أن لا يتجاوز 200 حرف';
-  if (description.trim().length < 20) return 'الوصف يجب أن يكون 20 حرف على الأقل';
+  if (description.trim().length < 20) return 'الوصف يجب أن يكون 20 حرفاً على الأقل';
   if (description.trim().length > 2000) return 'الوصف يجب أن لا يتجاوز 2000 حرف';
   return null;
 }

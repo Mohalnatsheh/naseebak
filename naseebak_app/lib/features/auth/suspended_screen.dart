@@ -53,7 +53,7 @@ class _SuspendedScreenState extends ConsumerState<SuspendedScreen> {
             const SizedBox(height: 10),
             Text(
               'أوقف فريق نصيبك هذا الحساب، فلا يمكن استخدامه حالياً. '
-              'إذا كان لديك استفسار عن ذلك فتواصل مع فريق الدعم.',
+              'إذا كان لديك استفسار عن ذلك يمكنك التواصل مع فريق الدعم.',
               style: theme.textTheme.bodyLarge?.copyWith(color: AppColors.muted),
             ),
             const SizedBox(height: 28),

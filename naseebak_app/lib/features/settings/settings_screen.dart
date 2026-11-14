@@ -24,8 +24,12 @@ import '../pro/pro_section.dart' show proPlanLabels;
 String pauseProLine(DateTime? end) =>
     'اشتراك Pro لن يتجدد بعد الإيقاف${end == null ? '' : '، ويبقى فعّالاً حتى ${formatDate(end)}'}، دون استرداد.';
 
-/// «إيقاف الحساب مؤقتاً»: confirm, pause, keep the Pro note (shared by «الإعدادات»)
-Future<void> pauseAccount(BuildContext context, WidgetRef ref, MyProState? pro) async {
+/// Paused or deletion requested on the server, but `me` couldn't be read after it (weak connection)
+const pausedButStuckMessage = 'تم إيقاف الحساب، لكن تعذّر المتابعة. يُرجى المحاولة مرة أخرى.';
+
+/// «إيقاف الحساب مؤقتاً»: confirm, pause, keep the Pro note (shared by «الإعدادات»). [busy] is told when the request
+/// starts and ends (the page shows the wait and disables its actions meanwhile).
+Future<void> pauseAccount(BuildContext context, WidgetRef ref, MyProState? pro, {ValueChanged<bool>? busy}) async {
   // A Pro renewal stops with the pause (the server ends it with the period, no refund)
   final renewing = pro != null && pro.isPro && !pro.cancelAtPeriodEnd;
   final ok = await confirmDialog(
@@ -40,6 +44,7 @@ Future<void> pauseAccount(BuildContext context, WidgetRef ref, MyProState? pro) 
   // still reload (QA A-M01 / A2-H1: the paused page said «ما زال يتجدد» from the stale value)
   final container = ProviderScope.containerOf(context, listen: false);
   final memberId = ref.read(authControllerProvider).me?.id;
+  busy?.call(true);
   try {
     final j = await container.read(apiClientProvider).post('/api/profile/deactivate', body: {'action': 'pause'});
     if (memberId != null && pro != null && pro.isPro && pauseStoppedRenewal(j, wasRenewing: renewing)) {
@@ -49,13 +54,22 @@ Future<void> pauseAccount(BuildContext context, WidgetRef ref, MyProState? pro) 
       ..invalidate(proStateProvider)
       ..invalidate(countsProvider);
     await container.read(authControllerProvider.notifier).refreshMe();
+    _sayIfStillActive(context, container);
   } catch (e) {
     if (context.mounted) showSnack(context, ApiException.messageOf(e));
+  } finally {
+    busy?.call(false);
   }
 }
 
+/// The router shows the paused page once `me` says paused; still active here means `me` wasn't read
+void _sayIfStillActive(BuildContext context, ProviderContainer container) {
+  final me = container.read(authControllerProvider).me;
+  if (me != null && !me.deactivated && context.mounted) showSnack(context, pausedButStuckMessage);
+}
+
 /// «حذف الحساب»: the dialog, then the request (shared by «الإعدادات»)
-Future<void> deleteAccount(BuildContext context, WidgetRef ref, MyProState? pro) async {
+Future<void> deleteAccount(BuildContext context, WidgetRef ref, MyProState? pro, {ValueChanged<bool>? busy}) async {
   final renewing = pro != null && pro.isPro && !pro.cancelAtPeriodEnd;
   // null = cancelled; '' = no reason given (optional, like the website)
   final reason = await showDialog<String>(
@@ -65,6 +79,7 @@ Future<void> deleteAccount(BuildContext context, WidgetRef ref, MyProState? pro)
   if (reason == null || !context.mounted) return;
   final container = ProviderScope.containerOf(context, listen: false);
   final memberId = ref.read(authControllerProvider).me?.id;
+  busy?.call(true);
   try {
     final j = await container
         .read(apiClientProvider)
@@ -76,8 +91,11 @@ Future<void> deleteAccount(BuildContext context, WidgetRef ref, MyProState? pro)
     container.invalidate(proStateProvider);
     // The account is paused at once: the router shows the paused page with the deletion date
     await container.read(authControllerProvider.notifier).refreshMe();
+    _sayIfStillActive(context, container);
   } catch (e) {
     if (context.mounted) showSnack(context, ApiException.messageOf(e));
+  } finally {
+    busy?.call(false);
   }
 }
 
@@ -265,7 +283,7 @@ class _DeleteAccountDialogState extends State<DeleteAccountDialog> {
               maxLines: 4,
               decoration: const InputDecoration(
                 labelText: 'سبب الحذف (اختياري)',
-                hintText: 'ساعدنا في تحسين المنصة...',
+                hintText: 'يساعدنا رأيك في تحسين المنصة',
               ),
             ),
           ],

@@ -28,7 +28,7 @@ import { sendAdminAlert } from "@/lib/admin-alert";
 import { purgeExpiredRateLimits } from "@/lib/rate-limit-db";
 import { runPollRotation } from "@/lib/engagement/polls";
 import { runYearlyProGrants } from "@/lib/pro/grants";
-import { fillPhotoPreviews } from "@/lib/cron/photo-previews";
+import { runPhotoPreviewSweep } from "@/lib/cron/photo-previews";
 
 export const LAST_RUN_KEY = "cron_daily_last_run";
 export const LAST_EVENING_RUN_KEY = "cron_daily_last_run_evening";
@@ -132,10 +132,7 @@ async function execute(trigger: DailyRunSummary["trigger"], part: DailyPart): Pr
       return { checked: sessions.checked + intents.checked, fulfilled: sessions.fulfilled + intents.fulfilled };
     });
     tasks.proGrants = await runTask("proGrants", () => runYearlyProGrants(now()));
-    tasks.blurPreviews = await runTask("blurPreviews", async () => {
-      const { filled, failed } = await fillPhotoPreviews({ limit: 200 });
-      return { filled, failed };
-    });
+    tasks.previewFill = await runTask("previewFill", () => runPhotoPreviewSweep(200));
     tasks.pollRotation = await runTask("pollRotation", () => runPollRotation(now()));
     tasks.rateLimits = await runTask("rateLimits", async () => ({ purged: await purgeExpiredRateLimits(now()) }));
   }

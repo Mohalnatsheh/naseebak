@@ -2,10 +2,12 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const db = vi.hoisted(() => ({ photo: { findMany: vi.fn(), update: vi.fn() } }));
 const blur = vi.hoisted(() => ({ makeBlurPreview: vi.fn(), readPhotoBytes: vi.fn() }));
+const settings = vi.hoisted(() => ({ getSetting: vi.fn(), setSetting: vi.fn() }));
+vi.mock("@/lib/settings", () => settings);
 vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/photos/blur-preview", () => blur);
 
-import { fillPhotoPreviews } from "@/lib/cron/photo-previews";
+import { fillPhotoPreviews, runPhotoPreviewSweep, PREVIEW_CURSOR_KEY, PREVIEW_READ_TIMEOUT_MS, PREVIEW_DEADLINE_MS } from "@/lib/cron/photo-previews";
 
 beforeEach(() => {
   vi.resetAllMocks();
@@ -54,6 +56,60 @@ describe("fillPhotoPreviews", () => {
     expect(db.photo.findMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: { blurPreview: null, id: { gt: "p9" } }, take: 5 }),
     );
-    expect(r).toEqual({ filled: 0, failed: 0, lastId: undefined });
+    expect(r).toEqual({ filled: 0, failed: 0, lastId: undefined, rows: 0 });
+  });
+});
+
+describe("sweep cursor and time bounds", () => {
+  it("continues after the stored cursor and saves the last id", async () => {
+    settings.getSetting.mockResolvedValue("p5");
+    db.photo.findMany.mockResolvedValue([{ id: "p6", url: "u" }, { id: "p7", url: "u" }]);
+    await runPhotoPreviewSweep(2);
+    expect(db.photo.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { blurPreview: null, id: { gt: "p5" } } }));
+    expect(settings.setSetting).toHaveBeenCalledWith(PREVIEW_CURSOR_KEY, "p7");
+  });
+
+  it("wraps around: fewer rows than the limit resets the cursor", async () => {
+    settings.getSetting.mockResolvedValue("p7");
+    db.photo.findMany.mockResolvedValue([{ id: "p8", url: "u" }]);
+    await runPhotoPreviewSweep(2);
+    expect(settings.setSetting).toHaveBeenCalledWith(PREVIEW_CURSOR_KEY, "");
+  });
+
+  it("an empty cursor starts from the beginning", async () => {
+    settings.getSetting.mockResolvedValue("");
+    db.photo.findMany.mockResolvedValue([]);
+    await runPhotoPreviewSweep(2);
+    expect(db.photo.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { blurPreview: null } }));
+  });
+
+  it("a read that hangs is abandoned after 15 s and the batch goes on", async () => {
+    vi.useFakeTimers();
+    try {
+      db.photo.findMany.mockResolvedValue([{ id: "p1", url: "u" }, { id: "p2", url: "u" }]);
+      blur.readPhotoBytes.mockImplementationOnce(() => new Promise(() => {}));
+      const run = fillPhotoPreviews();
+      await vi.advanceTimersByTimeAsync(PREVIEW_READ_TIMEOUT_MS + 1);
+      const r = await run;
+      expect(r).toMatchObject({ filled: 1, failed: 1 });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("stops starting new rows after the deadline and the cursor stops at the last one tried", async () => {
+    vi.useFakeTimers();
+    try {
+      db.photo.findMany.mockResolvedValue([{ id: "p1", url: "u" }, { id: "p2", url: "u" }, { id: "p3", url: "u" }]);
+      blur.readPhotoBytes.mockImplementationOnce(async () => {
+        vi.advanceTimersByTime(PREVIEW_DEADLINE_MS + 1);
+        return Buffer.from("x");
+      });
+      const r = await fillPhotoPreviews();
+      expect(r).toMatchObject({ filled: 1, failed: 0, lastId: "p1" });
+      expect(blur.readPhotoBytes).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

@@ -36,7 +36,7 @@ String greetingWord(DateTime instant) {
 /// The new suggestions, read without the top-up the suggestions screen runs: «اقتراحات اليوم» (spec 2026-11-14). Also
 /// runs the counts re-read below. Reloads with the counts.
 final homeSuggestionsProvider = FutureProvider<List<FeedItem>>((ref) async {
-  final counts = await ref.watch(countsProvider.future);
+  final counts = await _homeCounts(ref);
   final page = await ref.watch(suggestionsRepositoryProvider).feed(FeedTab.newTab);
   // Right after setup the counts are read before the feed creates the first cards: «اقتراحات جديدة 0» and no tab
   // badge over a list of cards (QA A-L01). Then the counts are read again, once per member.
@@ -49,6 +49,19 @@ final homeSuggestionsProvider = FutureProvider<List<FeedItem>>((ref) async {
   }
   return page.items;
 });
+
+/// The counts a home block needs (and reloads with). A refresh that failed (weak network) keeps the last known
+/// counts, as the page itself does: the people blocks never fail with the counts' error, so their retry works once
+/// the network is back (sweep I1).
+Future<Counts> _homeCounts(Ref ref) async {
+  try {
+    return await ref.watch(countsProvider.future);
+  } catch (_) {
+    final known = ref.read(countsProvider).valueOrNull;
+    if (known != null) return known;
+    rethrow;
+  }
+}
 
 class _Once {
   bool done = false;
@@ -65,7 +78,7 @@ const _gap = SizedBox(height: AppSpace.xl);
 /// «مهتمون بك» on home: the first people of the «interested» tab (shared suggestions only). Reloads with the counts,
 /// so an answer given on the suggestions tab (which refreshes them) shows here too.
 final homeInterestedProvider = FutureProvider<List<FeedItem>>((ref) async {
-  final counts = await ref.watch(countsProvider.future);
+  final counts = await _homeCounts(ref);
   if (!counts.flags.mutualSuggestions) return const [];
   final page = await ref.watch(suggestionsRepositoryProvider).feed(FeedTab.interested);
   return page.items.take(homeInterestedCardsShown).toList();
@@ -123,12 +136,19 @@ class HomeScreen extends ConsumerWidget {
       final interested = ref.watch(homeInterestedProvider);
       if (mutual) {
         sections.add(
-          HomeSuggestionsCarousel(items: suggestions, onRetry: () => ref.invalidate(homeSuggestionsProvider)),
+          HomeSuggestionsCarousel(
+            items: suggestions,
+            onRetry: () => ref
+              ..invalidate(countsProvider)
+              ..invalidate(homeSuggestionsProvider),
+          ),
         );
         sections.add(
           HomeInterestedCards(
             items: interested,
-            onRetry: () => ref.invalidate(homeInterestedProvider),
+            onRetry: () => ref
+              ..invalidate(countsProvider)
+              ..invalidate(homeInterestedProvider),
             female: female,
             freeReply: c.flags.freeInterestReply,
           ),

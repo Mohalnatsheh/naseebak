@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:naseebak_app/core/push/push_permission.dart';
 import 'package:naseebak_app/core/storage/token_store.dart';
 import 'package:naseebak_app/features/chat/chat_models.dart';
+import 'package:naseebak_app/features/home/counts.dart';
 import 'package:naseebak_app/features/home/home_screen.dart';
 import 'package:naseebak_app/features/home/widgets/home_chats_block.dart';
 import 'package:naseebak_app/features/home/poll_card.dart';
@@ -287,6 +288,53 @@ void main() {
     testWidgets('quiet with a loaded complete profile: the conditions button', (tester) async {
       await pumpHome(tester, profileResponse: FakeResponse(200, profile(100, about: 'نبذة')));
       expect(inKey('next-step-cta', find.text('راجعي شروطكِ الأساسية')), findsOneWidget);
+    });
+  });
+
+  group('a failed counts refresh (sweep I1)', () {
+    // A provider re-read outside a frame: let the fake requests answer
+    Future<void> settle(WidgetTester tester) async {
+      for (var i = 0; i < 10; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+      await tester.pumpAndSettle();
+    }
+
+    ProviderContainer containerOf(WidgetTester tester) => ProviderScope.containerOf(tester.element(find.byType(HomeScreen)));
+
+    testWidgets('known counts keep the people blocks; a counts refresh that fails doesn\'t fail them', (tester) async {
+      final adapter = await pumpBusy(tester);
+      expect(find.byKey(const Key('home-suggestions')), findsOneWidget);
+      expect(find.byKey(const Key('home-interested-cards')), findsOneWidget);
+      adapter.on('GET', '/api/me/counts', const FakeResponse(500, {'error': 'خطأ'}));
+      containerOf(tester).invalidate(countsProvider);
+      await settle(tester);
+      expect(find.byKey(const Key('home-suggestions-error')), findsNothing);
+      expect(find.byKey(const Key('home-interested-error')), findsNothing);
+      expect(find.byKey(const Key('home-suggestions')), findsOneWidget);
+      expect(find.byKey(const Key('home-interested-cards')), findsOneWidget);
+    });
+
+    testWidgets('«إعادة المحاولة» works once the network is back, with the counts still failed before', (tester) async {
+      final adapter = await pumpBusy(tester);
+      final feed = adapter.handlers['GET /api/suggestions/feed']!;
+      adapter.handlers['GET /api/suggestions/feed'] = (_) => const FakeResponse(500, {'error': 'خطأ'});
+      adapter.on('GET', '/api/me/counts', const FakeResponse(500, {'error': 'خطأ'}));
+      containerOf(tester).invalidate(countsProvider);
+      await settle(tester);
+      expect(find.byKey(const Key('home-suggestions-error')), findsOneWidget);
+      // Back online
+      adapter.handlers['GET /api/suggestions/feed'] = feed;
+      adapter.on('GET', '/api/me/counts', const FakeResponse(200, {
+        'flags': {'mutualSuggestions': true, 'chat': true},
+        'newSuggestions': 2,
+        'likedYou': 1,
+      }));
+      final retry = find.descendant(of: find.byKey(const Key('home-suggestions-error')), matching: find.text('إعادة المحاولة'));
+      await tapAndSettle(tester, retry);
+      await settle(tester);
+      expect(find.byKey(const Key('home-suggestions-error')), findsNothing);
+      expect(find.byKey(const Key('home-suggestions')), findsOneWidget);
     });
   });
 

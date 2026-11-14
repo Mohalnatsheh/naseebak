@@ -24,17 +24,52 @@ class MatchesScreen extends ConsumerStatefulWidget {
   ConsumerState<MatchesScreen> createState() => _MatchesScreenState();
 }
 
-class _MatchesScreenState extends ConsumerState<MatchesScreen> {
+class _MatchesScreenState extends ConsumerState<MatchesScreen> with WidgetsBindingObserver {
   final List<MatchSummary> _items = [];
   PageInfo? _page;
   Object? _error;
   bool _loading = true;
   bool _loadingMore = false;
+  GoRouter? _router;
+  bool _visible = true;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _load();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final router = GoRouter.maybeOf(context);
+    if (router == _router) return;
+    _router?.routerDelegate.removeListener(_onRoute);
+    _router = router?..routerDelegate.addListener(_onRoute);
+  }
+
+  /// This screen stays alive in the shell (IndexedStack): a match made on the suggestions tab, by the partner (a
+  /// push) or answered elsewhere shows when the tab is shown again (audit I3), like the suggestions screen
+  void _onRoute() {
+    final visible = _router?.state.uri.path == '/matches';
+    if (visible && !_visible) Future.microtask(() => mounted ? _load() : null);
+    _visible = visible;
+  }
+
+  /// Back in the app while «التوافقات» is the page shown
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed || !mounted) return;
+    final shown = _router == null ? TickerMode.valuesOf(context).enabled : _router!.state.uri.path == '/matches';
+    if (shown) _load();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _router?.routerDelegate.removeListener(_onRoute);
+    super.dispose();
   }
 
   /// Bumped by every reload from page 1, so a «عرض المزيد» answer for the older list is dropped

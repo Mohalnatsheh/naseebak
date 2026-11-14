@@ -12,6 +12,7 @@ import 'package:naseebak_app/features/pro/pro_repository.dart';
 import 'package:naseebak_app/features/pro/pro_screen.dart';
 import 'package:naseebak_app/features/pro/pro_section.dart';
 import 'package:naseebak_app/features/settings/settings_screen.dart';
+import 'package:naseebak_app/shared/widgets/common.dart';
 
 import 'helpers/fake_api.dart';
 
@@ -466,12 +467,18 @@ void main() {
     expect(find.textContaining('يتجدد في 1 ديسمبر 2026'), findsOneWidget);
   });
 
-  testWidgets('past due shows the amber note', (tester) async {
+  // Worded like the website (my-pro-card.tsx): the website has no card update, so the note never sends the member
+  // there; it says Stripe tries again and Pro ends if the payment keeps failing
+  testWidgets('past due shows the amber note, worded like the website', (tester) async {
     final pro = FakePro()
       ..isPro = true
       ..pastDue = true;
     await _pump(tester, pro);
-    expect(find.text('تعذّر تجديد الاشتراك، يمكنك تحديث بطاقتك من الموقع'), findsOneWidget);
+    final note = tester.widget<InfoBanner>(find.byKey(const Key('pro-past-due'))).text;
+    expect(note, startsWith('لم ينجح تجديد الدفع.'));
+    expect(note, contains('مزايا Pro مستمرة حتى 1 ديسمبر 2026.'));
+    expect(note, contains('سنحاول مرة أخرى تلقائياً خلال الأيام القادمة، وإن لم ينجح الدفع ينتهي الاشتراك.'));
+    expect(note, isNot(contains('من الموقع')));
   });
 
   testWidgets('a server without Pro (404) shows nothing about it', (tester) async {

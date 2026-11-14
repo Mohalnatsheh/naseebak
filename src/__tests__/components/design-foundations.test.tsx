@@ -135,7 +135,7 @@ describe("MemberAvatar", () => {
     expect(el.textContent).toContain("ل");
     expect(container.querySelector("img")).toBeNull();
     expect(container.querySelector(".member-veil")!.className).toContain("from-primary");
-    expect(screen.getByText("الصور تظهر بعد الاهتمام المتبادل")).toBeInTheDocument();
+    expect(screen.getByText("الصور تظهر بعد التوافق المتبادل")).toBeInTheDocument();
   });
 
   it("photo shown, gold ring when matched, gold dot for Pro, always a circle", () => {

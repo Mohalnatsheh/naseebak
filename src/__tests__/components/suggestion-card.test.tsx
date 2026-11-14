@@ -90,7 +90,8 @@ describe("SuggestionCard", () => {
 
   it("hides the score at 0%", () => {
     setup({ ...base, compatibilityScore: 0.3 } as unknown as FeedItem);
-    expect(screen.queryByText(/توافق/)).toBeNull();
+    // The avatar's screen-reader lock line («… بعد التوافق المتبادل») is not the score
+    expect(screen.queryByText(/توافق/, { ignore: ".sr-only" })).toBeNull();
   });
 
   it("has no «عنها» heading without aboutMe", () => {

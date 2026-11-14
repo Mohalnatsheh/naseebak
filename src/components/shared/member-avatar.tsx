@@ -120,7 +120,7 @@ export function MemberAvatar({
           {showLock && <Lock className="absolute bottom-[12%] text-accent" style={{ width: inner * 0.2, height: inner * 0.2 }} />}
         </span>
       )}
-      {showLock && <span className="sr-only">{preview ? "الصور تظهر بوضوح بعد التوافق المتبادل" : "الصور تظهر بعد الاهتمام المتبادل"}</span>}
+      {showLock && <span className="sr-only">{preview ? "الصور تظهر بوضوح بعد التوافق المتبادل" : "الصور تظهر بعد التوافق المتبادل"}</span>}
       {pro && (
         <span
           aria-hidden

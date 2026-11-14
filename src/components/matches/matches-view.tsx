@@ -678,7 +678,7 @@ export function MatchesView({ embedded = false }: { embedded?: boolean } = {}) {
                   badges={!m.closed || m.partner.isPro ? <>{!m.closed && <SealMark />}{m.partner.isPro && <ProBadge />}</> : undefined}
                   score={score}
                   photoUrl={!locked && m.photosRevealed ? matchPhotos[m.id]?.[0]?.url : undefined}
-                  // «الصور تظهر بعد الاهتمام المتبادل» only on an open match: a closed one never shows photos
+                  // «الصور تظهر بعد التوافق المتبادل» only on an open match: a closed one never shows photos
                   photoLocked={!m.closed && !m.photosRevealed}
                   matched={!m.closed}
                   pro={!!m.partner.isPro}

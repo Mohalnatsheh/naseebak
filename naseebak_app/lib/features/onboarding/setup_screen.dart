@@ -370,11 +370,12 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
     final female = me?.isFemale ?? false;
     if (p != null && !_prefilled) {
       _prefill(p);
-      if (_prefReligionOptions.isNotEmpty) _prefReligion ??= prefReligionSame;
       _nationality ??= female ? me?.country.nationalityFemale : me?.country.nationalityMale;
       _resumeStep(total);
     }
     _nationality ??= female ? me?.country.nationalityFemale : me?.country.nationalityMale;
+    // Also when /api/profile failed (no prefill): the question's default is the same-religion answer
+    if (_prefReligionOptions.isNotEmpty) _prefReligion ??= prefReligionSame;
     final titles = ['معلوماتك الأساسية', 'حالتك الاجتماعية', forViewer(female, 'من تبحث عنه', 'من تبحثين عنه'), 'وليّ الأمر'];
     final theme = Theme.of(context);
 

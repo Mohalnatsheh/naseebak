@@ -8,7 +8,7 @@ import 'package:naseebak_app/features/country_selection/country.dart';
 import 'package:naseebak_app/features/profile/profile_edit_plan.dart';
 import 'package:naseebak_app/features/profile/profile_edit_screen.dart';
 import 'package:naseebak_app/features/profile/preferences_screen.dart';
-import 'package:naseebak_app/features/profile/profile_repository.dart' show MyProfile, PartnerPrefs;
+import 'package:naseebak_app/features/profile/profile_repository.dart' show MyProfile, PartnerPrefs, myProfileProvider;
 import 'package:naseebak_app/features/profile/profile_screen.dart';
 import 'package:naseebak_app/shared/person.dart';
 import 'package:naseebak_app/shared/religion.dart';
@@ -105,6 +105,40 @@ void main() {
       final body = Map<String, dynamic>.from(adapter.to('PUT', '/api/profile').single.data as Map);
       expect(body['religion'], 'مسلم');
       expect(body['prefReligion'], 'لا مانع');
+    });
+
+    testWidgets('/api/profile failing: «نفس ديانتي» is still the default answer on step 3', (tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+      final (adapter, overrides) = await religionSetupWith(null);
+      adapter.on('GET', '/api/profile', const FakeResponse(500, {'error': 'x'}));
+      await tester.pumpWidget(ProviderScope(overrides: overrides, child: rtlApp(const SetupScreen())));
+      await tester.pumpAndSettle();
+      Future<void> next() async {
+        await tester.scrollUntilVisible(find.byKey(const Key('setup-next')), 300);
+        await tester.tap(find.byKey(const Key('setup-next')));
+        await tester.pumpAndSettle();
+      }
+
+      await tester.tap(find.text('اختيار التاريخ'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(TextButton).last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('بيروت'));
+      await tester.tap(find.text('بكالوريوس'));
+      await tester.pumpAndSettle();
+      await next();
+      expect(find.text('حالتك الاجتماعية'), findsOneWidget);
+      await tester.tap(find.text('عزباء'));
+      await tester.tap(find.text('مسلمة'));
+      await tester.tap(find.text('سنية'));
+      await tester.tap(find.text('ملتزمة'));
+      await tester.pumpAndSettle();
+      await next();
+      expect(find.text('من تبحثين عنه'), findsOneWidget);
+      expect(find.text('الديانة لدى الشريك'), findsOneWidget);
+      expect(tester.widget<ChoiceChip>(find.widgetWithText(ChoiceChip, 'نفس ديانتي')).selected, isTrue);
     });
 
     testWidgets('no lists (switch off, older server): not asked, not sent', (tester) async {
@@ -307,16 +341,19 @@ void main() {
 
     group('the screen', () {
       // PreferencesScreen with the real providers: a woman in Lebanon, stored religion «مسلم»
+      late List<Override> lastOverrides;
       Future<FakeAdapter> openScreen(
         WidgetTester tester, {
         bool lists = true,
         int profileStatus = 200,
         bool pendingChristian = false,
+        String storedReligion = 'مسلم',
       }) async {
         tester.view.physicalSize = const Size(1080, 2400);
         tester.view.devicePixelRatio = 3;
         addTearDown(tester.view.reset);
-        final (adapter, overrides) = await religionSetupWith({'religion': 'مسلم', ...lbBasics});
+        final (adapter, overrides) = await religionSetupWith({'religion': storedReligion, ...lbBasics});
+        lastOverrides = overrides;
         if (!lists) {
           final d = lbDetails();
           adapter.on('GET', '/api/countries/LB', FakeResponse(200, d));
@@ -355,6 +392,46 @@ void main() {
         expect(find.byKey(const Key('save-prefs')), findsNothing); // below the fold, lazy list
         expect(find.text('العمر المفضل'), findsOneWidget);
         expect(find.text('الديانة لدى الشريك'), findsNothing);
+      });
+
+      testWidgets('no religion lists but sect options: a stored Christian sees no hijab/beard or sect rows',
+          (tester) async {
+        await openScreen(tester, lists: false, storedReligion: 'مسيحي');
+        final scroll = find.byType(Scrollable).first;
+        await tester.scrollUntilVisible(find.text('مستوى التدين'), 300, scrollable: scroll);
+        expect(find.text('هل تفضلين ملتحياً؟'), findsNothing);
+        expect(find.text('المذهب'), findsNothing);
+        expect(find.text('الديانة لدى الشريك'), findsNothing);
+      });
+
+      testWidgets('save «لا مانع», reopen with the same container: it stays selected', (tester) async {
+        final adapter = await openScreen(tester);
+        final scroll = find.byType(Scrollable).first;
+        expect(tester.widget<ChoiceChip>(find.byKey(const Key('pref-religion-نفس ديانتي'))).selected, isTrue);
+        await tester.tap(find.byKey(const Key('pref-religion-لا مانع')));
+        await tester.pumpAndSettle();
+        adapter.on('GET', '/api/profile', FakeResponse(200, {
+          'user': {
+            'firstName': 'ريم',
+            'lastName': 'س',
+            'gender': 'FEMALE',
+            'profile': {'religion': 'مسلم', 'prefReligion': 'لا مانع'},
+          },
+          'completeness': {'total': 0},
+        }));
+        await tester.scrollUntilVisible(find.byKey(const Key('save-prefs')), 300, scrollable: scroll);
+        await tester.tap(find.byKey(const Key('save-prefs')));
+        await tester.pumpAndSettle();
+        // Close and reopen the screen on the same ProviderScope
+        // (the profile page underneath keeps `myProfileProvider` alive, as in the app)
+        final container = ProviderScope.containerOf(tester.element(find.byType(PreferencesScreen)));
+        final keepAlive = container.listen(myProfileProvider, (_, _) {});
+        addTearDown(keepAlive.close);
+        // (the same ProviderScope element, so the same container, with only the screen swapped out and back)
+        await tester.pumpWidget(ProviderScope(overrides: lastOverrides, child: rtlApp(const SizedBox())));
+        await tester.pumpWidget(ProviderScope(overrides: lastOverrides, child: rtlApp(const PreferencesScreen())));
+        await tester.pumpAndSettle();
+        expect(tester.widget<ChoiceChip>(find.byKey(const Key('pref-religion-لا مانع'))).selected, isTrue);
       });
 
       testWidgets('religion lists + /api/profile failing: ErrorView with retry, and retry recovers', (tester) async {
@@ -585,6 +662,7 @@ void main() {
       expect(find.text('مسيحية'), findsOneWidget);
       expect(find.text('المذهب'), findsNothing);
       expect(find.text('الحجاب'), findsNothing);
+      expect(find.text('الديانة لدى الشريك'), findsOneWidget);
     });
 
     testWidgets('a Muslim still has the sect and hijab rows (control)', (tester) async {

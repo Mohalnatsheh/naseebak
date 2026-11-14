@@ -9,9 +9,9 @@ import '../../core/network/json.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/person.dart';
 import '../../shared/religion.dart';
-import '../home/counts.dart';
 import '../../shared/widgets/common.dart';
 import '../auth/phone_validation.dart';
+import '../home/counts.dart';
 import 'profile_edit_screen.dart' show profileFieldLabels;
 import 'profile_repository.dart';
 

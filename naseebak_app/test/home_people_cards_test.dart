@@ -152,7 +152,7 @@ void main() {
       expect(find.descendant(of: cards, matching: find.byType(Image)), findsNothing);
     });
 
-    testWidgets('a different religion shows on the card once my own is loaded; none, no profile request',
+    testWidgets('a different religion shows on the card once my own is loaded',
         (tester) async {
       final adapter = await pumpCards(tester,
           fresh: [person('s1', 'أحمد', religion: 'مسيحي')], myReligion: 'مسلم');

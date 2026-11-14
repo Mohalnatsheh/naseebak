@@ -39,14 +39,20 @@ class PreferencesScreen extends ConsumerWidget {
     final me = ref.watch(authControllerProvider).me;
     final code = me?.country.code ?? 'JO';
     final details = ref.watch(countryDetailsProvider(code));
-    // «الديانة» needs my stored religion, so `/api/profile` is waited for only when the server sends the religion
-    // lists (fail closed: never show a Christian the Muslim-only questions). Without lists the form builds as before.
+    // «الديانة» needs my stored religion, so `/api/profile` is waited for when the server sends the religion lists
+    // (fail closed: never show a Christian the Muslim-only questions). With sect options only (Lebanon, switch off)
+    // or a profile already cached, the stored religion is read too, but a failure then never blanks the screen.
+    // With neither, the form builds as before and no request is made.
     final religionOptions = details.valueOrNull?.lists.option('prefReligion') ?? const <String>[];
-    final mine = religionOptions.isEmpty ? null : ref.watch(myProfileProvider);
+    final sectOptions = details.valueOrNull?.lists.option('prefSect') ?? const <String>[];
+    final religionAsked = religionOptions.isNotEmpty;
+    final readMine = religionAsked || sectOptions.isNotEmpty || ref.exists(myProfileProvider);
+    final mine = readMine ? ref.watch(myProfileProvider) : null;
+    final mineRequired = religionAsked ? mine : null;
     Widget body;
-    if (prefs.hasError || counts.hasError || details.hasError || (mine?.hasError ?? false)) {
+    if (prefs.hasError || counts.hasError || details.hasError || (mineRequired?.hasError ?? false)) {
       body = ErrorView(
-        error: prefs.error ?? counts.error ?? details.error ?? mine!.error!,
+        error: prefs.error ?? counts.error ?? details.error ?? mineRequired!.error!,
         onRetry: () {
           ref.invalidate(partnerPrefsProvider);
           ref.invalidate(myProfileProvider);
@@ -54,18 +60,19 @@ class PreferencesScreen extends ConsumerWidget {
           ref.invalidate(countryDetailsProvider(code));
         },
       );
-    } else if (!prefs.hasValue || !counts.hasValue || !details.hasValue || (mine != null && !mine.hasValue)) {
+    } else if (!prefs.hasValue || !counts.hasValue || !details.hasValue || (mine?.isLoading ?? false)) {
       body = const SkeletonList(count: 5, itemHeight: 70);
     } else {
+      final profile = mine?.valueOrNull;
       body = PreferencesForm(
         initial: prefs.requireValue,
         cities: details.requireValue.lists.cities,
         female: me?.isFemale ?? false,
         withDealbreakers: counts.requireValue.flags.mutualSuggestions,
-        sectOptions: details.requireValue.lists.option('prefSect'),
+        sectOptions: sectOptions,
         religionOptions: religionOptions,
-        religion: asString(mine?.requireValue.field('religion')),
-        initialPrefReligion: asString(mine?.requireValue.field('prefReligion')),
+        religion: asString(profile?.field('religion')),
+        initialPrefReligion: asString(profile?.field('prefReligion')),
       );
     }
     return Scaffold(appBar: AppBar(title: const Text('تفضيلات الشريك')), body: body);
@@ -182,6 +189,8 @@ class _PreferencesFormState extends ConsumerState<PreferencesForm> {
             christian: _christian,
           );
       container.invalidate(partnerPrefsProvider);
+      // The form's «الديانة لدى الشريك» is seeded from my profile: reopening must not show the old answer
+      if (_religionAsked) container.invalidate(myProfileProvider);
       if (mounted) showSnack(context, 'تم حفظ تفضيلاتك');
     } on ApiException catch (e) {
       if (mounted) showSnack(context, e.message);

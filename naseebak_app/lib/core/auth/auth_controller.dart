@@ -66,7 +66,7 @@ class AuthController extends Notifier<AuthState> {
   static Duration offlineLogoutWait = const Duration(seconds: 5);
 
   DateTime? _lastMeRead;
-  Future<void>? _refreshing;
+  Future<bool>? _refreshing;
   Future<void>? _restoring;
   Future<void>? _loggingOut;
   Future<void>? _signingOut;
@@ -122,25 +122,29 @@ class AuthController extends Notifier<AuthState> {
   }
 
   /// Re-reads `/api/mobile/me` (credits, profile completion, paused / suspended state). Calls made while one is on
-  /// the way share it (a burst of 403 `DEACTIVATED` answers reads `me` once).
-  Future<void> refreshMe() {
-    if (state.status != AuthStatus.signedIn && state.status != AuthStatus.suspended) return Future.value();
+  /// the way share it (a burst of 403 `DEACTIVATED` answers reads `me` once). True when the server answered (the
+  /// state now says what it said), false when `me` couldn't be read (offline, a server error) or there is no session.
+  Future<bool> refreshMe() {
+    if (state.status != AuthStatus.signedIn && state.status != AuthStatus.suspended) return Future.value(false);
     return _refreshing ??= _readMe().whenComplete(() => _refreshing = null);
   }
 
-  Future<void> _readMe() async {
+  Future<bool> _readMe() async {
     try {
       final me = await ref.read(authRepositoryProvider).me();
       _lastMeRead = DateTime.now();
-      if (state.status == AuthStatus.signedOut) return;
+      if (state.status == AuthStatus.signedOut) return false;
       state = AuthState(AuthStatus.signedIn, me: me);
+      return true;
     } on ApiException catch (e) {
       if (e.kind == ApiErrorKind.unauthorized) {
         await _endedByServer();
       } else if (isSuspendedAnswer(e) && state.status != AuthStatus.signedOut) {
         _lastMeRead = DateTime.now();
         state = AuthState(AuthStatus.suspended, error: e.message);
+        return true;
       }
+      return false;
     }
   }
 

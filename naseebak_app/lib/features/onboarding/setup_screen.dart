@@ -82,11 +82,34 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
   bool _prefilled = false;
 
   /// The profile was saved but `/api/mobile/me` couldn't be read after it (weak connection): the next tap only reads
-  /// `me` again (the router leaves the setup once it says complete), it never saves a second time
+  /// `me` again (the router leaves the setup once it says complete), it never saves a second time. Only while the
+  /// answers are the ones saved: «السابق» or any changed answer saves again (review I-3)
   bool _savedAwaitingMe = false;
+
+  /// The answers as they were saved when [_savedAwaitingMe] was set
+  String? _savedAnswers;
 
   /// Shown when the save went through but the app couldn't move on
   static const savedButStuckMessage = 'تم الحفظ، لكن تعذّر المتابعة. يُرجى المحاولة مرة أخرى.';
+
+  /// Shown when the save went through and `me` was read, but the server still counts the profile incomplete (a rule
+  /// the app doesn't know yet): the next tap saves again
+  static const savedIncompleteMessage = 'تم الحفظ، لكن الملف لم يكتمل بعد. يُرجى مراجعة الإجابات ثم المحاولة مرة أخرى.';
+
+  /// Everything the setup sends, to tell whether an answer changed since the save
+  String _answers() => [
+        _payload(partial: true).toString(),
+        _guardian.name.text,
+        _guardian.phone.text,
+        _guardian.address.text,
+        _guardian.relationship,
+        _guardian.consent,
+      ].join('|');
+
+  void _clearSavedAwaitingMe() {
+    _savedAwaitingMe = false;
+    _savedAnswers = null;
+  }
 
   @override
   void initState() {
@@ -219,6 +242,8 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
   }
 
   Future<void> _next(int total, bool guardianStep) async {
+    // An answer changed since the save: save again, the change must reach the server
+    if (_savedAwaitingMe && _answers() != _savedAnswers) _clearSavedAwaitingMe();
     if (_savedAwaitingMe) return _readMeAgain();
     final errors = _validate(_step);
     setState(() {
@@ -305,12 +330,20 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
       // alive, so without this «تعديل ملفي» showed the saved fields as empty until a restart.
       container.invalidate(myProfileProvider);
       // The router leaves the setup once `/api/mobile/me` says the profile is complete
-      await container.read(authControllerProvider.notifier).refreshMe();
-      // Saved, but `me` couldn't be read (the spinner just stopped before): say so, and only re-read it next time
+      final read = await container.read(authControllerProvider.notifier).refreshMe();
       if (mounted && container.read(authControllerProvider).me?.profileComplete != true) {
         setState(() {
-          _savedAwaitingMe = true;
-          _error = savedButStuckMessage;
+          if (read) {
+            // `me` was read and still says incomplete: a plain error, and the next tap saves again
+            _clearSavedAwaitingMe();
+            _error = savedIncompleteMessage;
+          } else {
+            // Saved, but `me` couldn't be read (the spinner just stopped before): say so, and only re-read it next
+            // time
+            _savedAwaitingMe = true;
+            _savedAnswers = _answers();
+            _error = savedButStuckMessage;
+          }
         });
       }
     } on ApiException catch (e) {
@@ -335,18 +368,28 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
       _error = null;
     });
     final container = ProviderScope.containerOf(context, listen: false);
-    await container.read(authControllerProvider.notifier).refreshMe();
+    final read = await container.read(authControllerProvider.notifier).refreshMe();
     if (!mounted) return;
     final done = container.read(authControllerProvider).me?.profileComplete == true;
     setState(() {
       _saving = false;
-      if (!done) _error = savedButStuckMessage;
+      if (done) return;
+      if (read) {
+        // Read, and the server still says incomplete: the next tap saves again
+        _clearSavedAwaitingMe();
+        _error = savedIncompleteMessage;
+      } else {
+        _error = savedButStuckMessage;
+      }
     });
   }
 
   void _back() {
     if (_step == 0) return;
     setState(() {
+      // Going back to correct an answer: the next «التالي» on the last step saves again
+      _clearSavedAwaitingMe();
+      _error = null;
       _step--;
       _checked = false;
       _errors = {};

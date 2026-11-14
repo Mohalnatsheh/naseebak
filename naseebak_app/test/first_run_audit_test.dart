@@ -98,6 +98,58 @@ void main() {
       expect(container.read(authControllerProvider).me!.profileComplete, isTrue);
     });
 
+    Future<(FakeAdapter, ProviderContainer)> stuckAtSave(WidgetTester tester, {required FakeResponse me}) async {
+      final (adapter, overrides) = await setupWith(
+        {...basics, 'maritalStatus': 'أعزب/عزباء', 'childrenCount': 0, 'religiosity': 'ملتزم', 'prefAgeMin': 25, 'prefAgeMax': 35},
+        savedStep: 2,
+      );
+      adapter.on('PUT', '/api/profile', const FakeResponse(200, {'profile': {}}));
+      final container = await openSetup(tester, adapter, overrides);
+      adapter.on('GET', '/api/mobile/me', me);
+      await tester.ensureVisible(find.byKey(const Key('setup-next')));
+      await tester.tap(find.byKey(const Key('setup-next')));
+      await tester.pumpAndSettle();
+      expect(adapter.to('PUT', '/api/profile'), hasLength(1));
+      return (adapter, container);
+    }
+
+    Future<void> tapNext(WidgetTester tester) async {
+      await tester.ensureVisible(find.byKey(const Key('setup-next')));
+      await tester.tap(find.byKey(const Key('setup-next')));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('review I-3: `me` read but still incomplete: never the «saved but stuck» line; the next tap saves again',
+        (tester) async {
+      final (adapter, _) =
+          await stuckAtSave(tester, me: FakeResponse(200, {'user': meJson(country: 'SA', complete: false)}));
+      expect(find.text('تم الحفظ، لكن تعذّر المتابعة. يُرجى المحاولة مرة أخرى.'), findsNothing);
+      expect(find.text('تم الحفظ، لكن الملف لم يكتمل بعد. يُرجى مراجعة الإجابات ثم المحاولة مرة أخرى.'), findsOneWidget);
+      await tapNext(tester);
+      expect(adapter.to('PUT', '/api/profile'), hasLength(2));
+    });
+
+    testWidgets('review I-3: stuck after a save, then «السابق»: the next save goes out again', (tester) async {
+      final (adapter, _) = await stuckAtSave(tester, me: const FakeResponse.network());
+      expect(find.text('تم الحفظ، لكن تعذّر المتابعة. يُرجى المحاولة مرة أخرى.'), findsOneWidget);
+      await tester.tap(find.byTooltip('السابق'));
+      await tester.pumpAndSettle();
+      expect(find.text('الخطوة 2 من 3'), findsOneWidget);
+      await tapNext(tester);
+      expect(find.text('الخطوة 3 من 3'), findsOneWidget);
+      await tapNext(tester);
+      expect(adapter.to('PUT', '/api/profile'), hasLength(2));
+    });
+
+    testWidgets('review I-3: stuck after a save, then an answer changed: the next tap saves the change', (tester) async {
+      final (adapter, _) = await stuckAtSave(tester, me: const FakeResponse.network());
+      await tester.enterText(find.byKey(const Key('age-min')), '27');
+      await tester.pump();
+      await tapNext(tester);
+      expect(adapter.to('PUT', '/api/profile'), hasLength(2));
+      expect(adapter.to('PUT', '/api/profile').last.data['prefAgeMin'], 27);
+    });
+
     testWidgets('M15: an 80-year-old draft birth date opens the picker (inside its range)', (tester) async {
       final now = DateTime.now();
       final dob = DateTime(now.year - 81, now.month, now.day + 2);
@@ -239,6 +291,23 @@ void main() {
       await tester.pumpAndSettle();
       expect(adapter.to('POST', '/api/profile/reactivate'), hasLength(1));
       expect(c.read(authControllerProvider).me!.deactivated, isFalse);
+    });
+
+    testWidgets('review I-3: reactivated and `me` read but still paused: no stuck flag, the next tap reactivates again',
+        (tester) async {
+      final (c, adapter) = await signedIn(tester, deactivated: true);
+      adapter
+        ..on('POST', '/api/profile/reactivate', const FakeResponse(200, {'ok': true}))
+        ..on('GET', '/api/mobile/me', FakeResponse(200, {'user': meJson(deactivated: true)}));
+      await tester.pumpWidget(UncontrolledProviderScope(container: c, child: rtlApp(const PausedScreen())));
+      await tester.pump();
+      await tester.tap(find.text('إعادة تفعيل حسابي'));
+      await tester.pumpAndSettle();
+      expect(find.text('تمت إعادة التفعيل، لكن تعذّر المتابعة. يُرجى المحاولة مرة أخرى.'), findsNothing);
+      expect(find.text('تعذّرت إعادة التفعيل. يُرجى المحاولة مرة أخرى.'), findsOneWidget);
+      await tester.tap(find.text('إعادة تفعيل حسابي'));
+      await tester.pumpAndSettle();
+      expect(adapter.to('POST', '/api/profile/reactivate'), hasLength(2));
     });
 
     Future<void> pumpSettings(WidgetTester tester, ProviderContainer c) async {

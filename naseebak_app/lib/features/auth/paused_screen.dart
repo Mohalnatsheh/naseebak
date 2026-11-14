@@ -80,6 +80,9 @@ class _PausedScreenState extends ConsumerState<PausedScreen> {
 
   static const reactivatedButStuckMessage = 'تمت إعادة التفعيل، لكن تعذّر المتابعة. يُرجى المحاولة مرة أخرى.';
 
+  /// The server answered, and the account still reads paused: a plain error, the next tap reactivates again
+  static const notReactivatedMessage = 'تعذّرت إعادة التفعيل. يُرجى المحاولة مرة أخرى.';
+
   Future<void> _reactivate() async {
     if (_busy) return;
     setState(() {
@@ -94,13 +97,19 @@ class _PausedScreenState extends ConsumerState<PausedScreen> {
         await container.read(authRepositoryProvider).reactivate();
         reloadAfterReactivate(container);
       }
-      await container.read(authControllerProvider.notifier).refreshMe();
-      // The router leaves this page once `me` says active; still paused here means `me` wasn't read
-      final stuck = container.read(authControllerProvider).me?.deactivated ?? false;
+      final read = await container.read(authControllerProvider.notifier).refreshMe();
+      // The router leaves this page once `me` says active. Still paused here: when `me` wasn't read, only re-read it
+      // next time; when it was read and still says paused, the next tap reactivates again (review I-3)
+      final paused = container.read(authControllerProvider).me?.deactivated ?? false;
+      final stuck = !read && paused;
       if (mounted) {
         setState(() {
           _reactivatedAwaitingMe = stuck;
-          if (stuck) _error = reactivatedButStuckMessage;
+          if (stuck) {
+            _error = reactivatedButStuckMessage;
+          } else if (paused) {
+            _error = notReactivatedMessage;
+          }
         });
       }
     } on ApiException catch (e) {

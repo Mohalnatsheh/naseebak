@@ -38,7 +38,7 @@ void main() {
       expect(field.contains(tester.getCenter(chatMic)), isFalse);
       expect(_field(tester).style?.fontSize, 16);
       expect(_field(tester).maxLines, 6);
-      expect(_field(tester).maxLength, 2000);
+      expect(_field(tester).maxLength, 1000);
       await tester.enterText(chatInput, 'السلام عليكم');
       await tester.pump();
       expect(chatMic, findsNothing);

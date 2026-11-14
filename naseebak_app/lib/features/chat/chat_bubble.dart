@@ -381,7 +381,7 @@ class ChatBubble extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (error != null && message.filtered && !message.proRequired)
+          if (error != null && message.filtered && !message.proRequired && !message.tooLong)
             _refusalNote(error)
           else if (error != null)
             Text(error, style: AppText.caption.copyWith(color: AppColors.danger)),

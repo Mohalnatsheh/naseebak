@@ -31,7 +31,7 @@ void main() {
     expect(emojiGroups.expand((g) => g.emoji).toSet().length, 205);
   });
 
-  test('insertAtCursor: at the cursor, over a selection, at the end with no cursor, never past 2000', () {
+  test('insertAtCursor: at the cursor, over a selection, at the end with no cursor, never past 1000', () {
     final atCursor = insertAtCursor(const TextEditingValue(text: 'abc', selection: TextSelection.collapsed(offset: 2)), '😊');
     expect(atCursor.text, 'ab😊c');
     expect(atCursor.selection, TextSelection.collapsed(offset: 2 + '😊'.length));
@@ -44,11 +44,11 @@ void main() {
     expect(none.text, 'abc😊');
     expect(none.selection, TextSelection.collapsed(offset: 'abc😊'.length));
 
-    final almost = TextEditingValue(text: 'a' * 1999);
+    final almost = TextEditingValue(text: 'a' * 999);
     final full = insertAtCursor(almost, '😊');
-    expect(full.text.characters.length, 2000);
-    final over2000 = TextEditingValue(text: 'a' * 2000);
-    expect(insertAtCursor(over2000, '😊'), same(over2000));
+    expect(full.text.characters.length, 1000);
+    final atLimit = TextEditingValue(text: 'a' * 1000);
+    expect(insertAtCursor(atLimit, '😊'), same(atLimit));
   });
 
   testWidgets('the emoji button swaps the keyboard for the panel and back; a pick lands at the cursor', (tester) async {

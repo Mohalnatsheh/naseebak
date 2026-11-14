@@ -5,6 +5,7 @@ import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/common.dart';
 import '../home/gendered_copy.dart';
 import '../pro/pro_repository.dart' show MediaButtons;
+import 'chat_models.dart' show chatMessageMaxLength;
 
 /// «الأحدث»: the round white button at the bottom end of the messages while scrolled up, with a navy badge for what
 /// arrived meanwhile
@@ -67,7 +68,7 @@ class NewestButton extends StatelessWidget {
 const composerHintGap = 6.0;
 
 /// The white pill (WhatsApp-style composer), from the start: the emoji button (a keyboard while the panel is open),
-/// the text field (1–6 lines, 2000 characters, Enter adds a line), and ONE paperclip whose sheet holds «المعرض» and
+/// the text field (1–6 lines, 1000 characters as on the server, Enter adds a line), and ONE paperclip whose sheet holds «المعرض» and
 /// «الكاميرا». Pro rules: [MediaButtons.locked] greys the paperclip with the «Pro» tag and opens `/pro`
 /// ([onOpenPro]); [MediaButtons.hidden] shows no paperclip.
 class WaComposerPill extends StatelessWidget {
@@ -133,7 +134,16 @@ class WaComposerPill extends StatelessWidget {
               focusNode: focusNode,
               minLines: 1,
               maxLines: 6,
-              maxLength: 2000,
+              maxLength: chatMessageMaxLength,
+              // Counts down only near the server's limit (a hidden counter cut long messages with no word)
+              buildCounter: (_, {required currentLength, required isFocused, maxLength}) => currentLength < 900
+                  ? null
+                  : Text(
+                      '$currentLength/$maxLength',
+                      key: const Key('chat-length'),
+                      style: AppText.caption.copyWith(
+                          color: currentLength >= (maxLength ?? 0) ? AppColors.danger : AppColors.muted),
+                    ),
               textInputAction: TextInputAction.newline,
               onChanged: onChanged,
               // A tap anywhere else (the messages, the header) closes the keyboard
@@ -152,7 +162,6 @@ class WaComposerPill extends StatelessWidget {
                     style: AppText.body.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
                   ),
                 ),
-                counterText: '',
                 filled: false,
                 isDense: true,
                 border: none,

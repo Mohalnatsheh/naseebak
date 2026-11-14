@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_theme.dart';
+import 'chat_models.dart' show chatMessageMaxLength;
 import 'emoji_data.dart';
 
 /// [insert] in place of [value]'s selection (at the end when there is no valid one), the cursor right after it.
 /// [value] unchanged when the result would pass [maxLength] characters (counted like `TextField.maxLength`).
-TextEditingValue insertAtCursor(TextEditingValue value, String insert, {int maxLength = 2000}) {
+TextEditingValue insertAtCursor(TextEditingValue value, String insert, {int maxLength = chatMessageMaxLength}) {
   final text = value.text;
   final sel = value.selection;
   final valid = sel.isValid && sel.start >= 0 && sel.end <= text.length;

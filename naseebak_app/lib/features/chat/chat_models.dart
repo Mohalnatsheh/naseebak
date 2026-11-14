@@ -220,6 +220,16 @@ class ReplyQuote {
 /// What a message deleted for everyone reads, for both members (the server sends it as the body; Pro chat delete)
 const deletedTrace = 'تم حذف الرسالة';
 
+/// The server's message limit (`MAX_MESSAGE_LENGTH`, src/lib/chat/filter.ts), counted like the server: UTF-16 code
+/// units of the trimmed text (an emoji counts 2)
+const chatMessageMaxLength = 1000;
+
+/// The server's own words for a message over the limit (`TOO_LONG`)
+const chatTooLongText = 'الرسالة طويلة جداً (الحد 1000 حرف).';
+
+/// The server refused a message for its length: `FILTERED` with the `TOO_LONG` text
+bool isTooLongRefusal(String? error) => error != null && error.contains('طويلة جداً');
+
 /// `ChatMessage` of src/lib/chat/service.ts, plus local sending state for my own pending messages.
 class ChatMessage {
   const ChatMessage({
@@ -282,6 +292,10 @@ class ChatMessage {
 
   /// Refused by the chat filter: it must be edited, not resent as is
   final bool filtered;
+
+  /// Refused for its length (the server's `TOO_LONG`, sent as `FILTERED` too): edited like a filter refusal, shown as
+  /// a plain error line, never the contact-sharing note (audit M2)
+  bool get tooLong => filtered && isTooLongRefusal(error);
 
   /// Failed without an answer (offline, timeout): the server may still have saved it (the chat room reconciles)
   final bool maybeSent;

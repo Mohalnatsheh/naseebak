@@ -398,6 +398,52 @@ void main() {
     });
   });
 
+  group('message length: the server\'s 1000 (audit M2)', () {
+    testWidgets('the box stops at 1000 and counts down from 900', (tester) async {
+      final adapter = FakeAdapter()..on('GET', '/api/chats/c1', FakeResponse(200, page([1])));
+      await openRoom(tester, adapter, MemoryChatCache());
+      await tester.pumpAndSettle();
+      final input = find.byKey(const Key('chat-input'));
+      expect(tester.widget<TextField>(input).maxLength, chatMessageMaxLength);
+      expect(chatMessageMaxLength, 1000);
+      await tester.enterText(input, 'ا' * 899);
+      await tester.pump();
+      expect(find.textContaining('/1000'), findsNothing);
+      await tester.enterText(input, 'ا' * 950);
+      await tester.pump();
+      expect(find.text('950/1000'), findsOneWidget);
+    });
+
+    testWidgets('longer than the server takes (emoji count double there): not sent, a plain line says so',
+        (tester) async {
+      final adapter = FakeAdapter()..on('GET', '/api/chats/c1', FakeResponse(200, page([1])));
+      await openRoom(tester, adapter, MemoryChatCache());
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byKey(const Key('chat-input')), '😊' * 600);
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('chat-send')));
+      await tester.pumpAndSettle();
+      expect(adapter.to('POST', '/api/chats/c1/messages'), isEmpty);
+      expect(find.text(chatTooLongText), findsOneWidget);
+      // Kept to shorten
+      expect(tester.widget<TextField>(find.byKey(const Key('chat-input'))).controller!.text, '😊' * 600);
+    });
+
+    testWidgets('the server\'s «طويلة جداً» shows as a plain error, never the contact-sharing note', (tester) async {
+      final adapter = FakeAdapter()
+        ..on('GET', '/api/chats/c1', FakeResponse(200, page([1])))
+        ..on('POST', '/api/chats/c1/messages',
+            const FakeResponse(422, {'error': 'الرسالة طويلة جداً (الحد 1000 حرف).', 'code': 'FILTERED'}));
+      await openRoom(tester, adapter, MemoryChatCache());
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byKey(const Key('chat-input')), 'رسالة');
+      await tester.tap(find.byKey(const Key('chat-send')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('chat-refusal')), findsNothing);
+      expect(find.text('الرسالة طويلة جداً (الحد 1000 حرف).'), findsOneWidget);
+    });
+  });
+
   group('QA fixes (A1): failed sends, drafts, direction', () {
     testWidgets('a failed message stays at its own time, under newer messages only while sending', (tester) async {
       final cache = MemoryChatCache();

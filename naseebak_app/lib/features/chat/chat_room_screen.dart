@@ -1237,6 +1237,12 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
   Future<void> _send([ChatMessage? retry]) async {
     final text = retry?.body ?? _input.text.trim();
     if (text.isEmpty) return;
+    // The server counts UTF-16 units (an emoji is 2), the box counts letters: over its limit, kept in the box to
+    // shorten, with the server's own words (audit M2)
+    if (text.length > chatMessageMaxLength) {
+      showSnack(context, chatTooLongText);
+      return;
+    }
     final nonce = retry?.nonce ?? _newNonce();
     final reply = retry != null ? retry.replyTo : _replyTo;
     final local = ChatMessage(

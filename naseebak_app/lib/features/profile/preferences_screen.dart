@@ -60,7 +60,7 @@ class PreferencesScreen extends ConsumerWidget {
           ref.invalidate(countryDetailsProvider(code));
         },
       );
-    } else if (!prefs.hasValue || !counts.hasValue || !details.hasValue || (mine?.isLoading ?? false)) {
+    } else if (!prefs.hasValue || !counts.hasValue || !details.hasValue || (mine != null && mine.isLoading && !mine.hasValue)) {
       body = const SkeletonList(count: 5, itemHeight: 70);
     } else {
       final profile = mine?.valueOrNull;

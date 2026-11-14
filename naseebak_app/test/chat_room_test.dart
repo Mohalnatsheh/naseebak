@@ -698,6 +698,97 @@ void main() {
       expect(fake.requests, 0);
     });
 
+    testWidgets('leaving a chat after «إبلاغ فقط» asks no rating (B17, audit M3)', (tester) async {
+      final fake = _Review();
+      final adapter = FakeAdapter()
+        ..on('GET', '/api/chats/c1', FakeResponse(200, {...page([]), 'messages': [msg(1, mine: true), msg(2)]}))
+        ..on('POST', '/api/chats/c1/end', const FakeResponse(200, {'ok': true}));
+      final container = await openRoom(tester, adapter, MemoryChatCache(), extra: [
+        storeReviewProvider.overrideWith((ref) => StoreReview(ref.watch(sharedPreferencesProvider), AppAnalytics(false), review: fake)),
+      ]);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('خيارات'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('إبلاغ').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('إزعاج أو تحرش'));
+      await tester.pump();
+      await tester.ensureVisible(find.byKey(const Key('report-only')));
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('report-only')));
+      await tester.pumpAndSettle();
+      expect((adapter.to('POST', '/api/chats/c1/end').single.data as Map)['end'], isFalse);
+      await tester.pumpWidget(UncontrolledProviderScope(container: container, child: const SizedBox()));
+      await tester.pump(const Duration(seconds: 1));
+      expect(fake.requests, 0);
+    });
+
+    testWidgets('a report that fails to send reopens the sheet with the details kept (audit M4)', (tester) async {
+      var status = 503;
+      final adapter = FakeAdapter()
+        ..on('GET', '/api/chats/c1', FakeResponse(200, page([1])))
+        ..handlers['POST /api/chats/c1/end'] = (_) => FakeResponse(status, const {'error': 'تعذّر الاتصال'});
+      await openRoom(tester, adapter, MemoryChatCache());
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('خيارات'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('إبلاغ').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('إزعاج أو تحرش'));
+      await tester.pump();
+      await tester.enterText(find.widgetWithText(TextField, 'تفاصيل (اختياري)'), 'كلام مسيء متكرر');
+      await tester.ensureVisible(find.byKey(const Key('report-only')));
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('report-only')));
+      await tester.pumpAndSettle();
+      expect(adapter.to('POST', '/api/chats/c1/end'), hasLength(1));
+      // Back, with what was written
+      expect(find.byKey(const Key('report-only')), findsOneWidget);
+      expect(find.text('كلام مسيء متكرر'), findsOneWidget);
+      expect(find.text('تعذّر الاتصال'), findsOneWidget);
+
+      status = 200;
+      await tester.tap(find.text('إزعاج أو تحرش'));
+      await tester.pump();
+      await tester.ensureVisible(find.byKey(const Key('report-only')));
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('report-only')));
+      await tester.pumpAndSettle();
+      final sent = adapter.to('POST', '/api/chats/c1/end');
+      expect(sent, hasLength(2));
+      expect(((sent.last.data as Map)['report'] as Map)['details'], 'كلام مسيء متكرر');
+      expect(find.byKey(const Key('report-only')), findsNothing);
+    });
+
+    testWidgets('«تمديد 7 أيام» is sent once on a double tap, its button off while it runs (audit M5)', (tester) async {
+      final soon = DateTime.now().toUtc().add(const Duration(days: 2)).toIso8601String();
+      final release = Completer<void>();
+      final adapter = FakeAdapter()
+        ..on('GET', '/api/chats/c1', FakeResponse(200, {
+          ...page([1]),
+          'conversation': {...conv, 'expiresAt': soon, 'canExtend': true},
+        }))
+        ..on('POST', '/api/chats/c1/extend', const FakeResponse(200, {'ok': true}))
+        ..hold('POST', '/api/chats/c1/extend', release.future);
+      await openRoom(tester, adapter, MemoryChatCache());
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('تمديد 7 أيام'));
+      await tester.pump();
+      final button = find.ancestor(of: find.text('تمديد 7 أيام'), matching: find.byType(TextButton));
+      expect(tester.widget<TextButton>(button).onPressed, isNull);
+      await tester.tap(find.text('تمديد 7 أيام'), warnIfMissed: false);
+      await tester.pump();
+      // The ⋮ menu's «تمديد» waits too
+      await tester.tap(find.byTooltip('خيارات'));
+      await tester.pumpAndSettle();
+      final menuExtend = find.textContaining('تمديد').last;
+      await tester.tap(menuExtend);
+      await tester.pumpAndSettle();
+      release.complete();
+      await tester.pumpAndSettle();
+      expect(adapter.to('POST', '/api/chats/c1/extend'), hasLength(1));
+    });
+
     testWidgets('an ended chat has no «لحمايتك» line over «للقراءة فقط»', (tester) async {
       final adapter = FakeAdapter()
         ..on('GET', '/api/chats/c1', FakeResponse(200, {...page([1]), 'conversation': {...conv, 'status': 'ENDED'}}));

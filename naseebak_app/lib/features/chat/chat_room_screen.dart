@@ -330,8 +330,11 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
   bool _signedOut = false;
   ProviderSubscription<String?>? _session;
 
-  /// Reported or ended in this visit: no rating sheet on leaving
+  /// Reported (also «إبلاغ فقط») or ended in this visit: no rating sheet on leaving
   bool _reportedOrEnded = false;
+
+  /// «تمديد 7 أيام», «إنهاء المحادثة» or a report is being sent: a second tap waits (audit M5)
+  bool _busyAction = false;
 
   /// The messages on screen when the chat opened (they don't rise in), and whether that first load is done
   final Set<String> _shownAtOpen = {};
@@ -1901,70 +1904,93 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
   }
 
   Future<void> _end({bool report = false, ChatMessage? message}) async {
-    String? reason;
-    String? details;
-    var end = true;
+    if (_busyAction) return;
     // An open chat can end; a closed one (ended, expired, blocked) can only be reported, or reported with a block.
     // «Open» as the server judges it (ACTIVE, not expired, no block), not whether I can write: a chat paused for
     // review, or with the chat switch off, still ends on «إبلاغ وإنهاء» (review A2 minor 2)
     final open = chatOpenForReport(_chat);
-    if (report) {
-      final copy = reportSheetCopy(open: open);
-      final res = await showModalBottomSheet<ReportAnswer>(
-        context: context,
-        isScrollControlled: true,
-        useSafeArea: true,
-        barrierLabel: 'إغلاق',
-        builder: (_) => ReportSheet(
-          title: message == null ? 'إبلاغ' : 'إبلاغ عن الرسالة',
-          description: copy.description,
-          // «إبلاغ فقط» first (owner ruling): the report is filed and the chat goes on
-          reportOnlyLabel: 'إبلاغ فقط',
-          reportOnlyConsequence: copy.onlyConsequence,
-          submitLabel: copy.submitLabel,
-          submitConsequence: copy.submitConsequence,
-          // The message reported is shown as a quote and goes as `messageId` (the team sees it marked in the chat)
-          reportedMessage: message == null ? null : replySnippetOf(message),
-        ),
-      );
-      if (res == null) return;
-      reason = res.reason;
-      details = res.details;
-      end = res.end;
-    } else {
-      final ok = await confirmDialog(
-        context,
-        title: 'إنهاء المحادثة',
-        body: 'تنتهي المحادثة للطرفين ولا يمكن فتحها مرة أخرى.',
-        confirmLabel: 'إنهاء',
-        destructive: true,
-      );
-      if (!ok) return;
-    }
-    try {
-      await _repo.end(
-        widget.chatId,
-        reportReason: reason,
-        details: details,
-        messageId: report ? message?.id : null,
-        end: end,
-      );
-      if (end) _reportedOrEnded = true;
-      if (mounted) showSnack(context, reportDoneText(report: report, end: end, open: open));
+    // A report that fails to send comes back with what was written (audit M4: a weak network lost it)
+    String? keptDetails;
+    while (true) {
+      if (!mounted) return;
+      String? reason;
+      String? details;
+      var end = true;
+      if (report) {
+        final copy = reportSheetCopy(open: open);
+        final res = await showModalBottomSheet<ReportAnswer>(
+          context: context,
+          isScrollControlled: true,
+          useSafeArea: true,
+          barrierLabel: 'إغلاق',
+          builder: (_) => ReportSheet(
+            title: message == null ? 'إبلاغ' : 'إبلاغ عن الرسالة',
+            description: copy.description,
+            // «إبلاغ فقط» first (owner ruling): the report is filed and the chat goes on
+            reportOnlyLabel: 'إبلاغ فقط',
+            reportOnlyConsequence: copy.onlyConsequence,
+            submitLabel: copy.submitLabel,
+            submitConsequence: copy.submitConsequence,
+            initialDetails: keptDetails,
+            // The message reported is shown as a quote and goes as `messageId` (the team sees it marked in the chat)
+            reportedMessage: message == null ? null : replySnippetOf(message),
+          ),
+        );
+        if (res == null || !mounted) return;
+        reason = res.reason;
+        details = res.details;
+        end = res.end;
+      } else {
+        final ok = await confirmDialog(
+          context,
+          title: 'إنهاء المحادثة',
+          body: 'تنتهي المحادثة للطرفين ولا يمكن فتحها مرة أخرى.',
+          confirmLabel: 'إنهاء',
+          destructive: true,
+        );
+        if (!ok || !mounted) return;
+      }
+      if (_busyAction) return;
+      setState(() => _busyAction = true);
+      try {
+        await _repo.end(
+          widget.chatId,
+          reportReason: reason,
+          details: details,
+          messageId: report ? message?.id : null,
+          end: end,
+        );
+        // Any report or end, «إبلاغ فقط» included: no rating sheet on leaving (B17)
+        _reportedOrEnded = true;
+      } catch (e) {
+        if (!mounted) return;
+        setState(() => _busyAction = false);
+        showSnack(context, ApiException.messageOf(e));
+        if (!report) return;
+        keptDetails = details;
+        continue;
+      }
+      if (!mounted) return;
+      setState(() => _busyAction = false);
+      showSnack(context, reportDoneText(report: report, end: end, open: open));
       await _poll();
-    } catch (e) {
-      if (mounted) showSnack(context, ApiException.messageOf(e));
+      return;
     }
   }
 
   Future<void> _extend() async {
+    if (_busyAction) return;
+    setState(() => _busyAction = true);
     try {
       await _repo.extend(widget.chatId);
       if (mounted) showSnack(context, 'تم تمديد المحادثة 7 أيام');
-      await _poll();
     } catch (e) {
       if (mounted) showSnack(context, ApiException.messageOf(e));
+      return;
+    } finally {
+      if (mounted) setState(() => _busyAction = false);
     }
+    if (mounted) await _poll();
   }
 
   /// Long-press on a sent message (or, while selecting, a tap on another one): it becomes the selection. Nothing is
@@ -2511,6 +2537,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
           text: 'تنتهي المحادثة قريباً · ${left!.text}',
           actionLabel: 'تمديد 7 أيام',
           onAction: _extend,
+          actionBusy: _busyAction,
         ),
       ChatBar.expiryInfo => ChatStatusStrip(
           key: const Key('chat-bar-expiry-info'),

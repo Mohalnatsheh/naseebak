@@ -59,6 +59,7 @@ class ChatStatusStrip extends StatelessWidget {
     this.tone = AppColors.navy,
     this.actionLabel,
     this.onAction,
+    this.actionBusy = false,
     this.onTap,
     this.onClose,
   });
@@ -68,6 +69,9 @@ class ChatStatusStrip extends StatelessWidget {
   final Color tone;
   final String? actionLabel;
   final VoidCallback? onAction;
+
+  /// The action is being sent: its button stays, switched off
+  final bool actionBusy;
 
   /// The whole line opens something (e.g. the match page)
   final VoidCallback? onTap;
@@ -95,7 +99,7 @@ class ChatStatusStrip extends StatelessWidget {
             ),
             if (actionLabel != null && onAction != null)
               TextButton(
-                onPressed: onAction,
+                onPressed: actionBusy ? null : onAction,
                 style: TextButton.styleFrom(
                   minimumSize: const Size(44, 40),
                   padding: const EdgeInsets.symmetric(horizontal: 12),

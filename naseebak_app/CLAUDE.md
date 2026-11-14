@@ -144,6 +144,14 @@ needed a release.
   home asks once after setup (`PushAskGate`, prefs `push_explained`) with what the notices are for, then the system
   prompt; «لاحقاً» hides the «الإشعارات غير مفعّلة» card for one day, so it asks daily (owner, 2026-11-11; same on the
   website, and ✕ on the chat's push chip also hides it for one day).
+- **Push reminder and rating (2026-11-14, owner; next app version, not released):** while notifications stay off, the
+  home popup comes back at most once a day (`pushReminderAtKey`, «فعّل/فعّلي الإشعارات» → system prompt or the
+  settings steps), only while home is what the member sees and no other popup is up (`popup_tracker.dart`); a day not
+  shown is not used up. «تقييم التطبيق» in «حسابي»: Play listing on Android; iPhone opens the App Store review page from
+  `/api/mobile/config` ios.storeUrl (Admin → Settings), else Apple's rating sheet (capped by Apple), so set the iPhone
+  store link once the app is on the App Store. A required update with no store link says to update from the store and
+  offers «إعادة التحقق». Under maintenance or a required update the app's screens are not built at all (no hidden
+  polling or read marks).
 - **Chat on the phone (2026-11-10):** failed texts are kept in `ChatCache` (`failed`) and sorted by time with «حذف»;
   the composer draft is kept per chat in the cache directory like `ChatCache` (`ChatDrafts`, never backed up), wiped
   on send and sign-out (a chat room disposed after a sign-out writes nothing back); photo-picker copies are deleted

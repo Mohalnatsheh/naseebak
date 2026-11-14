@@ -28,7 +28,7 @@ class MemberAvatar extends StatelessWidget {
   });
 
   /// Before a match: the server's tiny pre-blurred copy of their main photo (`photoPreview`, a
-  /// `data:image/…;base64,…` URI). Shown only while [locked] and no [photo], under a blur with the lock kept; an
+  /// `data:image/webp;base64,…` URI). Shown only while [locked] and no [photo], under a blur with the lock kept; an
   /// absent or invalid one keeps the veil with the initial.
   final String? preview;
 
@@ -168,22 +168,22 @@ class _StarVeilPainter extends CustomPainter {
   bool shouldRepaint(_StarVeilPainter old) => false;
 }
 
-/// A shown photo fades from blurred to sharp once (S2: after a match), 300 ms; at once with reduced motion
 /// The largest preview string taken (the server caps the data URI at 1 KB; some slack, never a real photo)
 const maxPhotoPreviewChars = 4096;
 
 final _previewCache = <String, MemoryImage>{};
 
-/// The image of a server `photoPreview` (`data:image/…;base64,…`), or null when absent, too large or not valid
-/// base64. The same string gives the same [MemoryImage], so the image cache keeps it across rebuilds.
+/// The only previews taken: WebP, as the server makes them (the website accepts the same)
+const _previewPrefix = 'data:image/webp;base64,';
+
+/// The image of a server `photoPreview` (`data:image/webp;base64,…`), or null when absent, too large, another kind
+/// or not valid base64. The same string gives the same [MemoryImage], so the image cache keeps it across rebuilds.
 ImageProvider? photoPreviewImage(String? dataUri) {
-  if (dataUri == null || dataUri.length > maxPhotoPreviewChars || !dataUri.startsWith('data:image/')) return null;
+  if (dataUri == null || dataUri.length > maxPhotoPreviewChars || !dataUri.startsWith(_previewPrefix)) return null;
   final cached = _previewCache.remove(dataUri);
   if (cached != null) return _previewCache[dataUri] = cached;
-  final comma = dataUri.indexOf(',');
-  if (comma < 0 || !dataUri.substring(0, comma).endsWith(';base64')) return null;
   try {
-    final bytes = base64Decode(dataUri.substring(comma + 1));
+    final bytes = base64Decode(dataUri.substring(_previewPrefix.length));
     if (bytes.isEmpty) return null;
     final image = MemoryImage(bytes);
     _previewCache[dataUri] = image;
@@ -243,6 +243,7 @@ class _BlurredPreview extends StatelessWidget {
   }
 }
 
+/// A shown photo fades from blurred to sharp once (S2: after a match), 300 ms; at once with reduced motion
 class _PhotoFadeIn extends StatelessWidget {
   const _PhotoFadeIn({required this.image, required this.size});
   final ImageProvider image;

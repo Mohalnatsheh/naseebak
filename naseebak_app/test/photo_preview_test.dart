@@ -8,8 +8,11 @@ import 'package:naseebak_app/features/home/widgets/home_suggestion_card.dart';
 import 'package:naseebak_app/shared/person.dart';
 import 'package:naseebak_app/shared/widgets/brand_kit.dart';
 
-/// A 1×1 PNG (the server sends WebP; any image data URI decodes the same way)
-const preview =
+/// A 1×1 WebP, the only kind the server sends
+const preview = 'data:image/webp;base64,UklGRiQAAABXRUJQVlA4IBgAAAAwAQCdASoBAAEAAwA0JaQAA3AA/vuUAAA=';
+
+/// A valid image of another kind: refused like the website (only WebP previews)
+const pngPreview =
     'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
 
 /// The blurred preview before a match (spec 2026-11-14): a tiny pre-blurred copy under a blur, lock kept, no initial.
@@ -28,7 +31,7 @@ void main() {
     });
 
     testWidgets('an invalid data URI: the veil with the initial, no crash', (tester) async {
-      for (final bad in ['not a data uri', 'data:image/webp;base64,@@@###', 'data:text/html;base64,PGI+', 'https://x/y.jpg', '']) {
+      for (final bad in [pngPreview, 'data:image/jpeg;base64,/9j/4AAQ', 'not a data uri', 'data:image/webp;base64,@@@###', 'data:text/html;base64,PGI+', 'https://x/y.jpg', '']) {
         await tester.pumpWidget(host(MemberAvatar(name: 'هدى', size: 72, locked: true, preview: bad)));
         expect(find.byKey(const Key('member-avatar-preview')), findsNothing, reason: bad);
         expect(find.text('ه'), findsOneWidget, reason: bad);

@@ -116,7 +116,7 @@ class _PhotosScreenState extends ConsumerState<PhotosScreen> {
           children: [
             const InfoBanner(
               icon: Icons.lock_outline_rounded,
-              text: 'لا تظهر صورك بوضوح إلا بعد توافق متبادل. قبل التوافق تظهر لمن تُقترح عليهم نسخة ضبابية جداً من صورتك الرئيسية. الصورة الرئيسية هي أول ما يُرى.',
+              text: 'لا تظهر صورك بوضوح إلا بعد توافق متبادل. قبل التوافق تظهر لمن يُقترح عليهم ملفك نسخة ضبابية جداً من صورتك الرئيسية. الصورة الرئيسية هي أول ما يُرى.',
             ),
             if (list.isEmpty) ...[
               const SizedBox(height: 12),

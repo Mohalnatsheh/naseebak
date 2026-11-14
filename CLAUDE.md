@@ -370,7 +370,7 @@ Detail: [docs/reference/suggestions-and-credits.md](docs/reference/suggestions-a
 
 ## Deployment
 
-**Production: `78ee948e` (2026-11-13, slot a): match-panel step actions on the reading side, one chat attach button (camera in its menu), guardian address optional, sidebar «إعدادات الحساب» → `/dashboard/account`; on top of `1be0e6cf` (`--db-push`: `Profile.religion`, `Profile.prefReligion`). The four redesign switches `chat_whatsapp_layout`, `religion_enabled`, `dashboard_redesign`, `auth_profile_redesign` are ON in production since 2026-11-13 evening (owner; WhatsApp-style chat still owes real-phone checks). Sale offer ON 50% until 2026-11-20 23:59 Amman.**
+**Production: `98bb300b` (2026-11-14, slot b, `--db-push`: `Photo.blurPreview`): blurred photo preview before a match (`photo_blur_preview`, default on; backfill `scripts/backfill-photo-previews.ts` run after the deploy), admin popup on the dashboard home only, plus everything on main since `78ee948e`.**
 
 Update that one line after each deploy. Don't list past versions. The live revision is in `/var/www/naseebak/REVISION`.
 

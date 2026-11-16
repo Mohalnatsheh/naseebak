@@ -8,7 +8,7 @@ import { db } from "@/lib/db";
 import { notify } from "@/lib/notify";
 import { getCycleFlags } from "@/lib/settings";
 import { isUnavailable } from "@/lib/matches/state";
-import { CANDIDATE_ACTIVE_DAYS, activeWhere } from "@/lib/activity";
+import { activeWhere, candidateActiveDays } from "@/lib/activity";
 import { MAX_OPEN_SUGGESTIONS, autoSuggestForUser, openCounts, weeklyCounts } from "@/lib/matching/auto-suggest";
 import { WEEKLY_FREE_SUGGESTIONS } from "@/lib/credits";
 import { refundUnansweredInterests } from "@/lib/suggestions/mutual";
@@ -231,8 +231,8 @@ export async function runWeeklySuggestions(
       status: { not: "SUSPENDED" },
       isFlagged: false,
       profile: { isComplete: true },
-      // Credit on interest: `generate` skips anyone away 7+ days, so they must not use up the run's limit
-      ...activeWhere(flags.creditOnInterest ? CANDIDATE_ACTIVE_DAYS : 30, now),
+      // Credit on interest: `generate` skips anyone away 7+ days (3 with `suggest_active_3_days`), so they must not use up the run's limit
+      ...activeWhere(flags.creditOnInterest ? candidateActiveDays(flags) : 30, now),
     },
     select: { id: true },
     orderBy: { lastActiveAt: { sort: "desc", nulls: "last" } },

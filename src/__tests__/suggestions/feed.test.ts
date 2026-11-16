@@ -531,3 +531,95 @@ describe("activityLabel", () => {
     expect(activityLabel(null, "MALE", now)).toBeNull();
   });
 });
+
+describe("getSuggestionFeed — «مهتمون بك» first in «جديدة» (liked_first_in_new)", () => {
+  const flagsOn = { introRequests: true, chat: true, mutualSuggestions: true, creditOnInterest: true, likedFirstInNew: true };
+  const active = (id: string, daysAgo: number) => ({ ...person(id, "FEMALE"), lastActiveAt: new Date(Date.now() - daysAgo * DAY) });
+  const row = (id: string, other: ReturnType<typeof active>, score = 70) => ({ ...mutualRow(id, other as never), compatibilityScore: score });
+  /** Liked queries are the ones whose third AND part asks for the other side's «مهتم» */
+  const isLiked = (args: { where?: { AND?: unknown[] } }) => JSON.stringify(args.where?.AND?.[2] ?? null).includes("INTERESTED");
+  const isGroup = (args: { where?: { AND?: unknown[] } }, group: number, total: number) => {
+    // Group queries: group 0 asks gte only, the last asks OR (never/older); the test puts everyone in group 0
+    const g = JSON.stringify(args.where?.AND?.[1] ?? null);
+    return group === 0 ? !g.includes('"lt"') && !g.includes("null") : group === total - 1;
+  };
+
+  beforeEach(() => settings.getCycleFlags.mockResolvedValue(flagsOn));
+
+  it("starts «جديدة» with up to 3 liked cards (tagged likedYou), then the fresh ones", async () => {
+    const liked = [row("L1", active("a", 0.1), 60), row("L2", active("b", 0.1), 90), row("L3", active("c", 0.1), 80), row("L4", active("d", 0.1), 70)];
+    const fresh = Array.from({ length: NEW_TAB_LIMIT + 2 }, (_, i) => row(`N${i}`, active(`n${i}`, 0.1), 50 + i));
+    db.suggestion.findMany.mockImplementation(async (args) => {
+      if (!args.where?.AND) return [];
+      if (!isGroup(args, 0, 3)) return [];
+      return isLiked(args) ? liked : fresh;
+    });
+    const { items, total } = await getSuggestionFeed("me", "new", 1, 50);
+    expect(items.slice(0, 3).map((i) => [i.id, i.likedYou])).toEqual([["L2", true], ["L3", true], ["L4", true]]);
+    expect(items.slice(3).every((i) => !i.likedYou)).toBe(true);
+    expect(total).toBe(3 + NEW_TAB_LIMIT);
+  });
+
+  it("leaves out blocked and unavailable people from the pinned cards", async () => {
+    db.block.findMany.mockResolvedValue([{ blockerId: "me", blockedId: "a" }]);
+    const liked = [row("L1", active("a", 0.1), 90), row("L2", { ...active("b", 0.1), isDeactivated: true } as never, 80), row("L3", active("c", 0.1), 70)];
+    db.suggestion.findMany.mockImplementation(async (args) => (args.where?.AND && isGroup(args, 0, 3) && isLiked(args) ? liked : []));
+    const { items } = await getSuggestionFeed("me", "new", 1);
+    expect(items.map((i) => i.id)).toEqual(["L3"]);
+  });
+
+  it("switch off: no liked lookup and no liked cards in «جديدة»", async () => {
+    settings.getCycleFlags.mockResolvedValue({ ...flagsOn, likedFirstInNew: false });
+    await getSuggestionFeed("me", "new", 1);
+    expect(db.suggestion.findMany.mock.calls.some(([a]) => a.where?.AND && isLiked(a))).toBe(false);
+  });
+
+  it("«مهتمون بك» itself and countOnly are unchanged", async () => {
+    await getSuggestionFeed("me", "new", 1, 10, { countOnly: true });
+    expect(db.suggestion.findMany.mock.calls.filter(([a]) => a.where?.AND && isLiked(a))).toHaveLength(0);
+    db.suggestion.findMany.mockClear();
+    await getSuggestionFeed("me", "interested", 1);
+    // only the tab's own group queries (3), no extra pinned set
+    expect(db.suggestion.findMany.mock.calls.filter(([a]) => a.where?.AND)).toHaveLength(3);
+  });
+});
+
+describe("getSuggestionFeed — only people seen in 3 days (suggest_active_3_days)", () => {
+  const flagsOn = { introRequests: true, chat: true, mutualSuggestions: true, creditOnInterest: true, activeThreeDays: true };
+  const seen = (id: string, daysAgo: number) => ({ ...person(id, "FEMALE"), lastActiveAt: new Date(Date.now() - daysAgo * DAY) });
+  beforeEach(() => settings.getCycleFlags.mockResolvedValue(flagsOn));
+
+  it("«جديدة» hides cards with someone away more than 3 days", async () => {
+    db.suggestion.findMany.mockResolvedValueOnce([mutualRow("s1", seen("a", 1) as never), mutualRow("s2", seen("b", 5) as never)]);
+    const { items, total } = await getSuggestionFeed("me", "new", 1);
+    expect(items.map((i) => i.id)).toEqual(["s1"]);
+    expect(total).toBe(1);
+  });
+
+  it("keeps them when nobody was seen in 3 days, so «جديدة» is never emptied", async () => {
+    db.suggestion.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([mutualRow("s2", seen("b", 5) as never)]);
+    const { items } = await getSuggestionFeed("me", "new", 1);
+    expect(items.map((i) => i.id)).toEqual(["s2"]);
+  });
+
+  it("«مهتمون بك» is unchanged", async () => {
+    const liked = { ...mutualRow("s3", seen("c", 6) as never), recipientDecision: "INTERESTED" };
+    db.suggestion.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([]).mockResolvedValueOnce([liked]);
+    const { items } = await getSuggestionFeed("me", "interested", 1);
+    expect(items.map((i) => i.id)).toEqual(["s3"]);
+  });
+
+  it("badge: counts only people seen in 3 days, or everyone when none", async () => {
+    db.suggestion.count.mockResolvedValueOnce(9).mockResolvedValueOnce(2).mockResolvedValueOnce(4);
+    expect(await countMutualTabs("me")).toEqual({ fresh: 4, likedYou: 2 });
+    db.suggestion.count.mockResolvedValueOnce(9).mockResolvedValueOnce(2).mockResolvedValueOnce(0);
+    expect(await countMutualTabs("me")).toEqual({ fresh: 9, likedYou: 2 });
+  });
+
+  it("switch off: no extra count, nothing hidden", async () => {
+    settings.getCycleFlags.mockResolvedValue({ ...flagsOn, activeThreeDays: false });
+    db.suggestion.count.mockResolvedValueOnce(9).mockResolvedValueOnce(2);
+    expect(await countMutualTabs("me")).toEqual({ fresh: 9, likedYou: 2 });
+    expect(db.suggestion.count).toHaveBeenCalledTimes(2);
+  });
+});

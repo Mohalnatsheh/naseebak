@@ -12,6 +12,16 @@ export const ACTIVE_WINDOW_DAYS = 30;
 export const TOUCH_INTERVAL_MS = HOUR_MS;
 /** Shared suggestions: only people really seen (lastActiveAt, no updatedAt fallback) this recently are suggested to others */
 export const CANDIDATE_ACTIVE_DAYS = 7;
+/**
+ * Switch `suggest_active_3_days` (owner 2026-11-16): new cards only with people seen in the last 3 days, and «جديدة»
+ * hides cards with someone away longer. On production a «مهتم» to someone seen within 3 days became a match 61% of the
+ * time, 25% for 3–7 days, 13% for longer. Nobody at 3 days: 7, then CANDIDATE_FALLBACK_DAYS.
+ */
+export const RECENT_CANDIDATE_DAYS = 3;
+/** How recently a person must have been seen to get or be in a new shared card */
+export function candidateActiveDays(flags: { activeThreeDays?: boolean }): number {
+  return flags.activeThreeDays ? RECENT_CANDIDATE_DAYS : CANDIDATE_ACTIVE_DAYS;
+}
 /** Nobody suitable among people seen in 7 days: look this far back (owner request 2026-11-05) */
 export const CANDIDATE_FALLBACK_DAYS = 14;
 

@@ -20,6 +20,7 @@ import { isUnavailable } from "@/lib/matches/state";
 import { proUserIds } from "@/lib/pro/status";
 import { getCycleFlags, getReligionEnabled, type CycleFlags } from "@/lib/settings";
 import { photoPreviewEnabled, previewSelect, withPhotoPreview, type PreviewPhotos } from "@/lib/photos/preview-payload";
+import { RECENT_CANDIDATE_DAYS } from "@/lib/activity";
 import type { FeedCandidate, FeedItem, FeedKind, FeedTab } from "@/lib/suggestions/feed-types";
 
 const LEGACY_SENT_VISIBLE_MS = 14 * 24 * 60 * 60 * 1000;
@@ -51,6 +52,12 @@ type GroupDays = readonly number[];
  * 32% of the time when nothing waited on her, 12% with 1–4 waiting, 6% with 5–9 and 3% with 20+.
  */
 export const BUSY_WAITING = 5;
+/**
+ * Switch `liked_first_in_new` (2026-11-16): «جديدة» starts with at most this many cards where the other side already
+ * said «مهتم» (also still in «مهتمون بك»), on top of the NEW_TAB_LIMIT fresh cards. On production 1,179 such cards
+ * waited on 298 active women; 130 of them decided other cards in «جديدة» in the same 3 days and skipped these.
+ */
+export const LIKED_FIRST_IN_NEW = 3;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
@@ -83,6 +90,17 @@ function otherInGroupWhere(userId: string, group: number, now: Date, groupDays: 
         ? { lastActiveAt: { gte: at(groupDays[group]), lt: at(groupDays[group - 1]) } }
         : { OR: [{ lastActiveAt: null }, { lastActiveAt: { lt: at(groupDays[groupDays.length - 1]) } }] };
   return { OR: [{ recipientId: userId, candidate: lastActiveAt }, { candidateId: userId, recipient: lastActiveAt }] };
+}
+
+/** The other person (whichever side of the card I'm on) was seen in the last RECENT_CANDIDATE_DAYS days */
+function otherRecentWhere(userId: string, now: Date): Prisma.SuggestionWhereInput {
+  const seen: Prisma.UserWhereInput = { lastActiveAt: { gte: new Date(now.getTime() - RECENT_CANDIDATE_DAYS * DAY_MS) } };
+  return { OR: [{ recipientId: userId, candidate: seen }, { candidateId: userId, recipient: seen }] };
+}
+
+/** Seen in the last RECENT_CANDIDATE_DAYS days (switch `suggest_active_3_days`) */
+function seenRecently(lastActiveAt: Date | null | undefined, now: Date): boolean {
+  return !!lastActiveAt && now.getTime() - lastActiveAt.getTime() <= RECENT_CANDIDATE_DAYS * DAY_MS;
 }
 
 /**
@@ -211,10 +229,14 @@ export async function countMutualTabs(userId: string, now = new Date()): Promise
       ],
     };
   };
-  const [fresh, likedYou] = await Promise.all([
+  const flags = await getCycleFlags();
+  const [all, likedYou, recent] = await Promise.all([
     db.suggestion.count({ where: where(null) }),
     db.suggestion.count({ where: where("INTERESTED") }),
+    // `suggest_active_3_days`: «جديدة» shows only people seen in 3 days, unless there is nobody (same as the feed)
+    flags.activeThreeDays ? db.suggestion.count({ where: { AND: [where(null), otherRecentWhere(userId, now)] } }) : Promise.resolve(0),
   ]);
+  const fresh = flags.activeThreeDays && recent > 0 ? recent : all;
   return { fresh: Math.min(fresh, NEW_TAB_LIMIT), likedYou };
 }
 
@@ -264,6 +286,8 @@ export async function getSuggestionFeed(
   type Row = {
     kind: FeedKind; id: string; score: number | null; createdAt: Date; other: Person;
     likedYou?: boolean;
+    /** A «مهتمون بك» card shown first in «جديدة» (switch `liked_first_in_new`) */
+    pinned?: boolean;
     declined?: boolean;
     expiresAt?: Date | null;
   };
@@ -288,7 +312,15 @@ export async function getSuggestionFeed(
         { candidateId: userId, recipientDecision: theirs },
       ],
     };
-    const [mutualGroups, legacy, likes, myResponses] = await Promise.all([
+    // «جديدة» with `liked_first_in_new`: the best few «مهتمون بك» cards go first. Not for countOnly (badge counts stay per tab)
+    const pinLiked = !interestedTab && !!flags.likedFirstInNew && !opts.countOnly;
+    const likedWhere: Prisma.SuggestionWhereInput = {
+      OR: [
+        { recipientId: userId, candidateDecision: "INTERESTED" },
+        { candidateId: userId, recipientDecision: "INTERESTED" },
+      ],
+    };
+    const [mutualGroups, legacy, likes, myResponses, pinnedGroups] = await Promise.all([
       // Each activity group on its own, so a member with many cards never loses the active ones past the limit
       Promise.all(
         Array.from({ length: groupDays.length + 1 }, (_, group) => group).map((group) =>
@@ -313,7 +345,26 @@ export async function getSuggestionFeed(
         take: SOURCE_LIMIT,
       }),
       db.like.findMany({ where: { fromUserId: userId }, select: { toUserId: true } }),
+      pinLiked
+        ? Promise.all(
+            Array.from({ length: groupDays.length + 1 }, (_, group) => group).map((group) =>
+              db.suggestion.findMany({
+                where: { AND: [openMutualWhere(userId, now), otherInGroupWhere(userId, group, now, groupDays), likedWhere] },
+                select: mutualSelect,
+                orderBy: order,
+                // A few spare, for people the filters below leave out (blocked, no longer available)
+                take: LIKED_FIRST_IN_NEW * 3,
+              })
+            )
+          )
+        : Promise.resolve([]),
     ]);
+    for (const s of pinnedGroups.flat()) {
+      rows.push({
+        kind: "mutual", id: s.id, score: s.compatibilityScore, createdAt: s.createdAt, other: otherOf(s as never),
+        expiresAt: s.expiresAt, likedYou: true, pinned: true,
+      });
+    }
     const answered = new Set(myResponses.map((r) => r.toUserId));
     for (const s of mutualGroups.flat()) {
       const theirDecision = s.recipientId === userId ? s.candidateDecision : s.recipientDecision;
@@ -382,7 +433,7 @@ export async function getSuggestionFeed(
   // Not for countOnly: the order never changes how many cards show.
   const waiting =
     tab === "new" && flags.activeFirstFeed && !opts.countOnly
-      ? await waitingInterests([...new Set(rows.filter((r) => r.kind === "mutual").map((r) => r.other.id))], now)
+      ? await waitingInterests([...new Set(rows.filter((r) => r.kind === "mutual" && !r.pinned).map((r) => r.other.id))], now)
       : null;
   const busy = (r: Row) => (waiting && (waiting.get(r.other.id) ?? 0) >= BUSY_WAITING ? 1 : 0);
   const visible = rows
@@ -395,7 +446,18 @@ export async function getSuggestionFeed(
         ? (b.score ?? -1) - (a.score ?? -1) || b.createdAt.getTime() - a.createdAt.getTime()
         : b.createdAt.getTime() - a.createdAt.getTime())
     );
-  if (tab === "new") visible.splice(NEW_TAB_LIMIT);
+  if (tab === "new") {
+    // Pinned «مهتمون بك» cards first (best few, same order), then the fresh cards up to NEW_TAB_LIMIT
+    const pinned = visible.filter((r) => r.pinned).slice(0, LIKED_FIRST_IN_NEW);
+    let fresh = visible.filter((r) => !r.pinned);
+    // `suggest_active_3_days`: only people seen in the last 3 days, unless that would leave «جديدة» empty
+    if (flags.activeThreeDays) {
+      const recent = fresh.filter((r) => r.kind !== "mutual" || seenRecently(r.other.lastActiveAt, now));
+      if (recent.length > 0) fresh = recent;
+    }
+    fresh = fresh.slice(0, NEW_TAB_LIMIT);
+    visible.splice(0, visible.length, ...pinned, ...fresh);
+  }
   const total = visible.length;
   if (opts.countOnly) return { items: [], page, totalPages: Math.ceil(total / pageSize), total };
   const pageRows = visible.slice((page - 1) * pageSize, page * pageSize);

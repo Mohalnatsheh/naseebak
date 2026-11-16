@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 import { closeLegacyInFlight } from "@/lib/suggestions/mutual";
 
 async function state() {
-  const [flags, chatRaw, mutualRaw, creditRaw, activeFirstRaw, saRelaxedRaw, lbRelaxedRaw, freeReplyRaw, paywallRaw, proRaw, chatDeleteRaw, redesignRaw, chatWaRaw, authRedesignRaw, jodRaw, religionRaw, migration] = await Promise.all([
+  const [flags, chatRaw, mutualRaw, creditRaw, activeFirstRaw, saRelaxedRaw, lbRelaxedRaw, freeReplyRaw, paywallRaw, proRaw, chatDeleteRaw, redesignRaw, chatWaRaw, authRedesignRaw, jodRaw, religionRaw, likedFirstRaw, activeThreeRaw, migration] = await Promise.all([
     getCycleFlags(),
     getSetting("chat_enabled"),
     getSetting("new_suggestions_flow"),
@@ -23,6 +23,8 @@ async function state() {
     getSetting("auth_profile_redesign"),
     getSetting("jod_charging"),
     getSetting("religion_enabled"),
+    getSetting("liked_first_in_new"),
+    getSetting("suggest_active_3_days"),
     db.systemSetting.findUnique({ where: { key: "migration_new_cycle_v1" } }),
   ]);
   return {
@@ -31,6 +33,8 @@ async function state() {
     mutualSuggestions: mutualRaw === "true",
     creditOnInterest: creditRaw === "true",
     activeFirstFeed: activeFirstRaw === "true",
+    likedFirstInNew: likedFirstRaw === "true",
+    activeThreeDays: activeThreeRaw === "true",
     saRelaxedMatching: saRelaxedRaw === "true",
     lbRelaxedMatching: lbRelaxedRaw === "true",
     freeInterestReply: freeReplyRaw === "true",
@@ -63,6 +67,10 @@ const schema = z.object({
   mutualSuggestions: z.boolean().optional(),
   creditOnInterest: z.boolean().optional(),
   activeFirstFeed: z.boolean().optional(),
+  /** «جديدة» starts with up to 3 cards where the other side already said «مهتم» */
+  likedFirstInNew: z.boolean().optional(),
+  /** New cards and «جديدة» only with people seen in the last 3 days */
+  activeThreeDays: z.boolean().optional(),
   saRelaxedMatching: z.boolean().optional(),
   lbRelaxedMatching: z.boolean().optional(),
   freeInterestReply: z.boolean().optional(),
@@ -106,6 +114,12 @@ export async function PATCH(request: Request) {
     }
     if (parsed.data.activeFirstFeed !== undefined) {
       await setSetting("feed_active_first", String(parsed.data.activeFirstFeed));
+    }
+    if (parsed.data.likedFirstInNew !== undefined) {
+      await setSetting("liked_first_in_new", String(parsed.data.likedFirstInNew));
+    }
+    if (parsed.data.activeThreeDays !== undefined) {
+      await setSetting("suggest_active_3_days", String(parsed.data.activeThreeDays));
     }
     if (parsed.data.saRelaxedMatching !== undefined) {
       await setSetting("sa_relaxed_matching", String(parsed.data.saRelaxedMatching));

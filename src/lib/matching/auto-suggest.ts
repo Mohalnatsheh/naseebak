@@ -21,7 +21,7 @@ import { notify, notifyMany } from "@/lib/notify";
 import { isTestPhone, testPhones } from "@/lib/test-accounts";
 import { MUTUAL_SUGGESTION_MS, SLOT_IDLE_DAYS, notifyInterestShown, revealHiddenFor, slotMutualWhere } from "@/lib/suggestions/mutual";
 import { NOT_ENGAGED, isEngaged } from "@/lib/intro/followup";
-import { activeWhere, CANDIDATE_ACTIVE_DAYS, CANDIDATE_FALLBACK_DAYS, isActive, recentlySeenWhere } from "@/lib/activity";
+import { activeWhere, CANDIDATE_ACTIVE_DAYS, CANDIDATE_FALLBACK_DAYS, candidateActiveDays, isActive, recentlySeenWhere } from "@/lib/activity";
 import { arabicCount } from "@/lib/utils";
 import { startOfAmmanDay } from "@/lib/amman-day";
 import type { SuggestionDecision, SuggestionStatus } from "@prisma/client";
@@ -390,7 +390,8 @@ async function generate(userId: string): Promise<SuggestOutcome> {
   if (!meetsSuggestionGate(user, perRequestCredits)) return outcome(0);
   // Away 7+ days: no new cards pile up for them, nor are hidden ones shown. Opening the page marks them
   // active first, so everything resumes the moment they return
-  if (creditOnInterest && !isActive(user, CANDIDATE_ACTIVE_DAYS)) return outcome(0);
+  // (3 days with `suggest_active_3_days`)
+  if (creditOnInterest && !isActive(user, candidateActiveDays(flags))) return outcome(0);
 
   // Only top up when the user has nothing waiting
   // (credit-on-interest: top up to MAX_OPEN_SUGGESTIONS instead, with no weekly cap)
@@ -495,7 +496,10 @@ async function generate(userId: string): Promise<SuggestOutcome> {
     .map((c) => ({ candidate: c, score: calculateCompatibility(user, c) }))
     .filter(({ score }) => score >= minSuggestionScore(flags, user.country))
     .sort((a, b) => b.score - a.score);
-  let ranked = rank(await findCandidates(CANDIDATE_ACTIVE_DAYS));
+  // `suggest_active_3_days`: people seen in 3 days first; nobody there → 7 days
+  const firstDays = mutual ? candidateActiveDays(flags) : CANDIDATE_ACTIVE_DAYS;
+  let ranked = rank(await findCandidates(firstDays));
+  if (mutual && ranked.length === 0 && firstDays < CANDIDATE_ACTIVE_DAYS) ranked = rank(await findCandidates(CANDIDATE_ACTIVE_DAYS));
   // Nobody among people seen this week: look a little further rather than leave the member with nothing
   if (mutual && ranked.length === 0) ranked = rank(await findCandidates(CANDIDATE_FALLBACK_DAYS));
   // Credit-on-interest: the candidates' own open counts; a full candidate still gets the card, hidden

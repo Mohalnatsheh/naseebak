@@ -84,6 +84,22 @@ describe("flagged users and automatic suggestions", () => {
     expect(seen).toEqual([7, 14]);
   });
 
+  it("suggest_active_3_days: nobody seen in 3 days → 7 → 14", async () => {
+    flags.getCycleFlags.mockResolvedValue({ introRequests: true, chat: true, mutualSuggestions: true, activeThreeDays: true });
+    db.user.findUnique.mockResolvedValue(person("three-day-a", "MALE"));
+    await autoSuggestForUser("three-day-a");
+    const seen = db.user.findMany.mock.calls.map(([q]) => Math.round((Date.now() - q.where.lastActiveAt.gte.getTime()) / 86400000));
+    expect(seen).toEqual([3, 7, 14]);
+  });
+
+  it("suggest_active_3_days: someone seen in 3 days is found first, no wider look", async () => {
+    flags.getCycleFlags.mockResolvedValue({ introRequests: true, chat: true, mutualSuggestions: true, activeThreeDays: true });
+    db.user.findUnique.mockResolvedValue(person("three-day-b", "MALE"));
+    db.user.findMany.mockResolvedValueOnce([{ ...person("her", "FEMALE"), lastActiveAt: new Date() }]);
+    await autoSuggestForUser("three-day-b");
+    expect(db.user.findMany).toHaveBeenCalledTimes(1);
+  });
+
   it("admin Generate only considers unflagged users (both sides come from that list)", async () => {
     const res = (await generate(new Request("http://localhost/api/admin/suggestions/generate", { method: "POST" })))!;
     // A background run since ADM-10: it answers 202 at once

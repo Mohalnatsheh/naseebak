@@ -12,7 +12,7 @@
  * `no_candidates`, never `weekly_cap`.
  */
 import { db } from "@/lib/db";
-import { calculateCompatibility, mutuallyAcceptable } from "@/lib/matching/score";
+import { ageRangesFit, calculateCompatibility, mutuallyAcceptable } from "@/lib/matching/score";
 import { religionsMatch } from "@/lib/profile-religion";
 import { meetsSuggestionGate } from "@/lib/profile-completeness";
 import { notifyCreditsExhausted, recordCredit, refundCredits, reserveCredits, WEEKLY_FREE_SUGGESTIONS } from "@/lib/credits";
@@ -141,6 +141,8 @@ export const scoringSelect = {
   photos: { select: { id: true } },
   identityDoc: { select: { status: true } },
   parentInfo: { select: { id: true, parentName: true } },
+  // `suggest_today_first` orders new cards by it; never sent to a client
+  lastActiveAt: true,
 } as const;
 
 /**
@@ -195,6 +197,34 @@ export async function nextSuggestionsAtFor(userId: string, now = new Date()): Pr
 export function orderForSlots<T extends { score: number }>(list: T[], isFull: (id: string) => boolean, idOf: (item: T) => string): T[] {
   const weak = (r: T) => Number(r.score < PREFERRED_SCORE);
   return [...list].sort((a, b) => weak(a) - weak(b) || Number(isFull(idOf(a))) - Number(isFull(idOf(b))) || b.score - a.score);
+}
+
+/**
+ * Switch `respect_age_range`: below this many open cards, the gap may be filled with people outside either age range,
+ * so a member with a narrow range is never left with a short «جديدة»
+ */
+export const AGE_SAFETY_OPEN = 5;
+/** Switch `suggest_today_first`: "today" = seen in the last 24 hours */
+export const TODAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Switch `suggest_today_first` (2026-11-27): 70%+ seen today, 70%+ others, under 70% seen today, then the rest. Stable,
+ * so the slot order inside each group stays. Production (Jordan): a «مهتم» to someone seen that day became a match 30%
+ * of the time for men, 10% one day later.
+ */
+export function todayFirstOrder<T extends { score: number }>(list: T[], seenToday: (item: T) => boolean): T[] {
+  const group = (r: T) => (r.score < PREFERRED_SCORE ? 2 : 0) + (seenToday(r) ? 0 : 1);
+  return list.map((r, i) => ({ r, i, g: group(r) })).sort((a, b) => a.g - b.g || a.i - b.i).map((x) => x.r);
+}
+
+/**
+ * Switch `respect_age_range`: people inside both age ranges first (up to `limit`), then people outside only to bring
+ * the member up to AGE_SAFETY_OPEN open cards. `openNow` = open cards before these.
+ */
+export function pickNewCards<T>(fit: T[], outside: T[], limit: number, openNow: number): T[] {
+  const taken = fit.slice(0, Math.max(0, limit));
+  const room = Math.min(limit - taken.length, AGE_SAFETY_OPEN - openNow - taken.length);
+  return room > 0 ? [...taken, ...outside.slice(0, room)] : taken;
 }
 
 /** A past row between two people, as far as "may they be suggested again?" is concerned */
@@ -523,8 +553,20 @@ async function generate(userId: string): Promise<SuggestOutcome> {
   // cards for the same pair. Reserve the pair in this process (PM2 fork = one process) and re-check the
   // database for a row in either direction just before creating.
   const pairKey = (id: string) => [userId, id].sort().join("|");
-  const free = ranked.filter((r) => !pairsInFlight.has(pairKey(r.candidate.id)));
-  let top = free.slice(0, limit);
+  let free = ranked.filter((r) => !pairsInFlight.has(pairKey(r.candidate.id)));
+  if (mutual && flags.todayFirst) {
+    const since = Date.now() - TODAY_MS;
+    free = todayFirstOrder(free, (r) => !!r.candidate.lastActiveAt && r.candidate.lastActiveAt.getTime() >= since);
+  }
+  let top = mutual && flags.respectAgeRange
+    ? pickNewCards(
+        free.filter((r) => ageRangesFit(user, r.candidate)),
+        free.filter((r) => !ageRangesFit(user, r.candidate)),
+        limit,
+        // Open cards right now (limit = room left under MAX_OPEN_SUGGESTIONS); the per-request mode has no slots
+        creditOnInterest ? MAX_OPEN_SUGGESTIONS - limit : 0,
+      )
+    : free.slice(0, limit);
   top.forEach((r) => pairsInFlight.add(pairKey(r.candidate.id)));
   const reserved = top.map((r) => pairKey(r.candidate.id));
   // Pairs met before through an old unanswered row userId → them: the new row goes them → userId

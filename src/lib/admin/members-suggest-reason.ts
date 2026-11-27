@@ -104,7 +104,9 @@ async function suitableCandidates(
   });
   const minScore = minSuggestionScore(flags, user.country);
   const gated = candidates.filter((c) => meetsSuggestionGate(c, perRequestCredits));
-  // Mirrors `rank` in generate: shared flow = every rule incl. «الديانة»; legacy = «الديانة» only
+  // Mirrors `rank` in generate: shared flow = every rule incl. «الديانة»; legacy = «الديانة» only.
+  // `respect_age_range` needs nothing here: this runs only with 0 open cards, where its safety net (AGE_SAFETY_OPEN)
+  // lets people outside the age ranges through too. `suggest_today_first` only changes the order.
   const accepted = gated.filter((c) => (mutual ? mutuallyAcceptable(user, c) : religionsMatch(user.profile, c.profile)));
   // Everything else holds and only «الديانة» fails
   const blockedByReligion = gated.filter(

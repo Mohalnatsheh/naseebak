@@ -2,7 +2,12 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const db = vi.hoisted(() => ({
   user: { findUnique: vi.fn() },
-  otp: { deleteMany: vi.fn(), create: vi.fn(async () => ({ id: "o1" })), delete: vi.fn() },
+  otp: {
+    deleteMany: vi.fn(),
+    create: vi.fn(async () => ({ id: "o1" })),
+    delete: vi.fn(async () => ({})),
+    findFirst: vi.fn<(q: { where: { verified: boolean; createdAt: { gt: Date } } }) => Promise<{ id: string } | null>>(async () => null),
+  },
 }));
 const sms = vi.hoisted(() => ({ sendOtpCode: vi.fn(async () => true), otpChannel: vi.fn(async () => "sms") }));
 const settings = vi.hoisted(() => ({
@@ -23,6 +28,8 @@ const send = (body: object) =>
 beforeEach(() => {
   vi.clearAllMocks();
   settings.isRegistrationOpen.mockResolvedValue(true);
+  db.otp.findFirst.mockResolvedValue(null);
+  sms.sendOtpCode.mockResolvedValue(true);
 });
 
 describe("POST /api/auth/send-otp, sign-up (G58)", () => {
@@ -55,5 +62,41 @@ describe("POST /api/auth/send-otp, sign-up (G58)", () => {
     const res = await send({ phone: "0790000001" });
     expect(res.status).toBe(200);
     expect(sms.sendOtpCode).toHaveBeenCalledTimes(1);
+  });
+});
+
+// VerifyWay (WhatsApp, SA and LB) refuses a second code to a number within 30 seconds. A quick
+// second request used to delete the code already delivered, so the member's code stopped working.
+describe("POST /api/auth/send-otp, a second request soon after", () => {
+  it("within 30 seconds of the last code, sends nothing and keeps that code", async () => {
+    db.user.findUnique.mockResolvedValue({ id: "u1" });
+    db.otp.findFirst.mockResolvedValue({ id: "old" });
+    const res = await send({ phone: "0790000001" });
+    expect(res.status).toBe(200);
+    expect((await res.json()).message).toBe("تم إرسال رمز التحقق");
+    expect(sms.sendOtpCode).not.toHaveBeenCalled();
+    expect(db.otp.create).not.toHaveBeenCalled();
+    expect(db.otp.deleteMany).not.toHaveBeenCalled();
+    const where = db.otp.findFirst.mock.calls[0][0].where;
+    expect(where.verified).toBe(false);
+    expect(Date.now() - where.createdAt.gt.getTime()).toBeGreaterThanOrEqual(29_000);
+  });
+
+  it("a failed send keeps the earlier code valid and deletes only the new one", async () => {
+    db.user.findUnique.mockResolvedValue({ id: "u1" });
+    sms.sendOtpCode.mockResolvedValue(false);
+    const res = await send({ phone: "0790000001" });
+    expect(res.status).toBe(502);
+    expect(db.otp.deleteMany).not.toHaveBeenCalled();
+    expect(db.otp.delete).toHaveBeenCalledWith({ where: { id: "o1" } });
+  });
+
+  it("a successful send replaces the earlier codes", async () => {
+    db.user.findUnique.mockResolvedValue({ id: "u1" });
+    const res = await send({ phone: "0790000001" });
+    expect(res.status).toBe(200);
+    expect(db.otp.deleteMany).toHaveBeenCalledWith({
+      where: { phone: "962790000001", verified: false, id: { not: "o1" } },
+    });
   });
 });

@@ -25,6 +25,8 @@ interface State {
   activeFirstFeed: boolean;
   likedFirstInNew: boolean;
   activeThreeDays: boolean;
+  respectAgeRange: boolean;
+  todayFirst: boolean;
   saRelaxedMatching: boolean;
   lbRelaxedMatching: boolean;
   freeInterestReply: boolean;
@@ -39,7 +41,7 @@ interface State {
   creditsMigratedAt: string | null;
 }
 
-type Key = "introRequests" | "chat" | "mutualSuggestions" | "creditOnInterest" | "activeFirstFeed" | "likedFirstInNew" | "activeThreeDays" | "saRelaxedMatching" | "lbRelaxedMatching" | "freeInterestReply" | "interestPaywall" | "proEnabled" | "chatDeleteEnabled" | "dashboardRedesign" | "chatWhatsappLayout" | "authRedesign" | "jodCharging" | "religionEnabled";
+type Key = "introRequests" | "chat" | "mutualSuggestions" | "creditOnInterest" | "activeFirstFeed" | "likedFirstInNew" | "activeThreeDays" | "respectAgeRange" | "todayFirst" | "saRelaxedMatching" | "lbRelaxedMatching" | "freeInterestReply" | "interestPaywall" | "proEnabled" | "chatDeleteEnabled" | "dashboardRedesign" | "chatWhatsappLayout" | "authRedesign" | "jodCharging" | "religionEnabled";
 
 /** Admin → Settings: the switches for the new user cycle, in plain words. */
 export function NewCycleSettingsCard() {
@@ -76,7 +78,7 @@ export function NewCycleSettingsCard() {
 
   function toggle(key: Key, value: boolean) {
     // The feed order, Saudi and Lebanese relaxed matching, the free reply and Pro sales are safe to turn off at once: nothing in flight depends on them
-    const quickOff = key === "activeFirstFeed" || key === "likedFirstInNew" || key === "activeThreeDays" || key === "saRelaxedMatching" || key === "lbRelaxedMatching" || key === "freeInterestReply" || key === "interestPaywall" || key === "proEnabled" || key === "chatDeleteEnabled" || key === "dashboardRedesign" || key === "chatWhatsappLayout" || key === "authRedesign" || key === "jodCharging" || key === "religionEnabled";
+    const quickOff = key === "activeFirstFeed" || key === "likedFirstInNew" || key === "activeThreeDays" || key === "respectAgeRange" || key === "todayFirst" || key === "saRelaxedMatching" || key === "lbRelaxedMatching" || key === "freeInterestReply" || key === "interestPaywall" || key === "proEnabled" || key === "chatDeleteEnabled" || key === "dashboardRedesign" || key === "chatWhatsappLayout" || key === "authRedesign" || key === "jodCharging" || key === "religionEnabled";
     if (!value && !quickOff) setConfirmOff(key);
     else if (value && key === "introRequests") setConfirmIntroOn(true);
     else save(key, value);
@@ -175,6 +177,22 @@ export function NewCycleSettingsCard() {
       title: "Only people active in the last 3 days",
       text: "New suggestions only pair people seen in the last 3 days (instead of 7); if nobody fits, it looks at 7 days, then 14. The 'New' tab hides cards with someone away more than 3 days, unless that would leave it empty. «مهتمون بك» is unchanged. Works in the current app and the website. Turning it off shows the hidden cards again. Needs Simultaneous suggestions on.",
       on: !!state?.introRequests && !!state?.mutualSuggestions && !!state?.activeThreeDays,
+      disabled: !state?.introRequests || !state?.mutualSuggestions,
+    },
+    {
+      key: "respectAgeRange" as const,
+      icon: ListOrdered,
+      title: "Respect both age ranges",
+      text: "New suggestions only pair people who are each inside the other's age range. A member with fewer than 5 open cards still gets out-of-range people to fill up to 5, so nobody's 'New' tab runs dry. Cards already made are not touched. Works in the current app and the website. Needs Simultaneous suggestions on.",
+      on: !!state?.introRequests && !!state?.mutualSuggestions && !!state?.respectAgeRange,
+      disabled: !state?.introRequests || !state?.mutualSuggestions,
+    },
+    {
+      key: "todayFirst" as const,
+      icon: ListOrdered,
+      title: "New cards with people active today first",
+      text: "New suggestions go first to people seen in the last 24 hours (good matches first, then the rest), then to people seen in the last 3 days. Nobody is left out; only who gets a card first changes. Works in the current app and the website. Needs Simultaneous suggestions on.",
+      on: !!state?.introRequests && !!state?.mutualSuggestions && !!state?.todayFirst,
       disabled: !state?.introRequests || !state?.mutualSuggestions,
     },
     {
@@ -278,7 +296,7 @@ export function NewCycleSettingsCard() {
                   <p className="text-xs font-medium text-amber-700">
                     {r.key === "freeInterestReply" || r.key === "interestPaywall"
                       ? "Turn on credit on interest first."
-                      : r.key === "creditOnInterest" || r.key === "activeFirstFeed" || r.key === "likedFirstInNew" || r.key === "activeThreeDays" || r.key === "saRelaxedMatching" || r.key === "lbRelaxedMatching"
+                      : r.key === "creditOnInterest" || r.key === "activeFirstFeed" || r.key === "likedFirstInNew" || r.key === "activeThreeDays" || r.key === "respectAgeRange" || r.key === "todayFirst" || r.key === "saRelaxedMatching" || r.key === "lbRelaxedMatching"
                         ? "Turn on simultaneous suggestions first."
                         : "Turn on family and chat requests first."}
                   </p>

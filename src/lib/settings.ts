@@ -16,6 +16,12 @@ const DEFAULTS: Record<string, string> = {
   liked_first_in_new: "false",
   // New cards only with people seen in the last 3 days (7 before); «جديدة» hides cards with someone away longer (2026-11-16)
   suggest_active_3_days: "false",
+  // New cards only when each person is inside the other's age range; under 5 open cards the gap may be filled with
+  // out-of-range ones (2026-11-27). Jordan 1–22 Nov: «مهتم» 1.5–3% outside her range, ~24% inside
+  respect_age_range: "false",
+  // New cards go first to people seen in the last 24 h (2026-11-27): a «مهتم» to someone seen that day became a match
+  // 30% of the time for men, 10% one day later
+  suggest_today_first: "false",
   // Saudi Arabia while it is small (2026-11-08): no score minimum for Saudi members. «شروط أساسية» still apply
   sa_relaxed_matching: "false",
   // Lebanon, same as Saudi Arabia (2026-11-10): no score minimum for Lebanese members. «شروط أساسية» still apply
@@ -112,6 +118,10 @@ export interface CycleFlags {
   likedFirstInNew?: boolean;
   /** New cards and «جديدة» only with people seen in the last 3 days (RECENT_CANDIDATE_DAYS) — only with simultaneous suggestions */
   activeThreeDays?: boolean;
+  /** New cards only when both are inside each other's age range, with a 5-card safety net (`respect_age_range`) — only with simultaneous suggestions */
+  respectAgeRange?: boolean;
+  /** New cards go first to people seen in the last 24 h (`suggest_today_first`) — only with simultaneous suggestions */
+  todayFirst?: boolean;
   /** Answering «مهتم» on a card the other side already said «مهتم» on costs no credit — only on with credit on interest */
   freeInterestReply?: boolean;
   /** Countries whose members are suggested without the score minimum (switches `sa_relaxed_matching`, `lb_relaxed_matching`). «شروط أساسية» still apply */
@@ -184,7 +194,7 @@ export async function getProEnabled(): Promise<boolean> {
 
 /** New user cycle switches (Admin → Settings). Both default to off. */
 export async function getCycleFlags(): Promise<CycleFlags> {
-  const [intro, chat, mutual, creditOnInterest, activeFirst, saRelaxed, freeReply, lbRelaxed, likedFirst, activeThree] = await Promise.all([
+  const [intro, chat, mutual, creditOnInterest, activeFirst, saRelaxed, freeReply, lbRelaxed, likedFirst, activeThree, ageRange, todayFirst] = await Promise.all([
     getSetting("intro_requests_enabled"),
     getSetting("chat_enabled"),
     getSetting("new_suggestions_flow"),
@@ -195,6 +205,8 @@ export async function getCycleFlags(): Promise<CycleFlags> {
     getSetting("lb_relaxed_matching"),
     getSetting("liked_first_in_new"),
     getSetting("suggest_active_3_days"),
+    getSetting("respect_age_range"),
+    getSetting("suggest_today_first"),
   ]);
   const introRequests = intro === "true";
   const mutualSuggestions = introRequests && mutual === "true";
@@ -208,6 +220,8 @@ export async function getCycleFlags(): Promise<CycleFlags> {
     activeFirstFeed: mutualSuggestions && activeFirst === "true",
     likedFirstInNew: mutualSuggestions && likedFirst === "true",
     activeThreeDays: mutualSuggestions && activeThree === "true",
+    respectAgeRange: mutualSuggestions && ageRange === "true",
+    todayFirst: mutualSuggestions && todayFirst === "true",
     relaxedCountries: [...(saRelaxed === "true" ? ["SA"] : []), ...(lbRelaxed === "true" ? ["LB"] : [])],
   };
 }

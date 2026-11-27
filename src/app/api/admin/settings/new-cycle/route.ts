@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 import { closeLegacyInFlight } from "@/lib/suggestions/mutual";
 
 async function state() {
-  const [flags, chatRaw, mutualRaw, creditRaw, activeFirstRaw, saRelaxedRaw, lbRelaxedRaw, freeReplyRaw, paywallRaw, proRaw, chatDeleteRaw, redesignRaw, chatWaRaw, authRedesignRaw, jodRaw, religionRaw, likedFirstRaw, activeThreeRaw, migration] = await Promise.all([
+  const [flags, chatRaw, mutualRaw, creditRaw, activeFirstRaw, saRelaxedRaw, lbRelaxedRaw, freeReplyRaw, paywallRaw, proRaw, chatDeleteRaw, redesignRaw, chatWaRaw, authRedesignRaw, jodRaw, religionRaw, likedFirstRaw, activeThreeRaw, ageRangeRaw, todayFirstRaw, migration] = await Promise.all([
     getCycleFlags(),
     getSetting("chat_enabled"),
     getSetting("new_suggestions_flow"),
@@ -25,6 +25,8 @@ async function state() {
     getSetting("religion_enabled"),
     getSetting("liked_first_in_new"),
     getSetting("suggest_active_3_days"),
+    getSetting("respect_age_range"),
+    getSetting("suggest_today_first"),
     db.systemSetting.findUnique({ where: { key: "migration_new_cycle_v1" } }),
   ]);
   return {
@@ -35,6 +37,8 @@ async function state() {
     activeFirstFeed: activeFirstRaw === "true",
     likedFirstInNew: likedFirstRaw === "true",
     activeThreeDays: activeThreeRaw === "true",
+    respectAgeRange: ageRangeRaw === "true",
+    todayFirst: todayFirstRaw === "true",
     saRelaxedMatching: saRelaxedRaw === "true",
     lbRelaxedMatching: lbRelaxedRaw === "true",
     freeInterestReply: freeReplyRaw === "true",
@@ -71,6 +75,8 @@ const schema = z.object({
   likedFirstInNew: z.boolean().optional(),
   /** New cards and «جديدة» only with people seen in the last 3 days */
   activeThreeDays: z.boolean().optional(),
+  respectAgeRange: z.boolean().optional(),
+  todayFirst: z.boolean().optional(),
   saRelaxedMatching: z.boolean().optional(),
   lbRelaxedMatching: z.boolean().optional(),
   freeInterestReply: z.boolean().optional(),
@@ -120,6 +126,12 @@ export async function PATCH(request: Request) {
     }
     if (parsed.data.activeThreeDays !== undefined) {
       await setSetting("suggest_active_3_days", String(parsed.data.activeThreeDays));
+    }
+    if (parsed.data.respectAgeRange !== undefined) {
+      await setSetting("respect_age_range", String(parsed.data.respectAgeRange));
+    }
+    if (parsed.data.todayFirst !== undefined) {
+      await setSetting("suggest_today_first", String(parsed.data.todayFirst));
     }
     if (parsed.data.saRelaxedMatching !== undefined) {
       await setSetting("sa_relaxed_matching", String(parsed.data.saRelaxedMatching));

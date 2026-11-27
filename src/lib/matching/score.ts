@@ -461,6 +461,23 @@ export function passesDealbreakers(owner: ProfileForScoring, other: ProfileForSc
   return keys.every((k) => dealbreakerHolds(k, owner, other, otherGender) !== false);
 }
 
+/** `other`'s age is inside `owner`'s prefAgeMin–prefAgeMax. An empty bound is open; an unknown age fails a set bound. */
+function insideAgeRange(owner: ProfileForScoring, other: ProfileForScoring): boolean {
+  if (!owner.prefAgeMin && !owner.prefAgeMax) return true;
+  const age = getAge(other.dateOfBirth);
+  if (age === null) return false;
+  return (!owner.prefAgeMin || age >= owner.prefAgeMin) && (!owner.prefAgeMax || age <= owner.prefAgeMax);
+}
+
+/**
+ * Each person is inside the other's age range (switch `respect_age_range`, 2026-11-27). Unlike the age «شرط أساسي»
+ * this is checked for everyone, and `generate` may still fill a short list with pairs that fail it.
+ */
+export function ageRangesFit(a: UserForScoring, b: UserForScoring): boolean {
+  if (!a.profile || !b.profile) return false;
+  return insideAgeRange(a.profile, b.profile) && insideAgeRange(b.profile, a.profile);
+}
+
 /** A pair may be suggested only when each passes the other's dealbreakers. */
 export function mutuallyAcceptable(a: UserForScoring, b: UserForScoring): boolean {
   if (!a.profile || !b.profile) return false;

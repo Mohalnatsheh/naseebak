@@ -12,7 +12,7 @@
  * `no_candidates`, never `weekly_cap`.
  */
 import { db } from "@/lib/db";
-import { ageRangesFit, calculateCompatibility, mutuallyAcceptable } from "@/lib/matching/score";
+import { acceptsAge, ageRangesFit, calculateCompatibility, mutuallyAcceptable } from "@/lib/matching/score";
 import { religionsMatch } from "@/lib/profile-religion";
 import { meetsSuggestionGate } from "@/lib/profile-completeness";
 import { notifyCreditsExhausted, recordCredit, refundCredits, reserveCredits, WEEKLY_FREE_SUGGESTIONS } from "@/lib/credits";
@@ -556,12 +556,15 @@ async function generate(userId: string): Promise<SuggestOutcome> {
   let free = ranked.filter((r) => !pairsInFlight.has(pairKey(r.candidate.id)));
   if (mutual && flags.todayFirst) {
     const since = Date.now() - TODAY_MS;
-    free = todayFirstOrder(free, (r) => !!r.candidate.lastActiveAt && r.candidate.lastActiveAt.getTime() >= since);
+    // A full candidate would get the card hidden, so they never count as "today" (orderForSlots keeps them after free ones)
+    const full = (id: string) => creditOnInterest && (busy.get(id) ?? 0) >= MAX_OPEN_SUGGESTIONS;
+    free = todayFirstOrder(free, (r) => !full(r.candidate.id) && !!r.candidate.lastActiveAt && r.candidate.lastActiveAt.getTime() >= since);
   }
   let top = mutual && flags.respectAgeRange
     ? pickNewCards(
         free.filter((r) => ageRangesFit(user, r.candidate)),
-        free.filter((r) => !ageRangesFit(user, r.candidate)),
+        // The safety net eases only the member's own range: never a card for someone whose range the member breaks
+        free.filter((r) => !ageRangesFit(user, r.candidate) && acceptsAge(r.candidate, user)),
         limit,
         // Open cards right now (limit = room left under MAX_OPEN_SUGGESTIONS); the per-request mode has no slots
         creditOnInterest ? MAX_OPEN_SUGGESTIONS - limit : 0,

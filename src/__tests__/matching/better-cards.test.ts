@@ -193,3 +193,36 @@ describe("both switches on", () => {
     expect(createdIds()).toEqual(["inToday", "inOld"]);
   });
 });
+
+describe("review fixes", () => {
+  it("today-first never prefers a full candidate (her card would be hidden) over a free one", async () => {
+    flags.getCycleFlags.mockResolvedValue({ ...base, todayFirst: true });
+    openRows(9); // room for 1
+    db.user.findUnique.mockResolvedValue(person("m5", "MALE"));
+    db.user.findMany.mockResolvedValue([person("fullToday", "FEMALE", 30, 2), person("freeYesterday", "FEMALE", 30, 30)]);
+    scoring.scoreFor.set("fullToday", 80);
+    scoring.scoreFor.set("freeYesterday", 78);
+    // openCounts: fullToday already holds 10 open cards
+    db.suggestion.groupBy.mockResolvedValueOnce([{ recipientId: "fullToday", _count: 10 }]).mockResolvedValue([]);
+    expect(await autoSuggestForUser("m5")).toBe(1);
+    expect(createdIds()).toEqual(["freeYesterday"]);
+  });
+
+  it("the safety net never pushes a card onto someone whose own range the member breaks", async () => {
+    flags.getCycleFlags.mockResolvedValue({ ...base, respectAgeRange: true });
+    openRows(0);
+    // He is 24; she (30) wants 28–35, so he breaks HER range. He wants 20–40, she fits his.
+    const him = { ...person("m6", "MALE", 24) };
+    const her = person("strict", "FEMALE", 30);
+    her.profile = { ...her.profile, prefAgeMin: 28, prefAgeMax: 35 };
+    // She is 45: outside HIS range only; her own range (20–40... widened) accepts him
+    const older = person("older", "FEMALE", 45);
+    older.profile = { ...older.profile, prefAgeMin: 20, prefAgeMax: 50 };
+    db.user.findUnique.mockResolvedValue(him);
+    db.user.findMany.mockResolvedValue([her, older]);
+    scoring.scoreFor.set("strict", 90);
+    scoring.scoreFor.set("older", 70);
+    expect(await autoSuggestForUser("m6")).toBe(1);
+    expect(createdIds()).toEqual(["older"]);
+  });
+});

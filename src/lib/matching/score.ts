@@ -469,9 +469,14 @@ function insideAgeRange(owner: ProfileForScoring, other: ProfileForScoring): boo
   return (!owner.prefAgeMin || age >= owner.prefAgeMin) && (!owner.prefAgeMax || age <= owner.prefAgeMax);
 }
 
+/** `other` is inside `owner`'s age range (one direction of `ageRangesFit`) */
+export function acceptsAge(owner: UserForScoring, other: UserForScoring): boolean {
+  return !!owner.profile && !!other.profile && insideAgeRange(owner.profile, other.profile);
+}
+
 /**
  * Each person is inside the other's age range (switch `respect_age_range`, 2026-11-27). Unlike the age «شرط أساسي»
- * this is checked for everyone, and `generate` may still fill a short list with pairs that fail it.
+ * this is checked for everyone; `generate`'s safety net may still ease the member's own range, never the other's.
  */
 export function ageRangesFit(a: UserForScoring, b: UserForScoring): boolean {
   if (!a.profile || !b.profile) return false;

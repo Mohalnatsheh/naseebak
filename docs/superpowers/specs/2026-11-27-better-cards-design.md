@@ -31,12 +31,12 @@ Two switches in `system_settings`, off by default, set in Admin → Settings, on
 
 **`respect_age_range`** (`CycleFlags.respectAgeRange`)
 - In `generate`, a candidate fits only when each person's age is inside the other's `prefAgeMin`–`prefAgeMax` (an empty bound is open; an unknown age fails a set bound, as the age «شرط أساسي» does).
-- Safety net (builder's call, approved): if the member would hold fewer than `AGE_SAFETY_OPEN` (5) open «جديدة» cards after the in-range cards are added, the gap up to 5 may be filled with out-of-range candidates, best order first.
+- Safety net (builder's call, approved): if the member would hold fewer than `AGE_SAFETY_OPEN` (5) open «جديدة» cards after the in-range cards are added, the gap up to 5 may be filled with candidates outside the member's own range, best order first, but never with someone whose own range the member breaks (review fix: women would otherwise still get out-of-range cards from men's top-ups).
 - Not affected: existing cards, second-chance cards, revealing hidden cards.
 - `memberSuggestStatus` needs no logic change: it counts candidates only when the member has 0 open cards, and then the safety net lets every candidate through. The filter tip is unchanged for the same reason (age never empties a feed).
 
 **`suggest_today_first`** (`CycleFlags.todayFirst`)
-- New cards are ordered: score ≥ `PREFERRED_SCORE` and seen in the last 24 h, then ≥ `PREFERRED_SCORE` seen in 3 (or 7) days, then below `PREFERRED_SCORE` seen in 24 h, then the rest. Within each group the current order (`orderForSlots`) is kept. Nobody is removed, so men's smaller pool is filled from 3-day people as now.
+- New cards are ordered: score ≥ `PREFERRED_SCORE` and seen in the last 24 h, then ≥ `PREFERRED_SCORE` seen in 3 (or 7) days, then below `PREFERRED_SCORE` seen in 24 h, then the rest. Within each group the current order (`orderForSlots`) is kept, and a candidate who is full (their card would be hidden) never counts as seen today (review fix). Nobody is removed, so men's smaller pool is filled from 3-day people as now.
 - `memberSuggestStatus` needs no change (order only).
 
 ## Testing

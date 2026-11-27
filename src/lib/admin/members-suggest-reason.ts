@@ -17,7 +17,7 @@ import {
   secondChanceCards,
   weeklyCounts,
 } from "@/lib/matching/auto-suggest";
-import { calculateCompatibility, mutuallyAcceptable, passesDealbreakers } from "@/lib/matching/score";
+import { acceptsAge, calculateCompatibility, mutuallyAcceptable, passesDealbreakers } from "@/lib/matching/score";
 import { religionsMatch } from "@/lib/profile-religion";
 import { meetsSuggestionGate } from "@/lib/profile-completeness";
 import { getCycleFlags } from "@/lib/settings";
@@ -105,9 +105,12 @@ async function suitableCandidates(
   const minScore = minSuggestionScore(flags, user.country);
   const gated = candidates.filter((c) => meetsSuggestionGate(c, perRequestCredits));
   // Mirrors `rank` in generate: shared flow = every rule incl. «الديانة»; legacy = «الديانة» only.
-  // `respect_age_range` needs nothing here: this runs only with 0 open cards, where its safety net (AGE_SAFETY_OPEN)
-  // lets people outside the age ranges through too. `suggest_today_first` only changes the order.
-  const accepted = gated.filter((c) => (mutual ? mutuallyAcceptable(user, c) : religionsMatch(user.profile, c.profile)));
+  // `respect_age_range`: this runs only with 0 open cards, where the safety net (AGE_SAFETY_OPEN) lets through people
+  // outside the member's own range, but never someone whose range the member breaks (filtered below).
+  // `suggest_today_first` only changes the order.
+  const accepted = gated.filter((c) => (mutual ? mutuallyAcceptable(user, c) : religionsMatch(user.profile, c.profile)))
+    // `respect_age_range`: even the safety net never makes a card for someone whose own age range the member breaks
+    .filter((c) => !(mutual && flags.respectAgeRange) || acceptsAge(c, user));
   // Everything else holds and only «الديانة» fails
   const blockedByReligion = gated.filter(
     (c) =>

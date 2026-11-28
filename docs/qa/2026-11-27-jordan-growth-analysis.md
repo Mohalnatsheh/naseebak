@@ -55,7 +55,7 @@ Base: 2,512 live, finished members, 1,679 men and 833 women. Active in 7 days: 8
 
 ## Done from this analysis
 
-- `respect_age_range` and `suggest_today_first` built and deployed off (`3678495a`); `respect_age_range` turned on 2026-11-27 17:01 Amman. Before: 47% of new Jordanian cards broke someone's age range; after: 0 of the first 27.
+- `respect_age_range` and `suggest_today_first` built and deployed off (`3678495a`); `respect_age_range` turned on 2026-11-27 17:01 Amman. Before: 47% of new Jordanian cards broke someone's age range; after: 4.8% (safety net). First 19 h vs the day before: women's «مهتم» on new cards 18% → 39%, matches from new cards 72 → 143. Lebanon did worse under it (23% of active men with no cards, matches from new cards 35 → 19), so since 2026-11-28 it is Jordan only.
 
 ## Next changes, ranked
 

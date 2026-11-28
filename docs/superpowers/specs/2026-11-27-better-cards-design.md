@@ -46,3 +46,12 @@ Unit tests for both rules, the safety net and both switches off (same output as 
 ## Left to the builder
 
 Helper names, where the age-fit helper lives (db-free, next to `mutuallyAcceptable`), test layout.
+
+## Change 2026-11-28: Jordan only (owner)
+
+First 19 hours with `respect_age_range` on, against the same hours a day earlier:
+
+- Jordan: women's «مهتم» on new cards 18% → 39%, men steady (55% → 51%), matches from new cards 72 → 143, 4% of active members with no cards.
+- Lebanon (564 men, 202 women): new cards 1,215 → 790, women's «مهتم» unchanged (26% → 27%), matches from new cards 35 → 19, 23% of active men with no cards. The median active Lebanese man has 9 unseen, recently active women inside both ranges (Jordan: 83); the safety net cannot help, since the limit is mostly her range.
+
+So the rule now applies only to members of `AGE_RANGE_COUNTRIES` (`["JO"]`, `ageRangeApplies(flags, country)`), in `generate` and in `memberSuggestStatus`. Saudi Arabia and Lebanon work as with the switch off. The switch stays one toggle in Admin → Settings.

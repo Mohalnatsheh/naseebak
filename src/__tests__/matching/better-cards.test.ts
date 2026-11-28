@@ -25,7 +25,7 @@ vi.mock("@/lib/matching/score", async (importOriginal) => {
   };
 });
 
-import { AGE_SAFETY_OPEN, autoSuggestForUser, pickNewCards, todayFirstOrder } from "@/lib/matching/auto-suggest";
+import { AGE_SAFETY_OPEN, ageRangeApplies, autoSuggestForUser, pickNewCards, todayFirstOrder } from "@/lib/matching/auto-suggest";
 
 const HOUR = 60 * 60 * 1000;
 const YEAR = 365.25 * 24 * HOUR;
@@ -224,5 +224,25 @@ describe("review fixes", () => {
     scoring.scoreFor.set("older", 70);
     expect(await autoSuggestForUser("m6")).toBe(1);
     expect(createdIds()).toEqual(["older"]);
+  });
+});
+
+describe("respect_age_range is Jordan only (owner, 2026-11-28)", () => {
+  it("applies to Jordan only, and only with the switch on", () => {
+    expect(ageRangeApplies({ ...base, respectAgeRange: true }, "JO")).toBe(true);
+    expect(ageRangeApplies({ ...base, respectAgeRange: true }, "LB")).toBe(false);
+    expect(ageRangeApplies({ ...base, respectAgeRange: true }, "SA")).toBe(false);
+    expect(ageRangeApplies({ ...base, respectAgeRange: true }, null)).toBe(false);
+    expect(ageRangeApplies({ ...base, respectAgeRange: false }, "JO")).toBe(false);
+  });
+
+  it("a Lebanese member still gets an out-of-range card, as with the switch off", async () => {
+    flags.getCycleFlags.mockResolvedValue({ ...base, respectAgeRange: true });
+    openRows(5);
+    db.user.findUnique.mockResolvedValue({ ...person("lb1", "MALE"), country: "LB" });
+    db.user.findMany.mockResolvedValue([{ ...person("tooOld", "FEMALE", 45), country: "LB" }]);
+    scoring.scoreFor.set("tooOld", 90);
+    expect(await autoSuggestForUser("lb1")).toBe(1);
+    expect(createdIds()).toEqual(["tooOld"]);
   });
 });

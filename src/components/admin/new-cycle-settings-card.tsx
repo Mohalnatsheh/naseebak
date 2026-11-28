@@ -182,8 +182,8 @@ export function NewCycleSettingsCard() {
     {
       key: "respectAgeRange" as const,
       icon: ListOrdered,
-      title: "Respect both age ranges",
-      text: "New suggestions only pair people who are each inside the other's age range. A member with fewer than 5 open cards still gets out-of-range people to fill up to 5, so nobody's 'New' tab runs dry. Cards already made are not touched. Works in the current app and the website. Needs Simultaneous suggestions on.",
+      title: "Respect both age ranges (Jordan only)",
+      text: "Jordan only: new suggestions only pair people who are each inside the other's age range (Saudi Arabia and Lebanon are not affected). A member with fewer than 5 open cards still gets out-of-range people to fill up to 5, so nobody's 'New' tab runs dry. Cards already made are not touched. Works in the current app and the website. Needs Simultaneous suggestions on.",
       on: !!state?.introRequests && !!state?.mutualSuggestions && !!state?.respectAgeRange,
       disabled: !state?.introRequests || !state?.mutualSuggestions,
     },

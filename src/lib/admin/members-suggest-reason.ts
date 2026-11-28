@@ -9,6 +9,7 @@ import { activeWhere, CANDIDATE_FALLBACK_DAYS, candidateActiveDays, isActive, re
 import { WEEKLY_FREE_SUGGESTIONS } from "@/lib/credits";
 import { NOT_ENGAGED, isEngaged } from "@/lib/intro/followup";
 import {
+  ageRangeApplies,
   minSuggestionScore,
   nextSuggestionsAtFor,
   openSuggestionCount,
@@ -110,7 +111,7 @@ async function suitableCandidates(
   // `suggest_today_first` only changes the order.
   const accepted = gated.filter((c) => (mutual ? mutuallyAcceptable(user, c) : religionsMatch(user.profile, c.profile)))
     // `respect_age_range`: even the safety net never makes a card for someone whose own age range the member breaks
-    .filter((c) => !(mutual && flags.respectAgeRange) || acceptsAge(c, user));
+    .filter((c) => !(mutual && ageRangeApplies(flags, user.country)) || acceptsAge(c, user));
   // Everything else holds and only «الديانة» fails
   const blockedByReligion = gated.filter(
     (c) =>

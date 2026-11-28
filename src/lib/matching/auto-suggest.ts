@@ -88,6 +88,17 @@ export function minSuggestionScore(flags: CycleFlags, country?: string | null): 
 }
 
 /**
+ * `respect_age_range` covers Jordan only (owner, 2026-11-28): in Lebanon, with about 3 men per woman, it left
+ * 23% of active men with no cards and halved matches from new cards on its first day.
+ */
+export const AGE_RANGE_COUNTRIES: readonly string[] = ["JO"];
+
+/** Both age ranges are respected for a new card made for a member of this country */
+export function ageRangeApplies(flags: CycleFlags, country?: string | null): boolean {
+  return !!flags.respectAgeRange && !!country && AGE_RANGE_COUNTRIES.includes(country);
+}
+
+/**
  * Suggestions filling this user's slots: MUTUAL rows they haven't decided on (either side) + legacy
  * PENDING. A card whose other person has been away SLOT_IDLE_DAYS no longer fills a slot (slotMutualWhere).
  */
@@ -560,7 +571,7 @@ async function generate(userId: string): Promise<SuggestOutcome> {
     const full = (id: string) => creditOnInterest && (busy.get(id) ?? 0) >= MAX_OPEN_SUGGESTIONS;
     free = todayFirstOrder(free, (r) => !full(r.candidate.id) && !!r.candidate.lastActiveAt && r.candidate.lastActiveAt.getTime() >= since);
   }
-  let top = mutual && flags.respectAgeRange
+  let top = mutual && ageRangeApplies(flags, user.country)
     ? pickNewCards(
         free.filter((r) => ageRangesFit(user, r.candidate)),
         // The safety net eases only the member's own range: never a card for someone whose range the member breaks
